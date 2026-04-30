@@ -152,16 +152,20 @@ Never miss a market-moving story. Alphabrief automatically monitors your chosen 
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/alphabrief.git
-
-# Install dependencies
 cd alphabrief
-npm install
 
-# Add your environment variables
+# Frontend (React + TypeScript)
+cp frontend/.env.example frontend/.env
+npm --prefix frontend install
+npm --prefix frontend run dev
+
+# Backend (Python + FastAPI) (in a second terminal)
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 cp .env.example .env
-
-# Run locally
-npm run dev
+uvicorn app.main:app --reload --port 8000
 ```
 
 ---

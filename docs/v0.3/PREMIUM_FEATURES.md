@@ -57,7 +57,7 @@ Suggested limits:
 | Feature | Premium |
 |---|---:|
 | Basic briefs per day | 50 |
-| Deep briefs per day | 20 |
+| Deep briefs per month | 20 |
 | Pasted text length | 30,000 characters |
 | Saved brief history | High or unlimited |
 | Premium external context | Yes |

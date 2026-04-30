@@ -13,9 +13,9 @@ This version assumes the following stack:
 ```text
 Frontend: React + TypeScript + Vite
 Backend: Python + FastAPI
-Database: PostgreSQL
-Migrations: Alembic
-ORM: SQLAlchemy or SQLModel
+Database: PostgreSQL (planned for MVP data persistence)
+Migrations: Alembic (planned once database models are added)
+ORM: SQLAlchemy
 ```
 
 ---
@@ -42,7 +42,7 @@ Optional but recommended:
 
 ## 2. Project Structure
 
-Recommended structure:
+Current/recommended structure:
 
 ```text
 alphabrief/
@@ -55,12 +55,9 @@ alphabrief/
 │   │   ├── services/
 │   │   ├── repositories/
 │   │   └── main.py
-│   ├── alembic/
-│   ├── alembic.ini
 │   ├── requirements.txt
-│   ├── pyproject.toml
 │   ├── .env.example
-│   └── Dockerfile
+│   └── tests/
 │
 ├── frontend/
 │   ├── src/
@@ -68,8 +65,7 @@ alphabrief/
 │   ├── .env.example
 │   └── vite.config.ts
 │
-├── docs/
-└── docker-compose.yml
+└── docs/
 ```
 
 ---
@@ -92,20 +88,21 @@ Example backend `.env`:
 
 ```text
 APP_ENV=local
-APP_NAME=Alphabrief
-DEBUG=true
+APP_NAME=Alphabrief API
+APP_DEBUG=true
 
-DATABASE_URL=postgresql+psycopg://alphabrief:alphabrief@localhost:5432/alphabrief
+# Add these when database/auth/AI features are implemented:
+# DATABASE_URL=postgresql+psycopg://alphabrief:alphabrief@localhost:5432/alphabrief
 
-JWT_SECRET=replace_me_with_a_long_random_value
-ACCESS_TOKEN_EXPIRE_MINUTES=60
+# JWT_SECRET=replace_me_with_a_long_random_value
+# ACCESS_TOKEN_EXPIRE_MINUTES=60
 
-AI_PROVIDER_API_KEY=replace_me
-MARKET_DATA_API_KEY=replace_me
-NEWS_API_KEY=replace_me
+# AI_PROVIDER_API_KEY=replace_me
+# MARKET_DATA_API_KEY=replace_me
+# NEWS_API_KEY=replace_me
 
-FRONTEND_BASE_URL=http://localhost:5173
-BACKEND_BASE_URL=http://localhost:8000
+# FRONTEND_BASE_URL=http://localhost:5173
+# BACKEND_BASE_URL=http://localhost:8000
 
 CORS_ALLOWED_ORIGINS=http://localhost:5173
 ```
@@ -170,6 +167,8 @@ python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
 httpx
+pytest
+pytest-asyncio
 ```
 
 Optional later:
@@ -179,8 +178,6 @@ celery
 redis
 arq
 rq
-pytest
-pytest-asyncio
 ruff
 mypy
 ```
@@ -237,9 +234,9 @@ psql postgresql://alphabrief:alphabrief@localhost:5432/alphabrief
 
 ## 7. Database Migrations
 
-Alphabrief should use Alembic for database migrations.
+Alphabrief should use Alembic for database migrations once database models are added.
 
-Run migrations:
+When `alembic.ini` and migration scripts exist, run migrations with:
 
 ```bash
 alembic upgrade head
@@ -373,7 +370,7 @@ http://localhost:5173
 |---|---|
 | APP_ENV | local, staging, production |
 | APP_NAME | Application name |
-| DEBUG | Enables local debug mode |
+| APP_DEBUG | Enables local debug mode |
 | DATABASE_URL | PostgreSQL connection URL |
 | JWT_SECRET | Secret used for token signing |
 | ACCESS_TOKEN_EXPIRE_MINUTES | Access token lifetime |
@@ -394,25 +391,32 @@ http://localhost:5173
 
 ## 11. Local Development Flow
 
-Recommended startup order:
+Current startup order:
+
+```text
+1. Activate Python virtual environment
+2. Run FastAPI backend
+3. Run React/Vite frontend
+4. Open frontend in browser
+5. Test API through frontend or FastAPI docs
+```
+
+Once database models and migrations exist, start PostgreSQL and run Alembic before starting the backend:
 
 ```text
 1. Start PostgreSQL with Docker Compose
-2. Activate Python virtual environment
-3. Run Alembic migrations
-4. Run FastAPI backend
-5. Run React/Vite frontend
-6. Open frontend in browser
-7. Test API through frontend or FastAPI docs
+2. Run Alembic migrations
+3. Run FastAPI backend
 ```
 
 Commands:
 
 ```bash
-docker compose up -d
+# Once docker-compose.yml and migrations exist:
+# docker compose up -d
 cd backend
 source .venv/bin/activate
-alembic upgrade head
+# alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -436,6 +440,7 @@ Check:
 - `DATABASE_URL` matches Docker Compose credentials
 - PostgreSQL container is healthy
 - Alembic has been run
+- Database setup exists in the current implementation branch
 
 ### Frontend cannot call backend
 
@@ -512,11 +517,16 @@ ALPHA-BETA-2026
 
 Before pushing code:
 
-- PostgreSQL starts successfully
 - Backend starts successfully
 - Frontend starts successfully
-- Database migrations run successfully
 - FastAPI docs load at `/docs`
+- `GET /api/v1/health` returns `{ "status": "ok" }`
+- Frontend can reach the backend health endpoint
+
+Once database/auth/brief features are implemented:
+
+- PostgreSQL starts successfully
+- Database migrations run successfully
 - User can register/login
 - User can create brief from pasted text
 - User can view brief detail
