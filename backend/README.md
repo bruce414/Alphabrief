@@ -1,5 +1,15 @@
 # Backend (FastAPI)
 
+## PostgreSQL (local)
+
+From the `backend` directory, start Postgres with Docker Compose:
+
+```bash
+docker compose up -d
+```
+
+This runs PostgreSQL 17 with credentials matching `.env.example`. Copy `.env.example` to `.env` and adjust if needed.
+
 ## Setup
 
 ```bash
@@ -16,5 +26,6 @@ cp .env.example .env
 uvicorn app.main:app --reload --port 8000
 ```
 
-Then hit `GET http://localhost:8000/api/health`.
+Open Swagger docs at `http://localhost:8000/docs`.
 
+Health check: `GET http://localhost:8000/api/v1/health`.
