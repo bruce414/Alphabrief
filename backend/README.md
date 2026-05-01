@@ -1,38 +1,93 @@
-# Backend (FastAPI)
+# Alphabrief backend
 
-## PostgreSQL (local)
+FastAPI service with PostgreSQL, SQLAlchemy 2.x, and Alembic.
 
-From the `backend` directory, start Postgres with Docker Compose:
+**Not implemented yet:** AI brief generation, authentication, payments, usage limits, and subscriptions.
 
-```bash
-docker compose up -d
-```
+---
 
-This runs PostgreSQL 17 with credentials matching `.env.example`. Copy `.env.example` to `.env` and adjust if needed.
+## Local development checklist
 
-## Setup
+Run everything from the `backend` directory unless noted.
+
+### 1. Create virtual environment
 
 ```bash
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate
+```
+
+### 2. Install dependencies
+
+```bash
 pip install -r requirements.txt
+```
+
+### 3. Copy environment file
+
+```bash
 cp .env.example .env
 ```
 
-## Run (dev)
+Edit `.env` if your Postgres URL differs.
+
+### 4. Start PostgreSQL (Docker Compose)
+
+```bash
+docker compose up -d
+```
+
+### 5. Run Alembic migrations
+
+```bash
+alembic upgrade head
+```
+
+### 6. Start the FastAPI app
 
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-Open Swagger docs at `http://localhost:8000/docs`.
+### 7. Open Swagger docs
 
-Health check: `GET http://localhost:8000/api/v1/health`.
+In a browser: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-## Database migrations (Alembic)
+### 8. Test creating a brief
 
-Run from the `backend` directory with Postgres up (`docker compose up -d`) and `.env` configured:
+```bash
+curl -s -X POST http://localhost:8000/api/v1/briefs \
+  -H "Content-Type: application/json" \
+  -d '{"source_url": "https://example.com/article"}'
+```
+
+### Tests
+
+Requires Postgres running and migrations applied (same `DATABASE_URL` as the app).
+
+```bash
+pytest
+```
+
+---
+
+## HTTP API (current)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | Liveness-style health (also exposed without `/api/v1` prefix) |
+| `GET` | `/api/v1/health` | Health payload |
+| `GET` | `/api/v1/health/db` | Database connectivity (`SELECT 1`) |
+| `POST` | `/api/v1/briefs` | Create brief + initial URL source (`BriefCreate` → `BriefResponse`, `201`) |
+| `GET` | `/api/v1/briefs` | List briefs (`limit` default `20`, max `100`; `offset` default `0`; newest first) |
+| `GET` | `/api/v1/briefs/{brief_id}` | Fetch one brief with `sources` |
+
+---
+
+## Database migrations
+
+Generate and apply revisions (Postgres must be running):
 
 ```bash
 alembic revision --autogenerate -m "message"

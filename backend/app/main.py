@@ -14,4 +14,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.get("/health")
+def root_health() -> dict[str, str]:
+    return {"status": "ok", "service": "alphabrief-backend"}
+
+
 app.include_router(api_router)
