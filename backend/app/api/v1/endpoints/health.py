@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
-from app.core.database import SessionLocal
+from app.core.database import get_db
 
 router = APIRouter()
 
@@ -13,8 +14,7 @@ def health() -> dict[str, str]:
 
 
 @router.get("/health/db")
-def health_db() -> dict[str, str]:
-    db = SessionLocal()
+def health_db(db: Session = Depends(get_db)) -> dict[str, str]:
     try:
         db.execute(text("SELECT 1"))
     except SQLAlchemyError:
@@ -22,6 +22,4 @@ def health_db() -> dict[str, str]:
             status_code=503,
             detail="Database connection failed",
         ) from None
-    finally:
-        db.close()
     return {"status": "ok", "database": "connected"}
