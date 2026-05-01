@@ -29,3 +29,12 @@ uvicorn app.main:app --reload --port 8000
 Open Swagger docs at `http://localhost:8000/docs`.
 
 Health check: `GET http://localhost:8000/api/v1/health`.
+
+## Database migrations (Alembic)
+
+Run from the `backend` directory with Postgres up (`docker compose up -d`) and `.env` configured:
+
+```bash
+alembic revision --autogenerate -m "message"
+alembic upgrade head
+```

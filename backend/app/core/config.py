@@ -31,7 +31,16 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
 
+    @property
+    def DATABASE_URL(self) -> str:
+        """Same value as ``database_url`` (``DATABASE_URL`` env); Alembic uses this name."""
+        return self.database_url
+
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+# Cached singleton for imports such as Alembic (`from app.core.config import settings`).
+settings = get_settings()
