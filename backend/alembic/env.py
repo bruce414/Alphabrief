@@ -1,4 +1,16 @@
+"""Alembic migration environment."""
+
+from __future__ import annotations
+
+import sys
 from logging.config import fileConfig
+from pathlib import Path
+
+# Ensure `app` resolves no matter which directory launches Alembic (e.g. repo root vs backend/).
+_BACKEND_ROOT = Path(__file__).resolve().parents[1]
+_root_str = str(_BACKEND_ROOT)
+if _root_str not in sys.path:
+    sys.path.insert(0, _root_str)
 
 from sqlalchemy import create_engine, pool
 
