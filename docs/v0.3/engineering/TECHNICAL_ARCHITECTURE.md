@@ -1,62 +1,87 @@
-# Alphabrief v0.3 Technical Architecture
+# AlphaBrief v0.3 Technical Architecture
 
 ## Version
 
-`v0.3 MVP`
+`v0.3 First Milestone`
 
 ## Status
 
-Draft for MVP implementation.
+Architecture draft for the first major AlphaBrief milestone.
 
----
-
-## 1. Overview
-
-Alphabrief is an AI-powered summarisation and investment research assistant for retail investors and finance-minded users.
-
-Users can submit a financial source, such as a YouTube video, finance article, earnings commentary, market update, or pasted text. Alphabrief extracts the important information, identifies relevant financial entities, retrieves relevant context, and produces a structured investor-friendly brief.
-
-For the free tier, Alphabrief focuses mainly on:
-
-- The submitted source itself
-- Directly mentioned companies/tickers/entities
-- Basic company/entity context
-- Source-specific risks and takeaways
-
-For the Pro tier, Alphabrief goes deeper by adding broader context around:
-
-- Industry trends
-- Competitor dynamics
-- Macro factors
-- Political/regulatory factors
-- Market sentiment
-- Earnings or valuation context where available
-
-The v0.3 architecture should be simple enough to build quickly, but structured enough that the system can grow into a more advanced financial intelligence product later.
-
----
-
-## 2. Product Goals
-
-The v0.3 MVP should prove three things:
-
-1. Users can submit financial content from multiple input types.
-2. Alphabrief can generate a useful, structured investor brief.
-3. The product can clearly separate free-tier and Pro-tier insight depth.
-
-The MVP does not need to become a full portfolio platform, brokerage product, or institutional research terminal.
-
-The main goal is:
+Earlier v0.1/v0.2 ideas are now treated as internal implementation slices inside v0.3:
 
 ```text
-Turn messy finance content into a clear, structured investor brief.
+v0.3 foundation slice
+v0.3 source/question brief flow
+v0.3 agentic/deep analysis flow
+v0.3 validation before launch
 ```
 
 ---
 
-## 3. Recommended Stack
+# 1. Overview
 
-### Frontend
+AlphaBrief is an AI finance research assistant for students, beginner investors, and finance-minded users.
+
+Users can submit:
+
+- A finance article URL
+- A YouTube video URL
+- A PDF such as an earnings report or annual report
+- Pasted text
+- A direct finance or market question
+- A source plus an additional research instruction
+
+AlphaBrief extracts or interprets the input, identifies relevant financial entities, retrieves relevant context when allowed, and produces a structured finance research brief.
+
+The product should not only summarise.
+
+It should explain:
+
+```text
+What happened
+Why it matters
+Who it affects
+What the implications are
+What evidence supports it
+What remains uncertain
+What to research next
+```
+
+The central product artifact is:
+
+```text
+Brief
+```
+
+A source is optional input. A direct finance question can create a brief without a source.
+
+---
+
+# 2. Product Goals
+
+The v0.3 first milestone should prove:
+
+1. Users can create briefs from multiple input types.
+2. Users can ask direct finance questions and receive structured finance research briefs.
+3. AlphaBrief can produce differentiated output beyond generic summaries.
+4. AlphaBrief can support source-based, question-based, and mixed workflows.
+5. The backend can support async or job-based brief generation.
+6. The product can separate free/basic and Pro/deep analysis.
+7. The product can use research scopes without publicly ranking individual sources.
+8. The product can track usage and cost enough to avoid AI budget chaos.
+
+Main product goal:
+
+```text
+Turn messy finance content or finance questions into clear, structured, source-aware research briefs.
+```
+
+---
+
+# 3. Recommended Stack
+
+## Frontend
 
 ```text
 React
@@ -66,7 +91,7 @@ TailwindCSS
 shadcn/ui or similar component library
 ```
 
-### Backend
+## Backend
 
 ```text
 Python
@@ -77,22 +102,22 @@ Pydantic
 PostgreSQL
 ```
 
-### Background Processing
+## Background Processing
 
-For early v0.3, brief generation can start synchronously if needed.
+For early v0.3, generation can start synchronously if needed.
 
-However, the architecture should be designed so it can move to async/background processing.
+The architecture should still be async-ready.
 
-Recommended later options:
+Recommended options:
 
 ```text
-Celery + Redis
+FastAPI BackgroundTasks for simple local MVP
 RQ + Redis
+Celery + Redis
 Arq + Redis
-FastAPI BackgroundTasks for very simple local MVP usage
 ```
 
-### External Services
+## External Services
 
 Possible external services:
 
@@ -100,15 +125,15 @@ Possible external services:
 AI model provider
 Article extraction provider
 YouTube transcript provider
+PDF extraction library/service
 Market/company data provider
 News/search provider
+Object storage for uploaded PDFs and exports
 ```
 
 ---
 
-## 4. High-Level Architecture
-
-Recommended v0.3 shape:
+# 4. High-Level Architecture
 
 ```text
 React/Vite Frontend
@@ -117,102 +142,216 @@ FastAPI Backend
         ↓
 Service Layer
         ↓
-SQLAlchemy Repositories
+Repository Layer
         ↓
 PostgreSQL
 ```
 
-AI and data-provider calls should be isolated behind service/client classes:
+External services should be isolated behind client classes:
 
 ```text
 AI Provider Client
 Article Extraction Client
 Transcript Client
+PDF Extraction Client
 Market Data Client
 News/Search Client
+Object Storage Client
+Research Channel Registry
 ```
 
-The backend should own:
+The backend owns:
 
 - Authentication
 - Authorization
 - Brief orchestration
+- Input classification
 - Source extraction
+- PDF handling
 - Entity detection
+- Event and claim extraction
+- Research scope resolution
+- Research channel selection
 - Context retrieval
 - AI generation
+- AI output validation
 - Subscription entitlement checks
-- Promo-code redemption
 - Usage limits
-- Persistence
+- Promo-code redemption
+- Brief persistence
+- Sharing/export generation
 
-The frontend should own:
+The frontend owns:
 
-- Source input UI
+- Input UI
+- File upload UI
+- Research scope selection UI
 - Brief generation status UI
-- Brief result display
+- Brief detail display
 - Brief history
 - Login/signup screens
-- Subscription/promo-code page
-- Locked premium sections
-- Error and loading states
+- Subscription/promo-code UI
+- Share/export UI
+- Loading/error states
 
 ---
 
-## 5. Core User Flow
+# 5. Core User Flows
 
-### 5.1 Free User Flow
+## 5.1 Research Scope Selection Flow
 
 ```text
-User submits source
+User starts a new brief
         ↓
-Backend validates source type and usage limit
+Frontend shows research scope options
         ↓
-System extracts raw content
+Default selected option is Recommended Sources
+        ↓
+User accepts default or selects broader scope
+        ↓
+Backend stores selected researchScope on the brief
+        ↓
+ContextRetrievalService searches only allowed source categories
+```
+
+Recommended UI options:
+
+```text
+Recommended Sources
+Expanded Market Context
+Sentiment & Discussion Signals
+User-Provided Sources Only
+```
+
+The UI must not display ranked lists of publishers or channels.
+
+---
+
+## 5.2 Source-Based Brief Flow
+
+```text
+User submits article/video/PDF/text
+        ↓
+Backend validates input type and usage limit
+        ↓
+Backend creates source
+        ↓
+Backend creates brief with source_id
+        ↓
+Backend creates brief_generation_job
+        ↓
+System extracts/transcribes raw content
         ↓
 System cleans content
         ↓
-System identifies financial entities
+System identifies entities, events, and claims
         ↓
-System retrieves basic company/entity context
+System applies selected research scope
         ↓
-AI generates structured basic brief
+System retrieves context where allowed
         ↓
-Backend stores brief and entity insights
+AI generates structured brief
         ↓
-User views summary, key takeaways, entity insights, and risks
+Backend validates and persists output
+        ↓
+User views brief
 ```
 
-### 5.2 Pro User Flow
+---
+
+## 5.3 Question-Based Brief Flow
 
 ```text
-User submits source
+User asks finance question
         ↓
-Backend validates source type and Pro entitlement
+Backend validates question and usage limit
         ↓
-System extracts raw content
+Backend creates brief with source_id = null
         ↓
-System cleans content
+Backend stores question in user_query
         ↓
-System identifies financial entities
+Backend creates brief_generation_job
         ↓
-System retrieves company-level context
+System classifies intent
         ↓
-System retrieves broader context:
-    - Industry trends
-    - Competitor movement
-    - Macro factors
-    - Regulatory/political factors
-    - Market sentiment
+System detects entities/topics
         ↓
-AI generates deeper investment brief
+System applies selected research scope
         ↓
-Backend stores brief, entity insights, and external context items
+System retrieves context where allowed
         ↓
-User views richer entity analysis and environment-level insights
+AI generates structured research brief
+        ↓
+Backend validates and persists output
+        ↓
+User views brief
 ```
 
-### 5.3 Promo Code Flow
+Example:
+
+```text
+“Analyse the fintech industry for me”
+```
+
+---
+
+## 5.4 Mixed Brief Flow
+
+```text
+User uploads/pastes source and adds research instruction
+        ↓
+Backend creates source
+        ↓
+Backend creates brief with source_id and user_query
+        ↓
+Pipeline processes both source and question together
+        ↓
+AI generates structured brief
+```
+
+Example:
+
+```text
+“Use this Visa annual report and explain whether fintech disruption is a serious risk.”
+```
+
+---
+
+## 5.5 Free User Flow
+
+Free/basic brief should include:
+
+- Quick summary
+- Key facts
+- Key takeaways
+- So What?
+- Basic implication map
+- Mentioned financial entities
+- Basic finance concepts
+- Basic risks
+- Research path recommendations
+- Disclaimer
+
+---
+
+## 5.6 Pro / Deep Brief Flow
+
+Pro/deep brief should include everything in free/basic, plus:
+
+- Industry context
+- Competitor context
+- Macro context
+- Political/regulatory context
+- Market sentiment where available
+- Event-to-entity impact reasoning
+- Claim/evidence support status
+- Contradictions or tensions across sources
+- What would change this view
+- Richer source evidence panel
+
+---
+
+## 5.7 Promo Code Flow
 
 ```text
 User enters promo code
@@ -225,49 +364,74 @@ Backend creates user entitlement
         ↓
 Backend records promo code redemption
         ↓
-User receives Pro access
+User receives upgraded access
 ```
 
-Promo codes should not bypass backend authorization. They should create an entitlement, and Pro-only features should check active entitlements.
+Promo codes should create entitlements. They should not bypass authorization.
 
 ---
 
-## 6. Frontend Architecture
+# 6. Frontend Architecture
 
-### Recommended Stack
-
-- React
-- TypeScript
-- Vite
-- TailwindCSS
-- shadcn/ui or similar component library
-
-### Key Pages
+## Key Pages
 
 | Page | Purpose |
 |---|---|
-| Landing page | Explain Alphabrief and its value proposition |
-| Sign in / Sign up | Basic authentication |
-| Dashboard | Show recent briefs and main input box |
-| New Brief page | Submit URL or pasted text |
+| Landing page | Explain AlphaBrief and value proposition |
+| Sign in / Sign up | Authentication |
+| Dashboard | Recent briefs and main input |
+| New Brief page | Submit URL, PDF, pasted text, or finance question |
 | Brief Detail page | Display generated brief |
 | Brief History page | List previous briefs |
-| Subscription page | Show current plan and promo-code input |
-| Pricing page | Explain Free vs Pro behavior |
+| Subscription page | Current plan, limits, promo-code input |
+| Pricing page | Explain Free vs Pro / Student behavior |
+| Shared Brief page | Public-safe brief view |
+| Export page/modal | Download Markdown/PDF/DOCX where enabled |
 
-### Frontend Responsibilities
+## New Brief Page Requirements
 
-- Collect source input
+The main input should support:
+
+```text
+Paste a link, upload a PDF, paste text, or ask a finance question.
+```
+
+Frontend should send:
+
+```text
+inputType
+input or sourceId
+userQuery
+requestedDepth
+researchScope
+```
+
+The UI should avoid forcing users into confusing modes.
+
+Main action:
+
+```text
+Create Brief
+```
+
+## Frontend Responsibilities
+
+- Collect source/question input
+- Detect likely input type client-side where helpful
+- Allow PDF upload
+- Show safe research-scope choices
 - Display validation errors
 - Call backend APIs
-- Poll brief status if generation is async
-- Display generated brief sections
-- Show locked Pro sections for free users
-- Display user subscription status
+- Poll brief status
+- Show job progress where available
+- Render generated brief sections
+- Show locked Pro sections where appropriate
+- Display subscription/usage status
 - Submit promo codes
-- Handle loading and error states
+- Handle sharing/export flows
+- Handle loading/error states
 
-### Recommended Frontend Structure
+## Recommended Frontend Structure
 
 ```text
 frontend/src/
@@ -276,7 +440,9 @@ frontend/src/
 ├── features/
 │   ├── auth/
 │   ├── briefs/
+│   ├── sources/
 │   ├── subscription/
+│   ├── sharing/
 │   └── layout/
 ├── pages/
 ├── routes/
@@ -286,33 +452,9 @@ frontend/src/
 
 ---
 
-## 7. Backend Architecture
+# 7. Backend Architecture
 
-### Recommended Stack
-
-- Python
-- FastAPI
-- SQLAlchemy 2.x
-- Alembic
-- Pydantic
-- PostgreSQL
-- Uvicorn
-
-### Backend Responsibilities
-
-- User and auth management
-- Source submission
-- Brief orchestration
-- AI pipeline coordination
-- Entity extraction persistence
-- Entitlement-based subscription enforcement
-- Promo-code redemption
-- Usage limit enforcement
-- Brief history storage
-- API response formatting
-- Error handling
-
-### Recommended Backend Structure
+## Recommended Backend Structure
 
 ```text
 backend/app/
@@ -321,9 +463,14 @@ backend/app/
 │   └── v1/
 │       ├── auth.py
 │       ├── users.py
+│       ├── sources.py
 │       ├── briefs.py
 │       ├── entities.py
+│       ├── research_scopes.py
 │       ├── subscription.py
+│       ├── sharing.py
+│       ├── exports.py
+│       ├── referrals.py
 │       └── health.py
 │
 ├── core/
@@ -345,47 +492,74 @@ backend/app/
 │   ├── source.py
 │   ├── brief.py
 │   ├── brief_generation_job.py
+│   ├── research_channel.py
+│   ├── brief_source.py
 │   ├── financial_entity.py
 │   ├── brief_entity_insight.py
+│   ├── brief_event.py
+│   ├── brief_claim.py
+│   ├── brief_citation.py
 │   ├── external_context_item.py
-│   └── user_usage_daily.py
+│   ├── brief_share.py
+│   ├── brief_export.py
+│   ├── referral.py
+│   ├── credit_transaction.py
+│   ├── user_usage_daily.py
+│   └── plan_limit.py
 │
 ├── schemas/
 │   ├── auth.py
+│   ├── source.py
 │   ├── brief.py
 │   ├── entity.py
 │   ├── subscription.py
+│   ├── sharing.py
+│   ├── export.py
 │   └── common.py
 │
 ├── repositories/
 │   ├── user_repository.py
+│   ├── source_repository.py
 │   ├── brief_repository.py
+│   ├── brief_job_repository.py
 │   ├── entitlement_repository.py
 │   ├── promo_code_repository.py
-│   └── usage_repository.py
+│   ├── usage_repository.py
+│   └── referral_repository.py
 │
 ├── services/
 │   ├── auth_service.py
 │   ├── access_service.py
 │   ├── promo_code_service.py
 │   ├── usage_limit_service.py
+│   ├── input_classification_service.py
+│   ├── research_scope_service.py
+│   ├── research_channel_service.py
 │   ├── source_extraction_service.py
+│   ├── pdf_extraction_service.py
 │   ├── entity_detection_service.py
+│   ├── event_detection_service.py
+│   ├── claim_extraction_service.py
 │   ├── context_retrieval_service.py
+│   ├── brief_orchestration_service.py
 │   ├── brief_generation_service.py
-│   └── ai_output_validation_service.py
+│   ├── ai_output_validation_service.py
+│   ├── sharing_service.py
+│   ├── export_service.py
+│   └── referral_service.py
 │
 ├── clients/
 │   ├── ai_provider_client.py
 │   ├── article_extraction_client.py
 │   ├── transcript_client.py
 │   ├── market_data_client.py
-│   └── news_search_client.py
+│   ├── news_search_client.py
+│   └── object_storage_client.py
 │
 └── main.py
 ```
 
-### Backend Layering Rule
+## Backend Layering Rule
 
 Route handlers should stay thin.
 
@@ -398,13 +572,13 @@ API route
 → Database
 ```
 
-External API calls should go through client classes.
-
 AI prompting should live in services, not route handlers.
+
+External APIs should go through client classes.
 
 ---
 
-## 8. Database Architecture
+# 8. Database Architecture
 
 Recommended database:
 
@@ -424,22 +598,7 @@ Recommended ORM:
 SQLAlchemy 2.x
 ```
 
-### Database Responsibilities
-
-- Store users
-- Store submitted sources
-- Store generated briefs
-- Store brief generation jobs
-- Store detected financial entities
-- Store brief/entity relationships
-- Store external context used for generation
-- Store plans and user entitlements
-- Store promo codes and redemptions
-- Store usage limits
-
-### Core Tables
-
-Required for v0.3:
+## Core Tables for v0.3 First Milestone
 
 ```text
 users
@@ -450,85 +609,174 @@ promo_code_redemptions
 sources
 briefs
 brief_generation_jobs
+research_channels
+brief_sources
 financial_entities
 brief_entity_insights
+brief_events
+brief_claims
+brief_citations
 external_context_items
+brief_shares
+brief_exports
+referrals
+credit_transactions
 user_usage_daily
+plan_limits
 ```
 
-### Shared Columns
-
-Most core tables should include:
+## Key Relationship Rule
 
 ```text
-id
-created_at
-updated_at
+briefs.source_id is nullable.
 ```
 
-In code, these should be represented using shared SQLAlchemy mixins.
+Reason:
 
-Example concept:
-
-```python
-class UUIDPrimaryKeyMixin:
-    id = mapped_column(UUID(as_uuid=True), primary_key=True)
-
-class TimestampMixin:
-    created_at = mapped_column(DateTime(timezone=True), nullable=False)
-    updated_at = mapped_column(DateTime(timezone=True), nullable=False)
+```text
+Question-based briefs may not have a user-provided source.
 ```
 
-Individual database tables should still list these columns clearly in `DATA_MODEL.md`.
+The correct relationship is:
+
+```text
+User
+ └── Brief
+      └── Source optional
+```
+
+not:
+
+```text
+User
+ └── Source
+      └── Brief
+```
 
 ---
 
-## 9. Subscription and Entitlement Architecture
+# 9. Core Domains
 
-Alphabrief should not rely on a single `subscription_tier` field on the user as the source of truth.
+## User
 
-Instead, access should be calculated from active entitlements.
+Represents a registered user.
 
-### Access Model
-
-```text
-Plan = what product tier exists
-UserEntitlement = what access the user currently has
-PromoCode = one possible way to create entitlement
-Payment = another possible way to create entitlement later
-```
-
-### Required Plans
+Access is determined through:
 
 ```text
-FREE
-PRO
-ADMIN
+user_entitlements
 ```
 
-### Entitlement Sources
+not `users.subscription_tier`.
+
+## Source
+
+Represents user-provided material only.
+
+Supported source types:
 
 ```text
-FREE_DEFAULT
-PROMO_CODE
-PAID_SUBSCRIPTION
-ADMIN_GRANT
-TRIAL
+ARTICLE_URL
+YOUTUBE_URL
+PDF_FILE
+PASTED_TEXT
 ```
 
-### Access Check
+Direct finance questions should not be stored as sources.
 
-A user has Pro access if they have an active entitlement where:
+## Brief
+
+Represents the final AI-generated product artifact.
+
+Important fields:
+
+```text
+id
+user_id
+source_id nullable
+input_type
+user_query
+title
+brief_status
+plan_code_used
+requested_depth
+research_scope
+generated_content
+summary_markdown
+disclaimer
+```
+
+## Brief Source
+
+Represents all evidence/context used in the final brief.
+
+This includes:
+
+```text
+USER_PROVIDED
+AGENT_DISCOVERED
+SYSTEM_CONTEXT
+```
+
+## Brief Generation Job
+
+Tracks generation progress, retries, and failures.
+
+## Research Channel
+
+Internal registry for allowed source channels.
+
+Do not expose internal trust tiers publicly.
+
+## Financial Entity
+
+Represents companies, tickers, sectors, macro factors, etc.
+
+## Brief Event
+
+Represents a detected event such as earnings, regulation, tariff, macro shift, or competitor news.
+
+## Brief Claim
+
+Represents key claims, their type, support status, and verification notes.
+
+## Brief Citation
+
+Stores supporting evidence for claims/events/entities.
+
+## External Context Item
+
+Stores external context used in prompt construction.
+
+---
+
+# 10. Subscription and Entitlement Architecture
+
+Do not rely on a single user subscription field.
+
+Use:
+
+```text
+Plan
+UserEntitlement
+PlanLimit
+CreditTransaction
+UserUsageDaily
+```
+
+## Access Check
+
+A user has Pro/deep access if they have an active entitlement where:
 
 ```text
 user_id = current user
-plan_code in ('PRO', 'ADMIN')
+plan_code in ('PRO', 'STUDENT_PRO', 'ADMIN')
 status = ACTIVE
 starts_at <= now
 ends_at is null OR ends_at > now
 ```
 
-### Promo Code Redemption
+## Promo Code Redemption
 
 Promo-code redemption should be transactional:
 
@@ -542,15 +790,13 @@ Increment current_redemptions
 Commit transaction
 ```
 
-This prevents two users from redeeming the final available promo-code slot at the same time.
-
 ---
 
-## 10. AI Provider Layer
+# 11. AI Provider Layer
 
 The AI provider should be wrapped behind an internal client/service abstraction.
 
-Example concept:
+Example:
 
 ```python
 class AiProviderClient:
@@ -560,452 +806,159 @@ class AiProviderClient:
 
 This matters because:
 
-- AI providers can be changed later.
-- Service logic can be tested without always calling the AI API.
-- Prompt templates stay isolated.
-- Cost and usage monitoring becomes cleaner.
-- Output validation can be handled consistently.
-
-### Prompting Rule
-
-The system should avoid building prompts directly inside route handlers.
+- Providers can be changed later
+- Service logic can be tested without always calling AI APIs
+- Prompt templates stay isolated
+- Output validation can be consistent
+- Cost tracking becomes cleaner
 
 Preferred flow:
 
 ```text
-BriefGenerationService
-→ builds request
-→ ContextRetrievalService adds supporting context
-→ AiProviderClient calls model
-→ AiOutputValidationService validates output
-→ BriefRepository persists result
+BriefOrchestrationService
+→ ContextRetrievalService
+→ BriefGenerationService
+→ AiProviderClient
+→ AiOutputValidationService
+→ BriefRepository
 ```
 
 ---
 
-## 11. External Data Providers
-
-For v0.3, Alphabrief may need data from:
-
-- Article URL extraction provider
-- YouTube transcript extraction provider
-- Market data provider
-- Company profile provider
-- News/search provider
-- AI model provider
-
-These should be isolated behind client classes:
+# 12. v0.3 AI Pipeline
 
 ```text
-ArticleExtractionClient
-TranscriptClient
-MarketDataClient
-CompanyProfileClient
-NewsSearchClient
-AiProviderClient
-```
-
-This prevents the core app from becoming tangled with third-party APIs.
-
----
-
-## 12. Core Domains
-
-### User
-
-Represents a registered user.
-
-Main fields:
-
-```text
-id
-email
-password_hash
-display_name
-role
-created_at
-updated_at
-```
-
-User access should be determined through `user_entitlements`, not through `users.subscription_tier`.
-
----
-
-### Plan
-
-Represents a product access tier.
-
-Plan examples:
-
-```text
-FREE
-PRO
-ADMIN
-```
-
-Main fields:
-
-```text
-id
-code
-name
-description
-active
-created_at
-updated_at
+1. Validate request
+2. Classify input type
+3. Check usage limit
+4. Check entitlement if Pro/deep requested
+5. Create source if source-based
+6. Create brief
+7. Create brief_generation_job
+8. Extract/transcribe content if applicable
+9. Clean content
+10. Detect entities
+11. Detect events
+12. Extract claims
+13. Resolve research scope
+14. Select allowed research channels
+15. Retrieve context where allowed
+16. Store brief_sources and external_context_items
+17. Construct AI prompt
+18. Generate structured brief
+19. Validate AI output
+20. Persist generated_content, summary_markdown, entities, events, claims, citations
+21. Update usage and estimated cost
+22. Mark job completed or failed
+23. Return result to user
 ```
 
 ---
 
-### User Entitlement
-
-Represents the access a user currently has.
-
-Main fields:
-
-```text
-id
-user_id
-plan_code
-source_type
-source_id
-status
-starts_at
-ends_at
-created_at
-updated_at
-```
-
-Entitlements allow Alphabrief to support:
-
-```text
-Free users
-Paid Pro users
-Promo-code Pro users
-Trial users
-Admin-granted Pro users
-Future student discounts
-```
-
----
-
-### Promo Code
-
-Represents a code that can grant temporary or open-ended access.
-
-Main fields:
-
-```text
-id
-code_hash
-display_code_suffix
-plan_code
-duration_days
-max_redemptions
-current_redemptions
-max_redemptions_per_user
-starts_at
-expires_at
-active
-created_by
-created_at
-updated_at
-```
-
----
-
-### Source
-
-Represents the original user input.
-
-Supported v0.3 source types:
-
-```text
-ARTICLE_URL
-YOUTUBE_URL
-PASTED_TEXT
-```
-
-Main fields:
-
-```text
-id
-user_id
-source_type
-original_input
-normalized_url
-title
-raw_text
-extraction_status
-extraction_error
-content_hash
-created_at
-updated_at
-```
-
----
-
-### Brief
-
-Represents the final AI-generated output.
-
-Main fields:
-
-```text
-id
-user_id
-source_id
-title
-brief_status
-plan_code_used
-requested_depth
-source_summary
-key_takeaways
-risks
-opportunities
-investor_questions
-disclaimer
-model_provider
-model_name
-prompt_version
-generation_error
-generated_at
-created_at
-updated_at
-```
-
----
-
-### Brief Generation Job
-
-Tracks the async or step-by-step generation process for a brief.
-
-Main fields:
-
-```text
-id
-brief_id
-user_id
-status
-current_step
-retry_count
-max_retries
-error_code
-error_message
-started_at
-completed_at
-created_at
-updated_at
-```
-
-This is useful for status polling, retries, debugging, and future background workers.
-
----
-
-### Financial Entity
-
-Represents a company, ticker, sector, asset, index, or macro entity detected in the source.
-
-Entity types:
-
-```text
-COMPANY
-TICKER
-SECTOR
-INDEX
-CRYPTO
-COMMODITY
-MACRO_FACTOR
-CURRENCY
-ETF
-UNKNOWN
-```
-
-Main fields:
-
-```text
-id
-name
-ticker
-exchange
-entity_type
-country
-sector
-industry
-external_provider
-external_id
-created_at
-updated_at
-```
-
----
-
-### Brief Entity Insight
-
-Represents analysis for one entity inside one brief.
-
-Main fields:
-
-```text
-id
-brief_id
-entity_id
-source_specific_insight
-company_context
-industry_context
-macro_context
-political_regulatory_context
-competitor_context
-risk_factors
-opportunity_factors
-premium_only
-created_at
-updated_at
-```
-
----
-
-### External Context Item
-
-Stores external data used to enrich a brief.
-
-Main fields:
-
-```text
-id
-brief_id
-entity_id
-context_type
-provider
-title
-url
-published_at
-snippet
-raw_payload
-used_in_prompt
-created_at
-updated_at
-```
-
-This is useful for traceability, debugging, and future citation/explainability features.
-
----
-
-### User Usage Daily
-
-Tracks daily usage for cost control.
-
-Main fields:
-
-```text
-id
-user_id
-usage_date
-plan_code_at_usage
-brief_count
-ai_input_token_estimate
-ai_output_token_estimate
-created_at
-updated_at
-```
-
----
-
-## 13. v0.3 AI Pipeline
-
-```text
-1. Validate input
-2. Check usage limit
-3. Check entitlement if Pro-only depth is requested
-4. Create source
-5. Create brief
-6. Create brief_generation_job
-7. Extract content
-8. Clean content
-9. Detect financial entities
-10. Retrieve context based on effective plan
-11. Store external_context_items where applicable
-12. Construct AI prompt
-13. Generate structured brief
-14. Validate AI output shape
-15. Persist brief and entity insights
-16. Update usage
-17. Mark job as completed or failed
-18. Return result to user
-```
-
-### Async-Friendly Generation Flow
+# 13. Async-Friendly Generation Flow
 
 ```text
 POST /api/v1/briefs
         ↓
-Create source
+Create source if needed
         ↓
 Create brief with status QUEUED
         ↓
 Create brief_generation_job with status QUEUED
         ↓
-Return briefId to frontend
+Return briefId and jobId
         ↓
 Worker processes job
         ↓
 Frontend polls GET /api/v1/briefs/{briefId}
 ```
 
-For very early v0.3, the worker can be simulated or replaced with synchronous processing. The API should still be shaped as if async processing is possible later.
+For early v0.3, the worker can be simulated or replaced with synchronous processing. The API should still be async-shaped.
 
 ---
 
-## 14. Free vs Pro Behavior
+# 14. Research Scope Behavior
 
-### Free Tier
-
-Free tier brief should include:
-
-- Source summary
-- Key takeaways
-- Mentioned financial entities
-- Basic company/entity explanation
-- Source-specific risks
-- Simple investor questions
-
-### Pro Tier
-
-Pro tier brief should include everything in free tier, plus:
-
-- Industry trends
-- Competitor dynamics
-- Macro factors
-- Political/regulatory factors
-- Earnings and valuation context where available
-- Broader risk/opportunity map
-- Second-order implications
-
-### Important Rule
-
-Premium gating must be enforced by the backend.
-
-Do not rely only on the frontend to hide premium sections.
-
-Bad pattern:
+Default:
 
 ```text
-Backend returns premium context to everyone
-Frontend hides it for free users
+RECOMMENDED_SOURCES
 ```
 
-Good pattern:
+Supported values:
 
 ```text
-Backend checks active entitlement
-Backend decides what context to retrieve
-Backend decides what fields to return
-Frontend displays locked cards where appropriate
+RECOMMENDED_SOURCES
+EXPANDED_MARKET_CONTEXT
+SENTIMENT_AND_DISCUSSION
+USER_PROVIDED_ONLY
+```
+
+Recommended UI labels:
+
+| API value | UI label | Use |
+|---|---|---|
+| RECOMMENDED_SOURCES | Recommended Sources | Default. Accuracy-focused research using official and established categories |
+| EXPANDED_MARKET_CONTEXT | Expanded Market Context | Adds selected market commentary, newsletters, videos, and specialist platforms |
+| SENTIMENT_AND_DISCUSSION | Sentiment & Discussion Signals | Adds limited public discussion sources for market narrative only |
+| USER_PROVIDED_ONLY | User-Provided Sources Only | Uses submitted source plus minimal metadata |
+
+Important rule:
+
+```text
+The UI must not publicly rank individual publishers, newsletters, YouTube channels, subreddits, or creators by trust tier.
 ```
 
 ---
 
-## 15. API Overview
+# 15. Brief Output Shape
+
+Recommended output shape:
+
+```json
+{
+  "title": "Brief title",
+  "inputType": "QUESTION",
+  "researchQuestion": "Analyse the fintech industry for me",
+  "researchScope": "RECOMMENDED_SOURCES",
+  "sourceMix": [],
+  "quickSummary": "",
+  "keyFacts": [],
+  "keyTakeaways": [],
+  "soWhat": "",
+  "implicationMap": {
+    "companyImpact": [],
+    "industryImpact": [],
+    "investorImpact": [],
+    "consumerImpact": [],
+    "regulatoryImpact": [],
+    "macroImpact": [],
+    "whatToWatchNext": []
+  },
+  "bullBearNeutral": {
+    "bull": [],
+    "bear": [],
+    "neutral": []
+  },
+  "risksAndUncertainties": [],
+  "financeConcepts": [],
+  "sourceEvidencePanel": [],
+  "claims": [],
+  "contradictionsOrTensions": [],
+  "assignmentAngles": [],
+  "researchPathRecommendations": [],
+  "whatWouldChangeThisView": [],
+  "studentTakeaway": "",
+  "investorTakeaway": "",
+  "confidenceScore": 0,
+  "confidenceExplanation": "",
+  "disclaimer": "This brief is for informational and educational purposes only and is not financial advice."
+}
+```
+
+---
+
+# 16. API Overview
 
 Detailed endpoint design should live in `docs/API_SPEC.md`.
 
@@ -1015,12 +968,19 @@ Likely endpoints:
 POST   /api/v1/auth/register
 POST   /api/v1/auth/login
 POST   /api/v1/auth/logout
+
 GET    /api/v1/me
 PATCH  /api/v1/me
+
+POST   /api/v1/sources/upload
+
+GET    /api/v1/research-scopes
 
 POST   /api/v1/briefs
 GET    /api/v1/briefs
 GET    /api/v1/briefs/{briefId}
+GET    /api/v1/briefs/{briefId}/job
+GET    /api/v1/briefs/{briefId}/sources
 DELETE /api/v1/briefs/{briefId}
 
 GET    /api/v1/entities/{entityId}
@@ -1028,82 +988,49 @@ GET    /api/v1/entities/{entityId}
 GET    /api/v1/subscription/me
 POST   /api/v1/subscription/redeem-promo-code
 
+POST   /api/v1/briefs/{briefId}/share
+DELETE /api/v1/briefs/{briefId}/share
+GET    /api/v1/shared-briefs/{shareToken}
+
+GET    /api/v1/briefs/{briefId}/download
+POST   /api/v1/briefs/{briefId}/exports
+GET    /api/v1/briefs/{briefId}/exports/{exportId}
+
+GET    /api/v1/me/referral-code
+POST   /api/v1/referrals/apply
+GET    /api/v1/me/referrals
+
 GET    /api/v1/health
 ```
 
-Preferred brief generation design:
-
-```text
-POST /briefs returns briefId + status
-Frontend polls GET /briefs/{briefId}
-```
-
 ---
 
-## 16. Brief Output Shape
-
-Recommended output shape:
-
-```json
-{
-  "title": "Brief title",
-  "sourceSummary": "Short summary of the original source.",
-  "keyTakeaways": [
-    "Takeaway 1",
-    "Takeaway 2",
-    "Takeaway 3"
-  ],
-  "detectedEntities": [
-    {
-      "name": "Apple Inc.",
-      "ticker": "AAPL",
-      "entityType": "COMPANY",
-      "sourceSpecificInsight": "What the source says about Apple.",
-      "companyContext": "Basic company-level context.",
-      "premiumContext": {
-        "industryContext": "Premium-only industry context.",
-        "macroContext": "Premium-only macro context.",
-        "politicalRegulatoryContext": "Premium-only regulatory context.",
-        "competitorContext": "Premium-only competitor context."
-      }
-    }
-  ],
-  "risks": [
-    "Risk 1",
-    "Risk 2"
-  ],
-  "opportunities": [
-    "Opportunity 1",
-    "Opportunity 2"
-  ],
-  "investorQuestions": [
-    "Question 1",
-    "Question 2"
-  ],
-  "disclaimer": "This brief is for informational purposes only and is not financial advice."
-}
-```
-
-For free users, `premiumContext` should either be omitted or represented as locked metadata, depending on frontend design.
-
----
-
-## 17. Data Flow
+# 17. Data Flow
 
 ```text
 Frontend
    ↓ POST /briefs
 FastAPI Route
    ↓
-BriefGenerationService
+BriefOrchestrationService
    ↓
 UsageLimitService
    ↓
 AccessService
    ↓
-SourceExtractionService
+InputClassificationService
+   ↓
+SourceExtractionService / PDFExtractionService if needed
    ↓
 EntityDetectionService
+   ↓
+EventDetectionService
+   ↓
+ClaimExtractionService
+   ↓
+ResearchScopeService
+   ↓
+ResearchChannelService
    ↓
 ContextRetrievalService
    ↓
@@ -1120,7 +1047,7 @@ Frontend Brief Detail Page
 
 ---
 
-## 18. Error Handling
+# 18. Error Handling
 
 Example error response:
 
@@ -1136,13 +1063,23 @@ Example error response:
 Recommended error codes:
 
 ```text
+INVALID_INPUT_TYPE
 INVALID_SOURCE_TYPE
+INVALID_URL
+UNSUPPORTED_FILE_TYPE
+FILE_TOO_LARGE
 SOURCE_EXTRACTION_FAILED
 SOURCE_TOO_LONG
 SOURCE_TOO_SHORT
+QUESTION_TOO_VAGUE
 BRIEF_GENERATION_FAILED
+BRIEF_JOB_FAILED
 AI_OUTPUT_INVALID
 USAGE_LIMIT_REACHED
+DEEP_BRIEF_LIMIT_REACHED
+INVALID_RESEARCH_SCOPE
+RESEARCH_SCOPE_NOT_ALLOWED
+PREMIUM_REQUIRED
 UNAUTHORIZED
 FORBIDDEN
 NOT_FOUND
@@ -1156,11 +1093,15 @@ PROMO_CODE_FULLY_REDEEMED
 PROMO_CODE_ALREADY_USED
 USER_ALREADY_HAS_PRO
 PROMO_CODE_REDEMPTION_FAILED
+
+SHARE_NOT_FOUND
+SHARE_DISABLED
+EXPORT_FAILED
 ```
 
 User-facing errors should be friendly.
 
-Internal logs should contain enough debugging information, but should not leak:
+Internal logs should not leak:
 
 - API keys
 - Auth tokens
@@ -1169,29 +1110,32 @@ Internal logs should contain enough debugging information, but should not leak:
 
 ---
 
-## 19. Authentication and Authorization
+# 19. Authentication and Authorization
 
 The system must support:
 
 - User-owned briefs
 - Private brief history
-- Entitlement-based subscription checks
+- Entitlement-based access checks
 - Promo-code access
 - Usage limit enforcement
+- Shareable brief access
+- Admin-only operations later
 
 Authorization rules:
 
 ```text
-Users can only access their own briefs.
+Users can only access their own private briefs.
 Users can only delete their own briefs.
 Users can only view their own subscription status.
-Pro-only generation requires active PRO or ADMIN entitlement.
+Pro/deep generation requires active PRO, STUDENT_PRO, or ADMIN entitlement.
 Admin-only operations require ADMIN role.
+Shared briefs must use public-safe view models.
 ```
 
 ---
 
-## 20. Deployment Shape
+# 20. Deployment Shape
 
 Recommended v0.3 deployment:
 
@@ -1199,6 +1143,7 @@ Recommended v0.3 deployment:
 Frontend: Vercel, Netlify, or AWS Amplify
 Backend: Render, Fly.io, Railway, or AWS ECS later
 Database: Managed PostgreSQL
+Object storage: S3, Cloudflare R2, or provider storage
 ```
 
 Environment separation:
@@ -1218,6 +1163,9 @@ JWT_SECRET
 AI_PROVIDER_API_KEY
 MARKET_DATA_API_KEY
 NEWS_API_KEY
+OBJECT_STORAGE_BUCKET
+OBJECT_STORAGE_ACCESS_KEY
+OBJECT_STORAGE_SECRET_KEY
 FRONTEND_BASE_URL
 BACKEND_BASE_URL
 CORS_ALLOWED_ORIGINS
@@ -1231,53 +1179,58 @@ VITE_API_BASE_URL
 
 ---
 
-## 21. Observability
-
-For v0.3, basic observability is enough.
+# 21. Observability
 
 Log these events:
 
 - User created brief
+- Source upload succeeded/failed
 - Source extraction succeeded/failed
+- Question brief created
 - Entity detection succeeded/failed
+- Event/claim extraction succeeded/failed
 - External context retrieval succeeded/failed
 - AI generation succeeded/failed
 - AI output validation failed
 - Usage limit hit
 - Promo code redeemed
 - Promo code redemption failed
+- Share link created
+- Export created
 - Free user attempted Pro-only feature
 
 Track these metrics:
 
-- Number of briefs generated per day
+- Briefs generated per day
 - Average generation time
 - Failure rate
-- Most common source type
+- Most common input type
 - AI token usage estimate
+- AI cost estimate
 - Promo-code redemption count
 - Free-to-Pro upgrade clicks
+- Share/export usage
 
 ---
 
-## 22. Security Considerations
+# 22. Security Considerations
 
 Minimum v0.3 security requirements:
 
 - Store API keys only in environment variables
 - Never expose AI provider keys to frontend
 - Validate URLs before fetching
-- Prevent server-side request forgery where possible
+- Prevent SSRF where possible
 - Enforce user ownership on brief access
 - Enforce Pro access in backend
 - Use HTTPS in production
 - Sanitize rendered AI output
 - Add rate limiting for brief generation
+- Validate uploaded PDFs
+- Limit uploaded file size
 - Avoid logging sensitive raw content in production
 
-For URL fetching, the backend should reject private/internal network addresses where possible.
-
-Blocked examples:
+Blocked URL examples:
 
 ```text
 localhost
@@ -1290,48 +1243,112 @@ localhost
 
 ---
 
-## 23. Engineering Principles
+# 23. Engineering Principles
 
-1. Keep the MVP narrow but useful.
+1. Keep v0.3 as the first milestone, but implement it in slices.
 2. Use a FastAPI monolith first.
-3. Separate AI prompting from route handlers.
-4. Store structured outputs, not only raw AI text.
-5. Design APIs so async generation is possible.
-6. Enforce Free vs Pro logic in the backend.
-7. Treat AI output as untrusted until validated.
-8. Keep external providers replaceable.
-9. Use SQLAlchemy for persistence, not business logic.
-10. Use Alembic migrations for all database schema changes.
-11. Prioritize product clarity over architectural cleverness.
+3. Make Brief the central artifact.
+4. Treat Source as optional input.
+5. Support source-based, question-based, and mixed brief creation.
+6. Separate AI prompting from route handlers.
+7. Store structured outputs, not only raw AI text.
+8. Design APIs so async generation is possible.
+9. Enforce Free vs Pro logic in the backend.
+10. Treat AI output as untrusted until validated.
+11. Keep external providers replaceable.
+12. Use SQLAlchemy for persistence, not business logic.
+13. Use Alembic migrations for all schema changes.
+14. Prioritize product clarity over architectural cleverness.
 
 ---
 
-## 24. Final Architecture Summary
+# 24. v0.3 Implementation Slices
 
-Alphabrief v0.3 should be built as a clean FastAPI-based full-stack web application with a structured AI pipeline.
+## Slice A: Core Brief Foundation
+
+```text
+users
+sources
+briefs
+brief_generation_jobs
+basic generated_content
+summary_markdown
+```
+
+## Slice B: Source and Research Traceability
+
+```text
+research_channels
+brief_sources
+external_context_items
+```
+
+## Slice C: Finance Intelligence Layer
+
+```text
+financial_entities
+brief_entity_insights
+brief_events
+brief_claims
+brief_citations
+```
+
+## Slice D: Usage and Access Control
+
+```text
+plans
+user_entitlements
+plan_limits
+user_usage_daily
+credit_transactions
+promo_codes
+promo_code_redemptions
+```
+
+## Slice E: Distribution and Growth
+
+```text
+brief_shares
+brief_exports
+referrals
+```
+
+---
+
+# 25. Final Architecture Summary
+
+AlphaBrief v0.3 should be built as a clean FastAPI-based full-stack web application with a structured AI pipeline.
 
 The backend owns:
 
+- Input classification
 - Source extraction
+- PDF handling
 - Entity detection
+- Event/claim detection
 - Context retrieval
 - AI brief generation
+- Output validation
 - Persistence
-- Entitlement-based subscription enforcement
-- Promo-code redemption
+- Entitlement enforcement
 - Usage limits
+- Promo-code redemption
+- Sharing/export flows
 
 The frontend owns:
 
-- Input
-- Display
+- Input and upload UI
+- Research scope selection
+- Brief status display
+- Brief result display
 - Brief history
-- Loading/error states
 - Subscription/promo-code UI
-- Upgrade prompts
+- Share/export UI
+- Loading/error states
 
-The MVP should focus on delivering one excellent core experience:
+The core product experience is:
 
 ```text
-Turn messy finance content into a clear, structured investor brief.
+Paste a source, upload a report, or ask a finance question.
+AlphaBrief turns it into a clear, structured finance research brief.
 ```

@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     app_name: str = "Alphabrief API"
     app_debug: bool = Field(default=False, validation_alias="APP_DEBUG")
     cors_allowed_origins: str = Field(
-        default="http://localhost:5173",
+        default="http://localhost:5173,http://127.0.0.1:5173",
         validation_alias=AliasChoices("CORS_ALLOWED_ORIGINS", "CORS_ALLOW_ORIGINS"),
     )
 
