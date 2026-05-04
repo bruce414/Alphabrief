@@ -4,8 +4,8 @@ export function SiteFooter() {
       <div className="mx-auto flex max-w-7xl flex-col gap-6 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-sm font-semibold text-foreground">AlphaBrief</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            AI-powered financial briefings for investors. Early prototype.
+          <p className="mt-1 max-w-md text-sm text-muted-foreground">
+            AI-powered financial briefings for investors.
           </p>
         </div>
         <p className="text-xs text-muted-foreground">

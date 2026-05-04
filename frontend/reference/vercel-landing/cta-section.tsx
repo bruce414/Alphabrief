@@ -1,36 +1,30 @@
-import { ArrowRight } from 'lucide-react'
-import { Link } from 'react-router-dom'
-
-import { Button } from '@/components/ui/button'
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { ArrowRight } from "lucide-react"
 
 export function CtaSection() {
   return (
-    <section
-      id="cta"
-      className="scroll-mt-20 border-t border-border bg-muted/30 px-6 py-24 md:py-32"
-    >
+    <section className="border-t border-border bg-muted/30 px-6 py-24 md:py-32">
       <div className="mx-auto max-w-3xl text-center">
         <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
-          Follow the AlphaBrief preview
+          Ready to transform your research?
         </h2>
         <p className="mb-8 text-lg text-muted-foreground">
-          We’re building in the open. Try the app shell, send feedback, and
-          watch this space as milestones ship.
+          Join thousands of researchers, analysts, and teams who save hours every week with AI-powered market intelligence.
         </p>
         <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
           <Button size="lg" className="rounded-full px-8" asChild>
-            <Link to="/app">
-              Launch app
+            <Link href="/auth/sign-up">
+              Start free trial
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
           <Button variant="outline" size="lg" className="rounded-full px-8" asChild>
-            <a href="#features">Back to features</a>
+            <Link href="#">Talk to sales</Link>
           </Button>
         </div>
         <p className="mt-4 text-sm text-muted-foreground">
-          Bookmark this page—the public preview will live here as we ship
-          milestones.
+          No credit card required. Start with 5 free researches.
         </p>
       </div>
     </section>

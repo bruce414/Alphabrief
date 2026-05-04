@@ -4,14 +4,14 @@ import { Hero } from '@/components/landing/hero'
 import { MetricsMarquee } from '@/components/landing/metrics-marquee'
 import { Pricing } from '@/components/landing/pricing'
 import { Process } from '@/components/landing/process'
-import { SiteFooter } from '@/components/landing/site-footer'
-import { SiteHeader } from '@/components/landing/site-header'
+import { SiteFooter } from '@/components/layout/site-footer'
+import { SiteNav } from '@/components/layout/site-nav'
 
 export function LandingPage() {
   return (
     <div className="min-h-svh bg-background">
-      <SiteHeader />
-      <main>
+      <SiteNav variant="landing" />
+      <main className="overflow-x-hidden">
         <Hero />
         <MetricsMarquee />
         <Capabilities />

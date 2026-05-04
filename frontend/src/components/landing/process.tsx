@@ -37,7 +37,7 @@ export function Process() {
               </div>
               <code className="block text-left text-muted-foreground">
                 <span className="text-primary">$</span> alphabrief create{' '}
-                <span className="text-emerald-700 dark:text-emerald-400">
+                <span className="text-emerald-700">
                   --source &quot;https://example.com/filing&quot;
                 </span>
               </code>

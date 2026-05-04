@@ -18,6 +18,8 @@
     --primary-foreground: 210 40% 98%;
     --secondary: 210 16% 94%;
     --secondary-foreground: 222 47% 18%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
     --ring: 222 47% 18%;
     --radius: 0.75rem;
   }
@@ -27,6 +29,10 @@
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply min-h-svh bg-background text-foreground antialiased;
+  }
+
+  #root {
+    @apply min-h-svh;
   }
 }

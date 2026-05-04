@@ -1,4 +1,5 @@
 import { ArrowRight } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { GradientText } from '@/components/ui/gradient-text'
@@ -6,7 +7,7 @@ import { GradientText } from '@/components/ui/gradient-text'
 export function Hero() {
   return (
     <section className="relative overflow-hidden px-6 py-24 md:py-32">
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-200/50 via-transparent to-transparent dark:from-slate-800/40" />
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-200/45 via-transparent to-transparent" />
 
       <div className="mx-auto max-w-4xl text-center">
         <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 px-4 py-1.5 text-sm">
@@ -29,13 +30,13 @@ export function Hero() {
 
         <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
           <Button size="lg" className="rounded-full px-8" asChild>
-            <a href="#capabilities">
-              See capabilities
+            <Link to="/app">
+              Join Waitlist
               <ArrowRight className="ml-2 h-4 w-4" />
-            </a>
+            </Link>
           </Button>
           <Button variant="outline" size="lg" className="rounded-full px-8" asChild>
-            <a href="#cta">Request early access</a>
+            <a href="#process">How it works</a>
           </Button>
         </div>
       </div>

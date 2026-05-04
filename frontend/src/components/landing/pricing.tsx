@@ -1,4 +1,5 @@
 import { Check } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -13,9 +14,8 @@ const plans = [
       'Core briefing workflow (limits may apply)',
       'Help shape the roadmap with feedback',
     ],
-    cta: 'Join the waitlist',
+    cta: 'Open app',
     popular: false,
-    href: '#cta',
   },
   {
     name: 'Pro',
@@ -28,9 +28,8 @@ const plans = [
       'Workspace-oriented workflows (planned)',
       'API access under fair use (planned)',
     ],
-    cta: 'Get notified',
+    cta: 'Open app',
     popular: true,
-    href: '#cta',
   },
   {
     name: 'Student Pro',
@@ -41,9 +40,8 @@ const plans = [
       'Same core brief quality as Pro when available',
       'Lightweight billing—no enterprise baggage',
     ],
-    cta: 'Tell us you’re interested',
+    cta: 'Open app',
     popular: false,
-    href: '#cta',
   },
 ]
 
@@ -111,7 +109,7 @@ export function Pricing() {
                 variant={plan.popular ? 'default' : 'secondary'}
                 asChild
               >
-                <a href={plan.href}>{plan.cta}</a>
+                <Link to="/app">{plan.cta}</Link>
               </Button>
             </div>
           ))}
