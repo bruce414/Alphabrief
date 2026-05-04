@@ -1,165 +1,436 @@
-# Alphabrief 📈
+# AlphaBrief 📈
 
-> **The AI-powered financial intelligence platform that turns hours of market content into actionable investor insight — personalised to your portfolio.**
-
----
-
-## What is Alphabrief?
-
-Generic AI summarisers can summarise a Bloomberg video. Alphabrief understands it.
-
-While tools like NoteGPT or Eightify treat all words equally, Alphabrief is built exclusively for investors and traders. It doesn't just tell you *what happened* — it tells you *what it means for your money*.
-
-Paste a YouTube link, article URL, or earnings call transcript. Alphabrief extracts the signal, enriches it with live market data, scores sentiment per ticker, and delivers a brief that's filtered through the lens of your own portfolio.
+> **An AI-powered market learning and research workspace that turns financial questions, sources, and market events into structured analysis, saved research notes, and daily learning summaries.**
 
 ---
 
-## Features
+## What is AlphaBrief?
 
-### 📊 Live Data Enrichment
-When a video or article mentions a stock, Alphabrief doesn't just transcribe the mention — it pulls live market data inline. Every ticker that appears in your summary is automatically enriched with:
+AlphaBrief helps retail investors, finance learners, students, and market-curious users understand financial information without drowning in scattered news, videos, PDFs, earnings reports, and endless AI chat threads.
 
-- Current price and intraday movement
-- P/E ratio and 52-week high/low
-- Recent analyst ratings and price targets
-- A mini sparkline chart
+Instead of acting like a generic summariser, AlphaBrief is designed around a finance-specific research workflow:
 
-So instead of reading *"Apple reported an earnings beat"*, you see that sentence alongside AAPL's current price, after-hours movement, and analyst consensus — without leaving the page.
+1. **Ask** market questions or upload financial sources.
+2. **Analyze** the source with deeper market context.
+3. **Generate structured briefs** when a polished research artifact is needed.
+4. **Save and organize insights** through tags, research logs, and company/topic tracking.
+5. **Reflect on learning** through daily summaries, journals, and research goals.
 
----
-
-### 🧠 Financial Entity Extraction
-Alphabrief understands the language of markets. It automatically detects and tags every financially significant entity in your content:
-
-- **Tickers** — $TSLA, $SPY, $BTC, $NVDA
-- **People** — CEOs, Fed chairs, analysts, fund managers
-- **Economic indicators** — CPI, interest rates, GDP, unemployment
-- **Upcoming events** — earnings dates, FOMC meetings, product launches
-
-Generic summarisers treat "Powell" the same as any other word. Alphabrief knows he moves markets.
+AlphaBrief is not built to give financial advice or trade signals. It is built to help users research markets, understand financial events, and build better market judgment over time.
 
 ---
 
-### 📈 Per-Ticker Sentiment Scoring
-Alphabrief doesn't just give you a vague "this was a bullish video" rating. It scores sentiment at the individual ticker level, so you get a clear, actionable read on each name mentioned:
+## Product Positioning
 
+Generic AI chat tools can answer finance questions, but they often leave users with a long, messy chat history that becomes hard to revisit.
+
+AlphaBrief is different because it focuses on **market memory**:
+
+- what the user asked
+- what sources they analyzed
+- what companies or sectors they researched
+- what insights were saved
+- what changed in their understanding
+- what they should research next
+
+The goal is to make AlphaBrief feel less like a chatbot and more like a personal market research desk.
+
+---
+
+## Core Experience
+
+### 1. Ask Mode
+
+Ask Mode is the flexible research interface.
+
+Users can:
+
+- ask a market question
+- paste a market news article
+- upload or paste an earnings report
+- analyze a YouTube video or transcript
+- summarize a PDF or article
+- ask follow-up questions
+
+Ask Mode produces a structured analysis response, but it does **not** force every answer into the same rigid brief template.
+
+Example use cases:
+
+- “What changed in Nvidia this week?”
+- “Explain this earnings report in plain English.”
+- “How could tariffs affect Apple?”
+- “Summarize this market news article and explain why it matters.”
+
+---
+
+### 2. Brief Mode
+
+Brief Mode is used when the user wants a more formal, saved research artifact.
+
+Instead of one fixed template for everything, AlphaBrief supports adaptive brief types:
+
+| Brief Type | Best For |
+|---|---|
+| Company Research Brief | Broad company analysis such as Visa, Nvidia, Apple, or Tesla |
+| Earnings Breakdown | Earnings reports, quarterly updates, management commentary, guidance |
+| Source Summary | Articles, videos, transcripts, PDFs, or reports |
+| Market Event Explainer | Macro events, regulation, tariffs, central bank decisions, sector shifts |
+| Comparison Brief | Company or sector comparisons |
+| Thesis Brief | Testing or tracking a user’s research thesis |
+
+Brief Mode helps users create cleaner, reusable research outputs instead of leaving important analysis buried in a chat thread.
+
+---
+
+### 3. Research Log
+
+The Research Log is AlphaBrief’s saved knowledge timeline.
+
+It organizes:
+
+- saved Ask outputs
+- generated briefs
+- analyzed sources
+- company notes
+- journal entries
+- daily research summaries
+- thesis updates
+
+Users can filter by:
+
+- company
+- sector
+- market theme
+- source type
+- brief type
+- tag
+- confidence level
+- date
+
+This is designed to make financial research feel like a journal-like workspace instead of a chaotic message history.
+
+---
+
+### 4. Daily Research Summary
+
+AlphaBrief can summarize what the user researched during the day.
+
+The daily research summary may include:
+
+- questions asked
+- sources analyzed
+- companies mentioned
+- topics researched
+- briefs generated
+- key insights
+- open questions
+- suggested next research steps
+
+Example:
+
+```text
+Daily Research Summary — May 04
+
+Today you researched:
+- Nvidia Blackwell supply-chain updates
+- Visa cross-border volume trends
+- GLP-1 second-order effects on consumer companies
+
+Key insights:
+- Nvidia’s data-center thesis remains closely tied to supply availability.
+- Visa’s growth story depends partly on resilient travel and payment volume.
+- GLP-1 consumer impact is still early and should be treated carefully.
+
+Open questions:
+- Is Nvidia’s valuation already pricing in perfect execution?
+- How much could regulation affect Visa’s take rate?
+- Are GLP-1 consumer effects measurable yet or mostly narrative-driven?
 ```
-NVDA  🟢 Bullish     — Strong earnings guidance, data centre demand cited
-AAPL  🟡 Neutral     — Mixed iPhone demand signals, services growth positive
-Fed   🔴 Bearish     — Higher-for-longer rhetoric, rate cut timeline pushed out
-Oil   🟡 Neutral     — Supply constraints offset by demand concerns
-```
+
+This feature helps prevent AlphaBrief from becoming another endless AI chat scroll.
 
 ---
 
-### 💡 The "So What?" Layer
-This is the feature no generic summariser offers. After every summary, Alphabrief adds an AI-generated investor insight section that translates news into portfolio implications:
+### 5. Market Journal
 
-> *"If the Fed pauses rate hikes as discussed in this video, this is historically bullish for growth and tech stocks. Watch: $NVDA earnings next Tuesday. $TLT may benefit if bond yields pull back."*
+The Market Journal helps users reflect on what they learned.
 
-Turn passive consumption into active decision-making.
+Unlike the Daily Research Summary, which is AI-generated, the journal is primarily user-written. AI can assist, but the goal is to help users think rather than replace their thinking.
 
----
+Journal entry types may include:
 
-### 📰 Multi-Source Synthesis
-Why summarise one source when the full picture requires many? Alphabrief lets you synthesise multiple sources about the same topic into a single unified brief:
+- Learning Reflection
+- Market Reflection
+- Trade Reflection
+- Thesis Update
+- Research Plan
 
-- Bloomberg video ✅
-- Reuters article ✅
-- Earnings call transcript ✅
-- Reddit / WallStreetBets sentiment ✅
+Example reflection prompts:
 
-One topic. One brief. Every angle covered. No other summariser does cross-source synthesis built specifically for finance.
+- What did I learn today?
+- What changed my view?
+- What am I still unsure about?
+- What evidence supports my current view?
+- What could prove me wrong?
+- What should I research next?
 
----
-
-### 🗂️ Portfolio-Aware Summaries
-Connect your holdings and Alphabrief filters every summary through your personal portfolio lens. Instead of a generic brief, you get one written for *you*:
-
-> *"This video is most relevant to you because you hold $TSLA — Elon Musk was mentioned at 14:32 in the context of production delays in Berlin. This may impact your position."*
-
-Your portfolio. Your brief. Every morning.
+AI can help users start a reflection, suggest learning points, and identify possible follow-up questions.
 
 ---
 
-### 🔔 Daily Morning Brief
-Never miss a market-moving story. Alphabrief automatically monitors your chosen sources — YouTube channels, news outlets, podcast feeds — and delivers a curated morning brief to your inbox or app before the market opens.
+### 6. Research and Learning Goals
 
-- Scheduled delivery before market open
-- Ranked by relevance to your portfolio
-- Digest format: headlines, sentiment scores, and "So What?" insights
+To improve engagement and long-term learning, AlphaBrief lets users set research or learning goals.
+
+Example goals:
+
+- Learn how to read earnings reports
+- Understand semiconductor industry dynamics
+- Research three payment companies this week
+- Track Nvidia’s AI infrastructure thesis
+- Review one company brief every weekday
+- Write a weekly market reflection
+
+AlphaBrief can use these goals to personalize:
+
+- suggested questions
+- recommended sources
+- journal prompts
+- daily summaries
+- follow-up research tasks
+- weekly review summaries
+
+This makes the product feel more like a learning companion for market research, not just a tool that generates one-off answers.
+
+---
+
+### 7. Company Library and Watchlist
+
+Future versions of AlphaBrief will support a public company library.
+
+Each company page may include:
+
+- brief company overview
+- business model summary
+- key competitors
+- major risks
+- saved user briefs
+- related research notes
+- journal-style event timeline
+- watchlist status
+
+Users can add companies to a watchlist. When important new events appear, AlphaBrief can generate an event impact note explaining:
+
+- what happened
+- why it matters
+- which business areas may be affected
+- whether the event supports or weakens the user’s thesis
+- what to monitor next
+
+This turns AlphaBrief from a one-off analysis tool into an ongoing market research workspace.
+
+---
+
+## Key Features
+
+### Flexible Ask + Brief Workflow
+
+Users can choose between flexible analysis and structured research artifacts.
+
+- **Ask** for open-ended market analysis
+- **Brief** for formal saved research outputs
+
+This avoids forcing every input into the same template.
+
+---
+
+### Source-Based Market Analysis
+
+AlphaBrief supports analysis from financial sources such as:
+
+- market news
+- earnings reports
+- investor presentations
+- YouTube videos
+- PDFs
+- article URLs
+- pasted text
+
+The output focuses not only on what the source says, but also why it matters in a market context.
+
+---
+
+### “Why It Matters” Layer
+
+Every major answer should help users understand the significance of the information.
+
+Instead of only saying what happened, AlphaBrief explains:
+
+- why the event matters
+- who may be affected
+- what risks or opportunities it introduces
+- what uncertainty remains
+- what users should research next
+
+---
+
+### Saved Briefs and Tags
+
+Users can save research outputs and organize them with tags.
+
+Examples:
+
+- `semiconductors`
+- `ai-infra`
+- `payments`
+- `macro`
+- `earnings`
+- `regulation`
+- `watchlist`
+- `learning`
+
+Saved research can be revisited through the Research Log.
+
+---
+
+### AI-Assisted Reflection
+
+AlphaBrief can help users write reflections based on their daily research activity.
+
+The AI can:
+
+- summarize what the user researched
+- suggest learning points
+- identify unresolved questions
+- propose next research steps
+- help draft a reflection if the user wants assistance
+
+The user remains in control of the final journal entry.
+
+---
+
+### Thesis Tracking
+
+AlphaBrief can help users track research theses over time.
+
+Example thesis:
+
+> “Visa can keep growing because digital payments and cross-border travel remain resilient.”
+
+Future events can be linked back to the thesis as:
+
+- supports thesis
+- weakens thesis
+- mixed signal
+- requires more evidence
+
+This helps users learn how market views evolve instead of treating research as a one-time answer.
 
 ---
 
 ## How It Works
 
-1. **Connect your sources** — paste a YouTube URL, article link, or earnings transcript, or subscribe to channels for automatic monitoring
-2. **Add your portfolio** — enter your holdings so Alphabrief knows what matters to you
-3. **Get your brief** — receive an enriched, personalised summary with live data, sentiment scores, and actionable insights
-4. **Act with confidence** — use the "So What?" layer to understand implications before the market moves
+1. **Ask or upload** — enter a market question, company name, URL, transcript, PDF, or earnings report.
+2. **Choose output mode** — use Ask Mode for flexible analysis or Brief Mode for a structured research artifact.
+3. **Review the analysis** — read the explanation, source summary, key insights, risks, and follow-up questions.
+4. **Save and organize** — add the result to the Research Log with tags, companies, or topics.
+5. **Reflect and improve** — use Daily Research Summary, Market Journal, and learning goals to track progress over time.
 
 ---
 
-## Who Is Alphabrief For?
+## Who Is AlphaBrief For?
 
-- **Retail investors** who want institutional-quality research without the Bloomberg Terminal price tag
-- **Active traders** who need to process large volumes of financial content quickly
-- **Finance content creators** who need rapid research across multiple sources
-- **Financial advisors** who want to stay on top of market narratives efficiently
+- **Retail investors** who want to understand market events more clearly
+- **Finance learners and students** who want to build market knowledge over time
+- **Beginner-to-intermediate investors** who need structured explanations without excessive jargon
+- **Market enthusiasts** who consume financial news, videos, and reports regularly
+- **Aspiring analysts** who want a better workflow for organizing research and tracking theses
 
 ---
 
-## Tech Stack (Planned)
+## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| AI Summarisation | Claude API (Anthropic) |
-| Transcription | OpenAI Whisper |
-| Live Market Data | Yahoo Finance API / Polygon.io |
-| Sentiment Analysis | Custom NLP model fine-tuned on financial text |
-| Entity Extraction | spaCy + custom financial NER |
-| Backend | Node.js / Python FastAPI |
-| Frontend | React |
+| Backend | Python, FastAPI |
 | Database | PostgreSQL |
+| ORM / Migrations | SQLAlchemy, Alembic |
+| Frontend | React, TypeScript, Tailwind CSS |
+| AI Analysis | LLM-based analysis pipeline |
+| Source Processing | URL, text, PDF, and video transcript processing |
+| Authentication | Session or token-based auth, depending on deployment stage |
+| Deployment | To be finalized |
 
 ---
 
 ## Roadmap
 
-**v1 — MVP**
-- [ ] YouTube URL summarisation
-- [ ] Ticker detection and live data enrichment
-- [ ] Per-ticker sentiment scoring
-- [ ] Basic "So What?" layer
+### v0.3 — First Major Milestone
 
-**v2 — Personalisation**
-- [ ] Portfolio-aware summaries
-- [ ] Multi-source synthesis
-- [ ] Daily morning brief delivery (email)
+Focus: prove the core research workflow.
 
-**v3 — Intelligence**
-- [ ] Automatic source monitoring
-- [ ] Historical sentiment tracking per ticker
-- [ ] Push notifications for breaking market mentions
-- [ ] Mobile app
+- [ ] Ask Mode for flexible market/source analysis
+- [ ] Brief Mode for structured research artifacts
+- [ ] Company Research Brief
+- [ ] Earnings / Source Breakdown
+- [ ] Market Event Explainer
+- [ ] Saved briefs and research outputs
+- [ ] Tags for organization
+- [ ] Research Log foundation
+- [ ] Basic daily research summary
+- [ ] Basic Market Journal entry creation
+- [ ] Basic research / learning goals
+
+### v0.4 — Learning and Research Memory
+
+Focus: make AlphaBrief more useful over time.
+
+- [ ] AI-generated Daily Research Summary
+- [ ] AI-assisted journal reflection workflow
+- [ ] Weekly learning review
+- [ ] Improved tag and company/topic filtering
+- [ ] Basic thesis tracking
+- [ ] Manual watchlist foundation
+
+### v0.5 — Company Tracking
+
+Focus: build the company research workspace.
+
+- [ ] Company Library Lite
+- [ ] Company overview pages
+- [ ] Company-specific research timeline
+- [ ] Watchlist companies and topics
+- [ ] Event impact notes
+- [ ] “What changed since last time?” summaries
+
+### Later
+
+- [ ] Broader public company coverage
+- [ ] Automated event monitoring
+- [ ] Notification system
+- [ ] Deeper multi-source synthesis
+- [ ] Affected-company mapping
+- [ ] Advanced thesis evolution timeline
+- [ ] Portfolio-aware research views, if appropriate
 
 ---
 
 ## Getting Started
 
-> 🚧 Alphabrief is currently in development. Star this repo to follow progress.
+> 🚧 AlphaBrief is currently in development.
 
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/alphabrief.git
 cd alphabrief
 
-# Frontend (React + TypeScript)
-cp frontend/.env.example frontend/.env
-npm --prefix frontend install
-npm --prefix frontend run dev
+# Frontend
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
 
-# Backend (Python + FastAPI) (in a second terminal)
+# Backend, in a second terminal
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate
@@ -170,9 +441,15 @@ uvicorn app.main:app --reload --port 8000
 
 ---
 
+## Disclaimer
+
+AlphaBrief is designed for market education, research organization, and information analysis. It does not provide financial advice, investment recommendations, or trade signals. Users should do their own research and consult qualified professionals before making financial decisions.
+
+---
+
 ## Contributing
 
-Alphabrief is an early-stage project. If you're a developer, designer, or finance nerd who wants to get involved, open an issue or reach out directly.
+AlphaBrief is an early-stage project. Developers, designers, finance learners, and market research enthusiasts are welcome to contribute ideas, issues, and improvements.
 
 ---
 
@@ -182,4 +459,4 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 ---
 
-*Built for investors who want the edge. Powered by AI. Personalised to your portfolio.*
+*Built for people who want to understand markets better, not just collect more tabs, screenshots, and half-read earnings PDFs like digital debris.*
