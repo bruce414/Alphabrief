@@ -3,8 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import router as api_router
 from app.core.config import get_settings
+from app.core.errors import AppError, app_error_handler
+from app.core.logging import configure_logging
+
+configure_logging()
 
 app = FastAPI(title=get_settings().app_name)
+
+app.add_exception_handler(AppError, app_error_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -17,7 +23,7 @@ app.add_middleware(
 
 @app.get("/health")
 def root_health() -> dict[str, str]:
-    return {"status": "ok", "service": "alphabrief-backend"}
+    return {"status": "ok"}
 
 
 app.include_router(api_router)

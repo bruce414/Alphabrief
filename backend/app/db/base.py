@@ -1,4 +1,4 @@
-"""Declarative mixins for Alphabrief models (SQLAlchemy 2.0 style)."""
+"""Declarative base and shared column mixins (SQLAlchemy 2.x)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,11 @@ from datetime import datetime
 
 from sqlalchemy import DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+
+class Base(DeclarativeBase):
+    pass
 
 
 class UUIDPrimaryKeyMixin:

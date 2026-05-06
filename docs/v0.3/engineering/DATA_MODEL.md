@@ -25,7 +25,7 @@ ResearchItem
 
 A `ResearchItem` can represent an Ask response, a formal Brief, a source analysis, a daily research summary, or a journal entry.
 
-This updated version also adds **Chrome Extension-ready source ingestion**. The extension is treated as a source access method, not as a separate product universe. Civilization briefly avoids duplicating every table. Incredible.
+This updated version also adds **Chrome Extension-ready source ingestion**. The extension is treated as a source access method, not as a separate product universe.
 
 ---
 
@@ -115,8 +115,9 @@ These are good ideas. They are simply not v0.3. Shocking restraint, I know.
 13. Store generated analysis and source metadata by default; avoid permanent raw full-text storage unless there is a clear retention policy.
 14. Every external source should support cheap pre-scan, segmentation/chunk mapping, source complexity estimation, and research-depth control.
 15. Research depth should be segment-aware: requested mode and actual mode may differ when Optimize Research is enabled or when allowance risk requires user-approved downgrade.
-16. Warn users before generation when a single run is estimated to consume more than 50% of their current available research allowance.
+16. Warn users before generation when a single run is estimated to consume more than 50% of the active single-run budget threshold, or more than 50% of the user's available allowance once persistent allowance is enabled.
 17. Final outputs for segmented sources should show analysis depth by section.
+18. For the first implementation slice, a config-based single-run budget threshold is acceptable. Persistent user allowance/cooldown can be introduced later when billing/plan rules are clearer.
 
 ---
 
@@ -145,7 +146,7 @@ User
  ├── SourceSegment
  ├── AnalysisRun
  ├── AnalysisSegment
- ├── UserResearchAllowance
+ ├── UserResearchAllowance optional future layer
  └── UsageEvent
 ```
 
@@ -199,7 +200,7 @@ Central saved artifact for AlphaBrief.
 | short_summary | TEXT | One-paragraph summary for list views |
 | confidence_label | VARCHAR(50) | HIGH, MEDIUM, LOW, UNKNOWN |
 | confidence_explanation | TEXT | Nullable |
-| analysis_mode | VARCHAR(50) | SOURCE_BRIEF, CONTEXT_BRIEF, ASK_ANALYSIS, FORMAL_BRIEF |
+| analysis_mode | VARCHAR(50) | SOURCE_BRIEF, CONTEXT_BRIEF, NOT_APPLICABLE |
 | disclaimer | TEXT | Required for AI-generated research |
 | model_provider | VARCHAR(100) | Nullable |
 | model_name | VARCHAR(100) | Nullable |
@@ -233,8 +234,7 @@ ARCHIVED
 analysis_mode:
 SOURCE_BRIEF       # Full source text/transcript was available
 CONTEXT_BRIEF      # Full source unavailable; analysis uses metadata + public/market context
-ASK_ANALYSIS       # Direct flexible user question
-FORMAL_BRIEF       # Formal Brief Mode output
+NOT_APPLICABLE     # No external source was used, such as a direct user question or journal row
 ```
 
 ### Notes
@@ -337,6 +337,17 @@ EPHEMERAL       # Used in memory only during generation
 TEMPORARY_24H   # Kept briefly for debugging/retry, then deleted
 NOT_STORED      # Only metadata and generated output stored
 ```
+
+### Retention Defaults
+
+```text
+ARTICLE_URL      → NOT_STORED by default after generation unless the user explicitly saves extracted text
+BROWSER_PAGE     → TEMPORARY_24H by default, then purge extracted_text
+PDF_FILE         → TEMPORARY_24H for extracted text; original file retention follows upload policy
+YOUTUBE_TRANSCRIPT → EPHEMERAL by default unless transcript retention is explicitly enabled later
+```
+
+A scheduled purge job must remove expired `sources.extracted_text` for `TEMPORARY_24H` rows. Without the purge job, the retention enum is decorative, which is exactly as useful as a fire alarm sticker.
 
 ### Notes
 
@@ -541,14 +552,16 @@ User-defined research or learning goals.
 
 ## 4.14 `generation_jobs`
 
-Tracks AI generation for Ask Mode, Brief Mode, daily summaries, and reflection assistance.
+Tracks AI generation for Ask Mode, Brief Mode, daily summaries, reflection assistance, and optional adaptive-research background jobs.
+
+Implementation note: the first Source Analysis MVP may use `analysis_runs` as the progress tracker and defer `generation_jobs`. If `generation_jobs` is implemented early, include adaptive job types so scans and segment analysis are not invisible.
 
 | Field | Type | Notes |
 |---|---|---|
 | id | UUID | Primary key |
 | user_id | UUID | FK to users |
 | research_item_id | UUID | Nullable FK |
-| job_type | VARCHAR(50) | ASK_ANALYSIS, BRIEF_GENERATION, DAILY_SUMMARY, REFLECTION_ASSIST, SOURCE_EXTRACTION |
+| job_type | VARCHAR(50) | ASK_ANALYSIS, BRIEF_GENERATION, DAILY_SUMMARY, REFLECTION_ASSIST, SOURCE_EXTRACTION, SOURCE_SCAN, SEGMENT_ANALYSIS, ANALYSIS_RERUN |
 | status | VARCHAR(50) | QUEUED, RUNNING, COMPLETED, FAILED, CANCELLED |
 | current_step | VARCHAR(80) | Nullable |
 | retry_count | INTEGER | Default 0 |
@@ -706,6 +719,8 @@ ESTIMATE_UNCERTAINTY
 
 Tracks the user-facing allowance percentage and cooldown/recovery state.
 
+Implementation note: this table is **not required for the first Source Analysis MVP**. Start with a config-based single-run threshold and introduce this table once persistent plan/cooldown behavior is needed.
+
 | Field | Type | Notes |
 |---|---|---|
 | id | UUID | Primary key |
@@ -755,36 +770,107 @@ This gives cost visibility without implementing billing, subscriptions, credits,
 
 # 5. Recommended v0.3 Implementation Slices
 
-## Slice A: Core Workspace Foundation
+These slices are intentionally ordered so Cursor can implement one runnable PR at a time instead of trying to birth the entire product in one heroic, doomed commit.
+
+## Slice A: Foundation + Auth
 
 Build:
 
 ```text
+FastAPI app shell
+PostgreSQL + Alembic
 users
-research_items
-sources
-research_item_sources
-generation_jobs
-source_scans
-source_segments
-analysis_runs
-analysis_segments
-user_research_allowances
-usage_events
+basic auth
+/me endpoints
+health check
+test setup
 ```
 
 Supports:
 
 ```text
-Ask Mode
-Brief Mode foundation
-source upload/submission
-URL / YouTube input
-browser-extension-compatible source ingestion
-basic research log
+authenticated user ownership for all later source-analysis work
 ```
 
-## Slice B: Organization Layer
+## Slice B: Source Analysis MVP Core
+
+Build:
+
+```text
+sources
+source_scans
+source_segments
+research_items
+analysis_runs
+analysis_segments
+usage_events
+ARTICLE_URL ingestion
+YOUTUBE_URL ingestion
+cheap scan
+research intent / coverage / mode fields
+50% warning gate
+Optimize Research flag
+analysis depth by section
+```
+
+Supports:
+
+```text
+user pastes external source
+→ AlphaBrief scans source
+→ user chooses intent/mode/coverage
+→ AlphaBrief warns if estimated impact exceeds threshold
+→ AlphaBrief analyzes segment-by-segment
+→ saved ResearchItem shows depth by section
+```
+
+Implementation shortcut:
+
+```text
+Use a config-based SINGLE_RUN_BUDGET_THRESHOLD for the first build.
+Do not require persistent user_research_allowances yet.
+```
+
+## Slice C: Real LLM + Output Validation
+
+Build:
+
+```text
+real AiProviderClient
+structured output validation
+retry-once repair prompt
+disclaimer enforcement
+usage token/cost logging
+CONTEXT_BRIEF source-access notes
+```
+
+Supports:
+
+```text
+mock LLM replacement with real source-aware analysis
+```
+
+## Slice D: Brief Mode + Additional Source Types
+
+Build:
+
+```text
+briefs
+brief templates
+PDF upload
+BROWSER_PAGE backend ingestion endpoint
+optional generation_jobs if needed for non-analysis async workflows
+```
+
+Supports:
+
+```text
+formal structured briefs
+extension-compatible backend ingestion
+PDF/report source analysis
+```
+
+## Slice E: Organization Layer
 
 Build:
 
@@ -793,6 +879,7 @@ tags
 research_item_tags
 companies
 research_item_companies
+research log filters
 ```
 
 Supports:
@@ -803,7 +890,7 @@ company/topic filtering
 future company library foundation
 ```
 
-## Slice C: Learning Layer
+## Slice F: Learning Layer
 
 Build:
 
@@ -823,46 +910,41 @@ learning/reflection goals
 engagement loop
 ```
 
-## Slice D: Adaptive Research + Allowance Guardrails
+## Slice G: Chrome Extension Client
 
 Build:
 
 ```text
-source_scans
-source_segments
-analysis_runs
-analysis_segments
-user_research_allowances
-research_mode fields
-completion_strategy fields
-50% pre-analysis warning logic
-Optimize Research support
-analysis depth by section output
+Manifest V3 extension
+popup UI
+content script extraction
+extension auth token flow
+POST /sources/browser-extension
+open generated ResearchItem in web app
 ```
 
 Supports:
 
 ```text
-cheap scan for all external sources
-source complexity estimation
-segment-level research depth
-long-source cost control
-rerunnable downgraded sections
+preferred browser-based source capture once the web-paste source pipeline already works
 ```
 
-## Slice E: Browser Extension Integration
+## Slice H: Persistent Allowance + Cooldown
 
-Backend-ready slice:
+Build later:
 
 ```text
-source_access_method = BROWSER_EXTENSION
-source_type = BROWSER_PAGE
-POST /sources/browser-extension payload support
-analysis_mode selection: SOURCE_BRIEF or CONTEXT_BRIEF
-raw_text_retention handling
+user_research_allowances
+cooldown/recovery policy
+plan-aware thresholds
+allowance locking for concurrent runs
 ```
 
-Frontend/extension client can be built after Slice A if desired.
+Supports:
+
+```text
+real plan/billing-aware usage control after product behavior is validated
+```
 
 ---
 

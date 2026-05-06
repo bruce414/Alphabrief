@@ -1,6 +1,6 @@
 # Alphabrief backend
 
-FastAPI service with PostgreSQL, SQLAlchemy 2.x, and Alembic.
+FastAPI service with PostgreSQL, SQLAlchemy 2.x (async), asyncpg, and Alembic.
 
 **Not implemented yet:** AI brief generation, authentication, payments, usage limits, and subscriptions.
 
@@ -21,8 +21,10 @@ source .venv/bin/activate
 ### 2. Install dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -e .
 ```
+
+(`pip install -r requirements.txt` installs libraries only; editable install registers the `app` package.)
 
 ### 3. Copy environment file
 
@@ -64,7 +66,7 @@ curl -s -X POST http://localhost:8000/api/v1/briefs \
 
 ### Tests
 
-Requires Postgres running and migrations applied (same `DATABASE_URL` as the app).
+Requires Postgres reachable at `DATABASE_URL` (use `postgresql+asyncpg://…` as in `.env.example`). Pytest sets `ENVIRONMENT=test` and rebuilds the ORM schema once per session (point at a disposable database if you share a cluster).
 
 ```bash
 pytest
@@ -77,7 +79,7 @@ pytest
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/health` | Liveness-style health (also exposed without `/api/v1` prefix) |
-| `GET` | `/api/v1/health` | Health payload |
+| `GET` | `/api/v1/health` | Health (`{"status":"ok"}`) |
 | `GET` | `/api/v1/health/db` | Database connectivity (`SELECT 1`) |
 | `POST` | `/api/v1/briefs` | Create brief + initial URL source (`BriefCreate` → `BriefResponse`, `201`) |
 | `GET` | `/api/v1/briefs` | List briefs (`limit` default `20`, max `100`; `offset` default `0`; newest first) |

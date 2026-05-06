@@ -619,6 +619,23 @@ RECOMMENDED_CONTEXT
 
 Do not add broad social sentiment or source ranking in v0.3. That belongs to future deep research.
 
+---
+
+# 16. Source Analysis Validation Flow Summary
+
+Before any external-source analysis is generated, AlphaBrief should validate:
+
+```text
+1. Source ownership and access status
+2. Whether source text/transcript is available or metadata-only
+3. Whether a source scan is required
+4. Whether estimated impact exceeds the 50% warning threshold
+5. Whether high-usage warning acknowledgement is required
+6. Whether selected coverage and research mode are valid
+7. Whether output must be SOURCE_BRIEF or CONTEXT_BRIEF
+```
+
+This section exists mostly so the numbering does not jump like a caffeinated spreadsheet.
 
 ---
 
@@ -626,16 +643,23 @@ Do not add broad social sentiment or source ranking in v0.3. That belongs to fut
 
 This pipeline applies to every external source type, not only YouTube videos.
 
-Applicable sources:
+Applicable `source_type` values:
 
 ```text
 ARTICLE_URL
 YOUTUBE_URL
 PDF_FILE
 BROWSER_PAGE
+```
+
+Document subtypes are detected during scan and stored in metadata, not as `source_type` enum values:
+
+```text
 COMPANY_PAGE
 EARNINGS_REPORT
 FINANCE_NEWS_ARTICLE
+INVESTOR_RELATIONS_PAGE
+SEC_OR_COMPANY_FILING
 ```
 
 Core rule:
@@ -729,8 +753,12 @@ After the cheap scan, AlphaBrief should estimate the allowance impact.
 Warning rule:
 
 ```text
-If one analysis run is estimated to consume more than 50% of the user's current available research allowance, warn the user before generation begins.
+Show a pre-analysis warning when either condition is true:
+1. estimated_allowance_impact_percent > 50, or
+2. researchMode = DEEP and the scan marks estimate_confidence = LOW or source_complexity = VERY_HIGH.
 ```
+
+For the first Source Analysis MVP, `estimated_allowance_impact_percent` may be calculated against a config-based single-run budget threshold. Once persistent user allowance/cooldown exists, calculate it against the user's current available allowance.
 
 Do not warn for small or normal usage. A product that nags on every click becomes a tiny bureaucrat with a loading spinner.
 

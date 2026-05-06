@@ -194,6 +194,8 @@ PDF_FILE
 BROWSER_PAGE
 ```
 
+Document subtypes such as `EARNINGS_REPORT`, `COMPANY_PAGE`, and `FINANCE_NEWS_ARTICLE` are detected during scan from metadata/content and stored in `sources.metadata.detected_document_subtype`. They are not separate `sourceType` enum values in v0.3.
+
 Response:
 
 ```json
@@ -259,6 +261,18 @@ Response:
 }
 ```
 
+## Browser Extension Auth for v0.3
+
+For the first extension-capable backend, use one simple auth approach:
+
+```text
+The web app issues a user-owned extension token from a settings screen.
+The extension stores it in chrome.storage and sends Authorization: Bearer <token> to /sources/browser-extension.
+The backend validates the token and maps it to the owning user.
+```
+
+If the extension client is deferred, still keep `/sources/browser-extension` payload validation in the backend so the source pipeline remains extension-ready.
+
 ## Browser Extension Metadata-Only Source
 
 If the extension cannot reliably extract readable article text, it should still submit metadata.
@@ -313,7 +327,13 @@ Request:
   "researchScope": "RECOMMENDED_CONTEXT",
   "researchMode": "STANDARD",
   "coverageMode": "FULL_SOURCE",
+  "focusQuestion": null,
+  "selectedSegmentIds": [],
+  "selectedEntityIds": [],
+  "completionStrategy": "OPTIMIZE_RESEARCH",
   "optimizeResearch": true,
+  "sourceScanId": "uuid-or-null",
+  "acknowledgedHighUsageWarning": false,
   "saveToResearchLog": true
 }
 ```
@@ -323,10 +343,19 @@ Response:
 ```json
 {
   "researchItemId": "uuid",
-  "jobId": "uuid",
+  "jobId": "uuid-or-null",
+  "analysisRunId": "uuid-or-null",
   "status": "QUEUED",
   "itemType": "ASK_ANALYSIS"
 }
+```
+
+Adaptive-source rule:
+
+```text
+If Ask Mode includes a sourceId for a long/complex source, it reuses the same adaptive source-analysis pipeline as POST /research-items/from-source.
+Run POST /sources/{sourceId}/scan first when researchMode = DEEP or when the source exceeds the long-source threshold.
+If the scan requires a warning, acknowledgedHighUsageWarning must be true before generation starts.
 ```
 
 ---
@@ -796,8 +825,12 @@ QUESTION_TOO_VAGUE
 GENERATION_FAILED
 AI_OUTPUT_INVALID
 SOURCE_SCAN_FAILED
+SCAN_REQUIRED_FIRST
 ANALYSIS_ALLOWANCE_TOO_LOW
+ALLOWANCE_DEPLETED
 HIGH_USAGE_WARNING_REQUIRED
+WARNING_NOT_ACKNOWLEDGED
+EXTENSION_AUTH_INVALID
 ANALYSIS_SEGMENT_NOT_FOUND
 ANALYSIS_RUN_NOT_FOUND
 JOB_NOT_FOUND
@@ -816,6 +849,18 @@ INTERNAL_ERROR
 # 17. Adaptive Research / Source Scan Endpoints
 
 These endpoints support the v0.3 external-source architecture for all external source types: article URLs, browser pages, YouTube videos, earnings reports, PDFs, and company pages.
+
+Ordering rule:
+
+```text
+Run source scan before generation when:
+- researchMode = DEEP, or
+- the source exceeds the long-source threshold, or
+- estimated complexity is HIGH / VERY_HIGH, or
+- the frontend needs the 50% warning decision.
+
+For short sources in Quick or Standard mode, scan is optional but still recommended when the source text is already available.
+```
 
 ## Run Source Scan
 

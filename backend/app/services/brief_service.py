@@ -3,14 +3,15 @@ from __future__ import annotations
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.brief import Brief
 from app.models.brief_source import BriefSource
 from app.schemas.brief import BriefCreate
 
 
-def create_brief(db: Session, data: BriefCreate) -> Brief:
+async def create_brief(db: AsyncSession, data: BriefCreate) -> Brief:
     brief = Brief(
         title=data.title,
         brief_type=data.brief_type,
@@ -26,21 +27,22 @@ def create_brief(db: Session, data: BriefCreate) -> Brief:
         )
     )
     db.add(brief)
-    db.commit()
-    db.refresh(brief, attribute_names=["brief_sources"])
+    await db.commit()
+    await db.refresh(brief, attribute_names=["brief_sources"])
     return brief
 
 
-def get_brief_by_id(db: Session, brief_id: UUID) -> Brief | None:
+async def get_brief_by_id(db: AsyncSession, brief_id: UUID) -> Brief | None:
     stmt = (
         select(Brief)
         .where(Brief.id == brief_id)
         .options(selectinload(Brief.brief_sources))
     )
-    return db.execute(stmt).scalar_one_or_none()
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
 
 
-def list_briefs(db: Session, limit: int = 20, offset: int = 0) -> list[Brief]:
+async def list_briefs(db: AsyncSession, limit: int = 20, offset: int = 0) -> list[Brief]:
     stmt = (
         select(Brief)
         .options(selectinload(Brief.brief_sources))
@@ -48,4 +50,5 @@ def list_briefs(db: Session, limit: int = 20, offset: int = 0) -> list[Brief]:
         .limit(limit)
         .offset(offset)
     )
-    return list(db.scalars(stmt).all())
+    result = await db.scalars(stmt)
+    return list(result.all())

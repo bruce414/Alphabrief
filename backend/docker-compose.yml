@@ -3,9 +3,10 @@ services:
     image: postgres:17
     container_name: alphabrief-postgres
     environment:
-      POSTGRES_DB: ${DOCKER_POSTGRES_DB}
-      POSTGRES_USER: ${DOCKER_POSTGRES_USER}
-      POSTGRES_PASSWORD: ${DOCKER_POSTGRES_PASSWORD}
+      # Prefer POSTGRES_*; if unset, fall back to legacy DOCKER_POSTGRES_* from .env
+      POSTGRES_DB: ${POSTGRES_DB:-${DOCKER_POSTGRES_DB:-alphabrief}}
+      POSTGRES_USER: ${POSTGRES_USER:-${DOCKER_POSTGRES_USER:-alphabrief}}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-${DOCKER_POSTGRES_PASSWORD:-alphabrief}}
     ports:
       - "5432:5432"
     volumes:

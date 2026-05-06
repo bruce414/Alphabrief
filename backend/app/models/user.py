@@ -5,8 +5,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base
-from app.models.base import TimestampMixin, UUIDPrimaryKeyMixin
+from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.models.brief import Brief

@@ -1,7 +1,7 @@
 """SQLAlchemy models package.
 
 Import each model module so classes register on ``Base.metadata`` and Alembic
-``--autogenerate`` can detect them. Shared column mixins live in ``app.models.base``.
+``--autogenerate`` can detect them. Shared column mixins live in ``app.db.base``.
 """
 
 from app.models.user import User

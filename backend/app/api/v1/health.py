@@ -1,22 +1,22 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.db.session import get_db
 
-router = APIRouter()
+router = APIRouter(tags=["health"])
 
 
 @router.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "service": "alphabrief-backend"}
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
 
 
 @router.get("/health/db")
-def health_db(db: Session = Depends(get_db)) -> dict[str, str]:
+async def health_db(db: AsyncSession = Depends(get_db)) -> dict[str, str]:
     try:
-        db.execute(text("SELECT 1"))
+        await db.execute(text("SELECT 1"))
     except SQLAlchemyError:
         raise HTTPException(
             status_code=503,

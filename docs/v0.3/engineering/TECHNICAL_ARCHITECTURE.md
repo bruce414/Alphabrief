@@ -230,6 +230,20 @@ extension/
 6. No hidden browsing-history collection
 ```
 
+## Extension Auth for v0.3
+
+Recommended initial auth model:
+
+```text
+1. User logs into the web app.
+2. User generates an extension token from AlphaBrief settings.
+3. Extension stores the token in chrome.storage.
+4. Extension sends Authorization: Bearer <extension_token> to /api/v1/sources/browser-extension.
+5. Backend maps token to user and applies normal user ownership rules.
+```
+
+This avoids trying to make browser sessions, cross-origin cookies, and extension contexts behave like obedient little citizens. They will not.
+
 ## Preferred Permissions
 
 Start conservative:
@@ -257,6 +271,11 @@ backend/app/
 │       ├── ask.py
 │       ├── briefs.py
 │       ├── sources.py
+│       ├── source_scans.py
+│       ├── analysis_runs.py
+│       ├── analysis_segments.py
+│       ├── allowance.py
+│       ├── research_scopes.py
 │       ├── research_items.py
 │       ├── tags.py
 │       ├── companies.py
@@ -291,6 +310,11 @@ backend/app/
 │   ├── journal_entry.py
 │   ├── learning_goal.py
 │   ├── generation_job.py
+│   ├── source_scan.py
+│   ├── source_segment.py
+│   ├── analysis_run.py
+│   ├── analysis_segment.py
+│   ├── user_research_allowance.py
 │   └── usage_event.py
 │
 ├── schemas/
@@ -299,6 +323,12 @@ backend/app/
 │   ├── brief.py
 │   ├── source.py
 │   ├── extension_source.py
+│   ├── source_scan.py
+│   ├── source_segment.py
+│   ├── analysis_run.py
+│   ├── analysis_segment.py
+│   ├── allowance.py
+│   ├── research_scope.py
 │   ├── research_item.py
 │   ├── tag.py
 │   ├── company.py
@@ -313,6 +343,11 @@ backend/app/
 │   ├── research_item_repository.py
 │   ├── brief_repository.py
 │   ├── source_repository.py
+│   ├── source_scan_repository.py
+│   ├── source_segment_repository.py
+│   ├── analysis_run_repository.py
+│   ├── analysis_segment_repository.py
+│   ├── allowance_repository.py
 │   ├── tag_repository.py
 │   ├── company_repository.py
 │   ├── activity_repository.py
@@ -332,11 +367,11 @@ backend/app/
 │   ├── context_retrieval_service.py
 │   ├── input_classification_service.py
 │   ├── entity_detection_service.py
-    ├── source_scan_service.py
-    ├── source_segmentation_service.py
-    ├── source_complexity_service.py
-    ├── research_allowance_service.py
-    ├── adaptive_research_service.py
+│   ├── source_scan_service.py
+│   ├── source_segmentation_service.py
+│   ├── source_complexity_service.py
+│   ├── research_allowance_service.py
+│   ├── adaptive_research_service.py
 │   ├── research_item_service.py
 │   ├── activity_service.py
 │   ├── daily_summary_service.py
@@ -688,6 +723,7 @@ PATCH  /api/v1/me
 POST   /api/v1/sources
 POST   /api/v1/sources/upload
 POST   /api/v1/sources/browser-extension
+POST   /api/v1/sources/{sourceId}/scan
 
 POST   /api/v1/ask
 POST   /api/v1/briefs
@@ -697,6 +733,12 @@ POST   /api/v1/research-items/from-source
 GET    /api/v1/research-items
 GET    /api/v1/research-items/{researchItemId}
 DELETE /api/v1/research-items/{researchItemId}
+
+GET    /api/v1/analysis-runs/{analysisRunId}
+GET    /api/v1/analysis-runs/{analysisRunId}/segments
+POST   /api/v1/analysis-segments/{analysisSegmentId}/rerun
+GET    /api/v1/me/research-allowance
+GET    /api/v1/research-scopes
 
 GET    /api/v1/jobs/{jobId}
 
@@ -868,14 +910,28 @@ Move these to later versions:
 
 ## Slice A: Core Research Workspace
 
+First PR scope:
+
 ```text
 Auth
-ResearchItem
-Ask Mode
+users
+ResearchItem minimal schema
+Source URL-only schema
+AnalysisRun as progress tracker
+UsageEvent basic logging
+Ask Mode happy path with mock LLM
+No PDF
+No YouTube transcript dependency
+No Chrome extension client
+No adaptive scan yet unless needed by the first source-flow PR
+```
+
+Full v0.3 core workspace later adds:
+
+```text
 Brief Mode
-Source handling
-GenerationJob
-UsageEvent
+GenerationJob for non-analysis async workflows
+Source handling across URL / YouTube / PDF / browser extension
 ```
 
 ## Slice B: Adaptive Source Scan + Research Modes
