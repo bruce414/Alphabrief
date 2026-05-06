@@ -36,6 +36,14 @@ class Settings(BaseSettings):
         default="ab_session",
         validation_alias=AliasChoices("SESSION_COOKIE_NAME", "AUTH_COOKIE_NAME"),
     )
+    http_user_agent: str = Field(
+        default="AlphaBrief/0.3 (+https://alphabrief.example)",
+        validation_alias="HTTP_USER_AGENT",
+    )
+    max_fetch_bytes: int = Field(default=5 * 1024 * 1024, validation_alias="MAX_FETCH_BYTES")
+    fetch_timeout_seconds: float = Field(default=30.0, validation_alias="FETCH_TIMEOUT_SECONDS")
+    # Comma-separated domain suffixes (case-insensitive), e.g. ".mil"
+    source_domain_denylist: str = Field(default=".mil", validation_alias="SOURCE_DOMAIN_DENYLIST")
 
     model_config = SettingsConfigDict(
         env_file=str(_BACKEND_ROOT / ".env"),
@@ -59,6 +67,10 @@ class Settings(BaseSettings):
 
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
+
+    def source_domain_denylist_suffixes(self) -> list[str]:
+        parts = [p.strip().lower() for p in self.source_domain_denylist.split(",")]
+        return [p for p in parts if p]
 
     @property
     def DATABASE_URL(self) -> str:

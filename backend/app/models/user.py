@@ -9,6 +9,8 @@ from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.models.brief import Brief
+    from app.models.source import Source
+    from app.models.usage_event import UsageEvent
 
 
 class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -42,5 +44,13 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     briefs: Mapped[list[Brief]] = relationship(
         "Brief",
+        back_populates="user",
+    )
+    sources: Mapped[list["Source"]] = relationship(
+        "Source",
+        back_populates="user",
+    )
+    usage_events: Mapped[list["UsageEvent"]] = relationship(
+        "UsageEvent",
         back_populates="user",
     )

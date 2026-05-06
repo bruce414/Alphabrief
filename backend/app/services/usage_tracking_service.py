@@ -1,0 +1,32 @@
+from __future__ import annotations
+
+import uuid
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.usage_event import UsageEvent
+
+
+async def record_source_extraction_event(
+    db: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    source_id: uuid.UUID,
+) -> None:
+    db.add(
+        UsageEvent(
+            user_id=user_id,
+            source_id=source_id,
+            research_item_id=None,
+            event_type="SOURCE_EXTRACTION",
+            model_provider=None,
+            model_name=None,
+            input_tokens=None,
+            output_tokens=None,
+            estimated_allowance_impact_percent=None,
+            actual_allowance_impact_percent=None,
+            internal_cost_score=None,
+            estimated_cost_usd=None,
+        )
+    )
+    await db.commit()
