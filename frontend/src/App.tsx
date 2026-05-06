@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { AppLayout } from '@/components/layout/app-layout'
+import { AskPage } from '@/pages/ask-page'
 import { AppSectionPage } from '@/pages/app-section-page'
 import { LandingPage } from '@/pages/landing-page'
 import { NotFoundPage } from '@/pages/not-found-page'
@@ -11,15 +12,7 @@ function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/app" element={<AppLayout />}>
         <Route index element={<Navigate to="/app/ask" replace />} />
-        <Route
-          path="ask"
-          element={
-            <AppSectionPage
-              title="Ask"
-              description="Pose questions against your sources and briefs."
-            />
-          }
-        />
+        <Route path="ask" element={<AskPage />} />
         <Route
           path="research"
           element={
