@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 
@@ -49,5 +50,18 @@ async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
             error_code=exc.error_code,
             message=exc.message,
             details=exc.details,
+        ),
+    )
+
+
+async def request_validation_error_handler(
+    _request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content=error_payload(
+            error_code="INVALID_INPUT",
+            message="Invalid input",
+            details=exc.errors(),
         ),
     )

@@ -32,6 +32,10 @@ class Settings(BaseSettings):
         default="http://localhost:5173,http://127.0.0.1:5173",
         validation_alias=AliasChoices("CORS_ALLOWED_ORIGINS", "CORS_ALLOW_ORIGINS"),
     )
+    session_cookie_name: str = Field(
+        default="ab_session",
+        validation_alias=AliasChoices("SESSION_COOKIE_NAME", "AUTH_COOKIE_NAME"),
+    )
 
     model_config = SettingsConfigDict(
         env_file=str(_BACKEND_ROOT / ".env"),
