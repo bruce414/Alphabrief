@@ -6,845 +6,900 @@
 
 ## Status
 
-This document treats **v0.3 as the first major AlphaBrief milestone**.
-
-Earlier v0.1/v0.2 ideas are now internal implementation slices inside v0.3:
+This pipeline reflects AlphaBrief's positioning as:
 
 ```text
-v0.3 foundation slice
-v0.3 source/question brief flow
-v0.3 agentic/deep analysis flow
-v0.3 validation before launch
+Market learning + research workspace
+Ask Mode + Brief Mode
+Daily research summary
+Journal/reflection assistant
+Learning goals
+Chrome Extension-ready source analysis
+Adaptive external-source research for URLs, YouTube, PDFs, earnings reports, articles, and browser pages
 ```
 
-## Purpose
+The earlier pipeline focused on turning every input into a structured brief. v0.3 should be more flexible: not every answer needs to be a formal brief.
 
-This document defines how AlphaBrief turns either:
+This version also adds the Chrome extension as a source ingestion adapter. The extension is not a scraping loophole or a magical lawsuit umbrella. It is a user-initiated way to analyze the page the user is already viewing.
 
-```text
-1. A user-submitted financial source
-2. A direct finance / market research question
-3. A combination of both
-```
-
-into a structured finance research brief.
-
-The central product artifact is the **Brief**.
-
-Sources are optional inputs, not the parent object of every brief.
+This version also adds the v0.3 adaptive research architecture. Every external source should go through a cheap scan, segmentation/chunking, source-complexity estimation, user intent selection, research-depth selection, allowance risk checks, and optional Optimize Research. This applies to YouTube videos, finance news/articles, earnings reports, PDFs, company pages, browser-extension captured pages, and pasted URLs.
 
 ---
 
-# 1. Pipeline Overview
+# 1. Pipeline Modes
 
-AlphaBrief v0.3 should support three request types.
+AlphaBrief v0.3 supports four AI workflows.
 
-## 1.1 Source-Based Brief
+## 1.1 Ask Mode Analysis
 
-Examples:
-
-```text
-Analyse this Visa earnings report.
-Summarise this fintech article.
-Turn this YouTube video into a finance brief.
-```
-
-Supported inputs:
-
-```text
-ARTICLE_URL
-YOUTUBE_URL
-PDF_FILE
-PASTED_TEXT
-```
-
-## 1.2 Question-Based Brief
+Flexible finance/source analysis.
 
 Examples:
 
 ```text
-Analyse the fintech industry for me.
-What are the main risks facing Tesla?
-How do interest rates affect banks?
-Is Visa threatened by fintech disruption?
+Explain this Visa earnings report.
+What does this market news mean?
+Why did a stock fall after good earnings?
 ```
 
-A question-based brief may not have a user-provided source.
+Output:
 
-## 1.3 Mixed Brief
+```text
+ChatGPT-like structured response, but finance-aware and research-oriented.
+```
+
+## 1.2 Brief Mode Generation
+
+Formal structured artifact.
 
 Examples:
 
 ```text
-Use this Visa report and explain whether fintech disruption is a serious risk.
-Analyse this earnings report and compare it with current industry trends.
+Generate a company brief for Visa.
+Create an earnings breakdown for this report.
+Create a market event explainer for this Fed decision.
 ```
 
-A mixed brief includes both:
+Output:
 
 ```text
-source_id
-user_query
+Formal saved brief with stable sections.
 ```
+
+## 1.3 Daily Research Summary
+
+AI-generated recap of what the user researched today.
+
+Output:
+
+```text
+Topics researched
+Companies mentioned
+Sources analyzed
+Key insights
+Open questions
+Suggested follow-ups
+```
+
+## 1.4 Reflection Assistant
+
+AI-assisted, user-owned journal writing.
+
+Output:
+
+```text
+Small writing suggestions, prompts, and learning points.
+```
+
+The AI should not fully replace the user reflection by default. Humanity has enough ghostwritten introspection already.
 
 ---
 
-# 2. Recommended v0.3 Pipeline
+# 2. Shared Intake Pipeline
+
+All AI workflows share the following early steps:
 
 ```text
 1. Validate request
-2. Classify input type
-3. Check usage limit
-4. Check entitlement if Pro/deep analysis is requested
-5. Create source if input is source-based
-6. Create brief
-7. Create brief_generation_job
-8. Extract/transcribe source content if applicable
-9. Clean content
-10. Detect financial entities
-11. Detect events and claims
-12. Resolve research scope
-13. Select allowed research channels
-14. Retrieve context if allowed
-15. Store brief_sources and external_context_items where applicable
-16. Construct AI prompt
-17. Generate structured brief
-18. Validate AI output
-19. Persist generated_content, summary_markdown, entities, events, claims, citations where applicable
-20. Update usage and cost tracking
-21. Mark job completed or failed
-22. Return result to user
+2. Identify workflow mode
+3. Create or reference Source if source input exists
+4. Determine source access method and extraction status
+5. Extract/normalize source text if applicable
+6. If full source unavailable, build metadata + API context fallback
+7. Run cheap source scan for all external sources
+8. Segment/chunk source content where applicable
+9. Estimate source complexity, entity density, topic density, and allowance impact
+10. Ask user for analysis intent, coverage, and research mode when needed
+11. If estimated impact is above the warning threshold, show a pre-analysis warning
+12. Create ResearchItem when output should be saved
+13. Create GenerationJob and AnalysisRun
+14. Build prompt context by segment or source chunk
+15. Generate output section-by-section when applicable
+16. Validate output
+17. Persist output, analysis depth by section, and activity
+18. Track usage/cost
+19. Return result or status
 ```
 
 ---
 
-# 3. Step 1: Validate Request
+# 3. Input Types
 
-The request should support:
+Supported v0.3 input types:
 
 ```text
 QUESTION
 ARTICLE_URL
 YOUTUBE_URL
 PDF_FILE
-PASTED_TEXT
+BROWSER_PAGE
 MIXED
 ```
 
-Validation should reject:
+Important rules:
 
-- Empty input
-- Unsupported input type
-- Unsupported URL type
-- Invalid URL
-- Suspicious private/internal URL
-- Extremely short pasted text
-- Input above configured limit
-- PDF above configured size limit
-- Unsupported file MIME type
-- Direct finance question that is too vague to process safely
-- Requests that ask for personalised financial advice
+```text
+Direct user questions are stored on ResearchItem.original_user_input.
+They are not stored as Source rows.
+```
 
-Suggested limits:
-
-| Rule | Free | Pro / Student Pro / Beta |
-|---|---:|---:|
-| Max pasted text length | 8,000 characters | 30,000 characters |
-| Max PDF size | 5 MB | 20 MB |
-| Max briefs per day | 3 | 50 |
-| Deep briefs | 0 or limited preview | plan/credit controlled |
+```text
+PASTED_TEXT is not a primary v0.3 UX path.
+Do not make users paste entire articles as the normal fallback.
+```
 
 ---
 
-# 4. Step 2: Classify Input Type
+# 4. Source Access Methods
 
-The backend should classify the request into one of:
+AlphaBrief should normalize source intake using `source_access_method`.
 
 ```text
-QUESTION
-ARTICLE_URL
-YOUTUBE_URL
-PDF_FILE
-PASTED_TEXT
-MIXED
+SERVER_FETCH         # Backend attempts safe public URL extraction
+BROWSER_EXTENSION    # User clicked extension on page they were viewing
+API_CONTEXT          # Related market/news/filing context from allowed APIs
+UPLOAD               # User uploaded a PDF/file
+YOUTUBE_METADATA     # YouTube title/channel/description metadata
+YOUTUBE_TRANSCRIPT   # Transcript/caption data from an allowed path
 ```
 
-## Source-based request
+Source access status:
+
+```text
+PENDING
+FULL_TEXT_EXTRACTED
+METADATA_ONLY
+BLOCKED
+FAILED
+```
+
+Analysis modes:
+
+```text
+SOURCE_BRIEF   # Source text/transcript is available
+CONTEXT_BRIEF  # Full source unavailable; use metadata + public context
+```
+
+Research modes:
+
+```text
+QUICK      # Fast understanding, low depth, minimal context
+STANDARD   # Balanced default analysis with key implications and risks
+DEEP       # Richer segment-level analysis for complex or high-value sources
+```
+
+Completion strategies:
+
+```text
+STRICT_REQUESTED_MODE  # Keep the requested research mode unless the user intervenes
+OPTIMIZE_RESEARCH      # Adapt depth by section to finish the source efficiently
+```
+
+Coverage options for long or complex sources:
+
+```text
+FULL_SOURCE
+SELECTED_TOPICS
+SELECTED_ENTITIES
+CUSTOM_QUESTION
+```
+
+The selected research mode describes desired depth. The selected coverage describes how much of the source should be analyzed. These are different controls and should not be collapsed into one confused little dropdown.
+
+---
+
+# 5. Article URL Pipeline
+
+```text
+User submits article URL
+→ validate URL
+→ block localhost/private IP fetch targets
+→ create Source(source_type = ARTICLE_URL, source_access_method = SERVER_FETCH)
+→ try safe public extraction
+→ extract metadata: title, publisher, author, date, canonical URL
+→ if readable text is available:
+     mark source_access_status = FULL_TEXT_EXTRACTED
+     select analysis_mode = SOURCE_BRIEF
+→ if readable text is unavailable/blocked:
+     mark source_access_status = METADATA_ONLY or BLOCKED
+     select analysis_mode = CONTEXT_BRIEF
+     retrieve related market/news/filing context if researchScope = RECOMMENDED_CONTEXT
+→ create ResearchItem + GenerationJob
+→ generate output
+→ save source metadata + generated analysis
+```
+
+## URL Extraction Guardrails
+
+Do not:
+
+```text
+- bypass paywalls
+- bypass login walls
+- bypass CAPTCHAs
+- ignore clear technical access controls
+- store full copyrighted article text permanently by default
+- claim the article said something if only metadata was available
+```
+
+---
+
+# 6. Chrome Extension Source Pipeline
+
+The Chrome extension allows AlphaBrief to analyze the current page from the user's browser after explicit user action.
+
+```text
+User opens article page
+→ user clicks AlphaBrief Chrome extension
+→ extension reads page DOM after user action
+→ extension extracts readable article text if available
+→ extension extracts metadata: title, publisher, URL, publish date, OpenGraph/JSON-LD
+→ extension shows preview/status to user
+→ user clicks Generate AlphaBrief
+→ extension sends payload to POST /api/v1/sources/browser-extension
+→ backend creates Source(source_type = BROWSER_PAGE, source_access_method = BROWSER_EXTENSION)
+→ backend decides source_access_status
+→ backend creates ResearchItem + GenerationJob
+→ pipeline generates Source Brief or Context Brief
+→ output is saved in Research Log with tags/company links
+```
+
+## Extension Full-Text Case
+
+```text
+BROWSER_EXTENSION payload includes extractedText
+→ mark source_access_status = FULL_TEXT_EXTRACTED
+→ select analysis_mode = SOURCE_BRIEF
+→ summarize exact source
+→ extract claims and key numbers
+→ enrich with market APIs/filings if researchScope = RECOMMENDED_CONTEXT
+→ validate that source-specific claims are grounded in extracted text
+```
+
+## Extension Metadata-Only Case
+
+```text
+BROWSER_EXTENSION payload has title/URL/metadata only
+→ mark source_access_status = METADATA_ONLY
+→ select analysis_mode = CONTEXT_BRIEF
+→ detect company/ticker/topic from metadata
+→ retrieve related news, market data, filings, or company context
+→ generate context brief
+→ clearly state that full page text was unavailable
+```
+
+## Extension Compliance Rule
+
+The extension should be positioned as:
+
+```text
+User-initiated page analysis of content the user chooses to process.
+```
+
+It should not be positioned as:
+
+```text
+A paywall bypasser, login-content scraper, or background crawler.
+```
+
+Annoyingly important difference. Tiny sentence, giant risk profile.
+
+---
+
+# 7. YouTube URL Pipeline
+
+```text
+User submits YouTube URL
+→ validate URL
+→ create Source(source_type = YOUTUBE_URL)
+→ extract metadata: title, channel, description, publish date if available
+→ attempt transcript/caption access only through allowed paths
+→ if transcript is available:
+     source_access_method = YOUTUBE_TRANSCRIPT
+     source_access_status = FULL_TEXT_EXTRACTED
+     analysis_mode = SOURCE_BRIEF
+→ if transcript is unavailable:
+     source_access_method = YOUTUBE_METADATA
+     source_access_status = METADATA_ONLY
+     analysis_mode = CONTEXT_BRIEF
+     retrieve related company/topic/market context if possible
+→ create ResearchItem + GenerationJob
+→ generate output
+```
+
+Do not make v0.3 depend on always having YouTube transcripts. That path is fragile, because naturally video platforms were not designed around your startup roadmap.
+
+---
+
+# 8. Ask Mode Pipeline
+
+```text
+User submits question/source
+→ validate input
+→ create or reference Source if source exists
+→ determine SOURCE_BRIEF vs CONTEXT_BRIEF if source is involved
+→ create ResearchItem(item_type = ASK_ANALYSIS)
+→ create GenerationJob(job_type = ASK_ANALYSIS)
+→ extract/normalize source text if needed
+→ retrieve recommended context if enabled
+→ detect companies/topics
+→ generate structured analysis
+→ validate answer
+→ save output_markdown and output_json
+→ create ResearchActivity(ASKED_QUESTION or ANALYZED_SOURCE or ANALYZED_BROWSER_PAGE)
+→ create UsageEvent
+→ return ResearchItem
+```
+
+## Ask Mode output shape
 
 ```json
 {
-  "inputType": "ARTICLE_URL",
-  "input": "https://example.com/fintech-article",
-  "userQuery": null
+  "title": "Visa earnings impact analysis",
+  "quick_answer": "...",
+  "analysis_mode": "SOURCE_BRIEF",
+  "source_access_status": "FULL_TEXT_EXTRACTED",
+  "what_happened": "...",
+  "why_it_matters": "...",
+  "market_implications": [],
+  "companies_or_topics_mentioned": [],
+  "risks_and_uncertainties": [],
+  "finance_concepts": [],
+  "follow_up_questions": [],
+  "confidence_label": "MEDIUM",
+  "confidence_explanation": "...",
+  "disclaimer": "For educational and informational purposes only."
 }
 ```
 
-## Question-based request
+---
 
-```json
-{
-  "inputType": "QUESTION",
-  "input": "Analyse the fintech industry for me",
-  "userQuery": "Analyse the fintech industry for me"
-}
+# 9. Brief Mode Pipeline
+
+```text
+User selects Brief Mode
+→ user chooses or implies brief_type
+→ validate subject/source/question
+→ create or reference Source if source exists
+→ determine SOURCE_BRIEF vs CONTEXT_BRIEF if source is involved
+→ create ResearchItem(item_type = BRIEF)
+→ create Brief linked to ResearchItem
+→ create GenerationJob(job_type = BRIEF_GENERATION)
+→ extract/normalize source text if needed
+→ retrieve recommended context if enabled
+→ detect companies/topics/events
+→ select brief template
+→ generate formal structured brief
+→ validate required sections
+→ persist Brief.sections + ResearchItem.output_json
+→ create ResearchActivity(GENERATED_BRIEF)
+→ create UsageEvent
+→ return Brief
 ```
 
-## Mixed request
+## v0.3 brief types
+
+```text
+COMPANY_RESEARCH
+EARNINGS_BREAKDOWN
+SOURCE_SUMMARY
+MARKET_EVENT_EXPLAINER
+```
+
+## Company Research Brief sections
+
+```text
+companyOverview
+businessModel
+recentContext
+growthDrivers
+risks
+competitorContext
+bullCase
+bearCase
+whatToWatchNext
+learningTakeaway
+disclaimer
+```
+
+## Earnings Breakdown sections
+
+```text
+headlineResult
+keyNumbers
+whatChanged
+managementCommentary
+guidanceAndOutlook
+positiveSignals
+negativeSignals
+whatToWatchNext
+learningTakeaway
+disclaimer
+```
+
+## Source Summary sections
+
+```text
+mainTakeaway
+keyClaims
+importantNumbers
+sourcePerspective
+missingContext
+whyItMatters
+sourceAccessNote
+followUpQuestions
+disclaimer
+```
+
+## Market Event Explainer sections
+
+```text
+eventSummary
+whyItMatters
+whoIsAffected
+shortTermImpact
+longTermImpact
+risksAndUncertainties
+whatToWatchNext
+learningTakeaway
+disclaimer
+```
+
+---
+
+# 10. Context Brief Fallback Pipeline
+
+Use this when full source text is unavailable.
+
+```text
+Source has metadata only or extraction blocked
+→ extract title, URL, publisher, date, ticker/company/topic hints
+→ retrieve allowed context sources if researchScope = RECOMMENDED_CONTEXT
+     - financial news API
+     - market data API
+     - SEC/company filings where relevant
+     - company profile/fundamentals where relevant
+→ generate context brief
+→ include sourceAccessNote
+→ avoid claiming the original article/video said something specific
+```
+
+Recommended source access note:
+
+```text
+The full source text was unavailable, so this analysis uses source metadata plus related public market/news/filing context.
+```
+
+This makes failure useful instead of just shrugging in JSON.
+
+---
+
+# 11. Daily Research Summary Pipeline
+
+```text
+User clicks Generate Today's Summary
+→ fetch today's ResearchActivity rows
+→ fetch today's completed ResearchItems
+→ fetch linked tags, companies, and sources
+→ create or update DailyResearchSummary
+→ optionally create ResearchItem(item_type = DAILY_SUMMARY)
+→ generate summary
+→ persist topics, companies, insights, open questions, follow-ups
+→ create ResearchActivity(GENERATED_DAILY_SUMMARY)
+→ return summary
+```
+
+## Daily summary output shape
 
 ```json
 {
-  "inputType": "MIXED",
-  "input": "file_id_or_url",
-  "userQuery": "Focus on implications for Visa and Mastercard"
+  "summary_date": "2026-05-04",
+  "topics_covered": [],
+  "companies_mentioned": [],
+  "sources_analyzed": [],
+  "key_insights": [],
+  "open_questions": [],
+  "suggested_followups": [],
+  "summary_markdown": "..."
 }
 ```
 
 ### Important rule
 
-Direct finance questions should be stored on:
-
-```text
-briefs.user_query
-```
-
-not in the `sources` table.
-
-The `sources` table should store user-provided material such as:
-
-```text
-ARTICLE_URL
-YOUTUBE_URL
-PDF_FILE
-PASTED_TEXT
-```
+Daily summaries should summarize structured activity, not raw endless chat history. Otherwise, welcome back to the scroll swamp.
 
 ---
 
-# 5. Step 3: Resolve Research Scope
-
-AlphaBrief should allow the user to choose a research scope before external retrieval.
-
-Default:
+# 12. Reflection Assistant Pipeline
 
 ```text
-RECOMMENDED_SOURCES
+User opens Journal
+→ user links optional DailyResearchSummary
+→ user writes or starts draft
+→ user clicks reflection assist
+→ backend sends limited context and selected assist step
+→ AI returns one suggestion or prompt
+→ user edits and saves JournalEntry
 ```
 
-User-facing labels should describe the research breadth, not rank individual publishers.
-
-| Research scope | User-facing meaning | Internal behavior |
-|---|---|---|
-| RECOMMENDED_SOURCES | Uses official, regulatory, company, government, and established financial media sources | Searches channels internally marked as suitable for primary or strong supporting evidence |
-| EXPANDED_MARKET_CONTEXT | Adds selected commentary, newsletters, videos, and specialist finance platforms | Allows broader context, but labels opinion-based material clearly |
-| SENTIMENT_AND_DISCUSSION | Adds limited public discussion sources for sentiment and market narrative only | Social/community sources may inform sentiment but must not verify factual claims |
-| USER_PROVIDED_ONLY | Uses only submitted source plus minimal metadata | Useful for narrow source-focused briefs |
-
-## Compliance and UI principle
-
-Do not show user-facing rankings like:
+## Reflection assist steps
 
 ```text
-Bloomberg = Tier 1
-Newsletter X = Tier 3
-Reddit = Low Trust
+STARTER_SUMMARY
+SUGGEST_LEARNING_POINTS
+SUGGEST_OPEN_QUESTIONS
+DRAFT_NEXT_PARAGRAPH
 ```
 
-Use safe labels:
+## Guardrail
 
-```text
-Recommended Sources
-Expanded Market Context
-Sentiment & Discussion Signals
-User-Provided Sources Only
-```
-
-Internally, AlphaBrief can still store:
-
-```text
-internal_trust_tier
-usage_role
-source_quality
-source_category_label
-```
+The reflection assistant should encourage the user to write and revise. It can help, but it should not pretend the AI had the user's personal experience.
 
 ---
 
-# 6. Step 4: Create Source If Applicable
+# 13. Research Activity Creation
 
-## Article URL
-
-```text
-URL → Article extractor → title + body text
-```
-
-## YouTube URL
+Create a `ResearchActivity` row for meaningful actions:
 
 ```text
-URL → Transcript extractor → transcript text + video metadata
+ASKED_QUESTION
+ANALYZED_SOURCE
+ANALYZED_BROWSER_PAGE
+GENERATED_BRIEF
+SAVED_RESEARCH
+CREATED_JOURNAL_ENTRY
+CREATED_GOAL
+GENERATED_DAILY_SUMMARY
 ```
 
-## PDF File
+These events power:
 
-```text
-PDF upload → storage → PDF text extraction → title/metadata + raw text
-```
-
-## Pasted Text
-
-```text
-Text input → cleaning service → normalized raw text
-```
-
-## Question
-
-```text
-No source row required.
-Store question in briefs.user_query.
-```
+- Daily summaries
+- Weekly summaries later
+- Research streaks later
+- Learning goal progress later
 
 ---
 
-# 7. Step 5: Create Brief
-
-Every request creates a `briefs` row.
-
-For source-based brief:
-
-```text
-input_type = ARTICLE_URL / YOUTUBE_URL / PDF_FILE / PASTED_TEXT
-source_id = sources.id
-user_query = optional user instruction
-```
-
-For question-based brief:
-
-```text
-input_type = QUESTION
-source_id = null
-user_query = user question
-```
-
-For mixed brief:
-
-```text
-input_type = MIXED
-source_id = sources.id
-user_query = user instruction/question
-```
-
-Initial status:
-
-```text
-brief_status = QUEUED
-```
-
----
-
-# 8. Step 6: Create Brief Generation Job
-
-The backend should create a `brief_generation_jobs` row.
-
-Recommended initial state:
-
-```text
-status = QUEUED
-current_step = VALIDATING_INPUT
-```
-
-Possible current steps:
-
-```text
-VALIDATING_INPUT
-CREATING_SOURCE
-EXTRACTING_SOURCE
-CLEANING_CONTENT
-CLASSIFYING_REQUEST
-DETECTING_ENTITIES
-DETECTING_EVENTS
-EXTRACTING_CLAIMS
-RETRIEVING_CONTEXT
-GENERATING_BRIEF
-VALIDATING_OUTPUT
-PERSISTING_RESULT
-COMPLETED
-FAILED
-```
-
-Recommended async-friendly flow:
-
-```text
-POST /api/v1/briefs
-→ create source if needed
-→ create brief with QUEUED status
-→ create brief_generation_job
-→ return briefId
-→ worker processes job
-→ frontend polls GET /api/v1/briefs/{briefId}
-```
-
----
-
-# 9. Step 7: Extract and Clean Content
-
-For source-based and mixed briefs, extract raw text.
-
-The cleaning stage should:
-
-- Remove repeated whitespace
-- Remove irrelevant boilerplate where possible
-- Normalize line breaks
-- Preserve tickers, numbers, percentages, dates, financial terms, and named entities
-- Avoid accidentally removing accounting/finance details
-- Preserve transcript structure when useful
-
-For question-based briefs, there may be no extracted source text. The pipeline should continue using:
-
-```text
-briefs.user_query
-```
-
----
-
-# 10. Step 8: Detect Financial Entities
-
-The system should identify:
-
-- Companies
-- Tickers
-- Sectors
-- Industries
-- Indexes
-- Commodities
-- Crypto assets
-- Currencies
-- Macro factors
-- Regions
-- Regulatory/political factors where relevant
-
-Recommended v0.3 approach:
-
-```text
-Rule-based ticker/company detection
-+
-AI extraction for ambiguous entities
-+
-Normalization against market/company data provider where available
-```
-
-Example output:
-
-```json
-[
-  {
-    "name": "Visa Inc.",
-    "ticker": "V",
-    "entityType": "COMPANY",
-    "sector": "Financial Services",
-    "industry": "Payments"
-  }
-]
-```
-
----
-
-# 11. Step 9: Detect Events and Claims
-
-For deeper analysis, AlphaBrief should detect:
-
-## Events
-
-Examples:
-
-```text
-EARNINGS
-GUIDANCE
-REGULATION
-TARIFF
-PRODUCT_LAUNCH
-MACRO
-SUPPLY_CHAIN
-COMPETITOR_NEWS
-INDUSTRY_TREND
-MARKET_MOVEMENT
-```
-
-## Claims
-
-Examples:
-
-```text
-FACTUAL
-INTERPRETIVE
-FORECAST
-RISK
-OPPORTUNITY
-```
-
-This supports AlphaBrief's unique positioning:
-
-```text
-not just “what did the source say?”
-but “what does this imply, who is affected, and what evidence supports it?”
-```
-
-For early internal slices of v0.3, claims/events can first live in `generated_content`.
-
-As the pipeline matures, persist them into:
-
-```text
-brief_events
-brief_claims
-brief_citations
-```
-
----
-
-# 12. Step 10: Select Allowed Research Channels
-
-Before retrieving external context, map selected `researchScope` to allowed internal channels.
-
-Recommended mapping:
-
-```text
-RECOMMENDED_SOURCES
-→ official filings, company IR, regulatory sources, government/macro data, established financial media
-
-EXPANDED_MARKET_CONTEXT
-→ recommended sources plus selected commentary, newsletters, videos, and specialist platforms
-
-SENTIMENT_AND_DISCUSSION
-→ expanded sources plus limited social/community sources for sentiment only
-
-USER_PROVIDED_ONLY
-→ submitted source plus minimal entity/company metadata only
-```
-
-Important rule:
-
-```text
-Social/community sources must not be used as primary evidence for factual claims.
-```
-
----
-
-# 13. Step 11: Retrieve Context
-
-Context retrieval should be controlled by:
-
-```text
-1. Effective user plan / entitlement
-2. Requested depth
-3. Selected research scope
-4. Input type
-```
-
-## Free / Basic Context
-
-Free users should usually receive:
-
-- Basic company/entity explanation
-- Source-specific entity insight
-- Basic risks
-- Key takeaways
-- Basic “So What?” explanation
-
-## Pro / Deep Context
-
-Pro/deep users may receive:
-
-- Industry context
-- Competitor context
-- Macro context
-- Political/regulatory context
-- Market sentiment where available
-- Second-order implications
-- Contradictions/tensions across sources
-- Claim/evidence mapping
-- What would change this view
-
----
-
-# 14. Step 12: Store Research Evidence
-
-Store retrieved or used sources in:
-
-```text
-brief_sources
-```
-
-Store external context in:
-
-```text
-external_context_items
-```
-
-For user-provided sources, use:
-
-```text
-source_origin = USER_PROVIDED
-```
-
-For agent-discovered sources, use:
-
-```text
-source_origin = AGENT_DISCOVERED
-```
-
-For system/context metadata, use:
-
-```text
-source_origin = SYSTEM_CONTEXT
-```
-
----
-
-# 15. Step 13: Construct AI Prompt
-
-The prompt should include:
-
-- Input type
-- User query if present
-- User tier / effective plan
-- Requested depth
-- Research scope
-- Cleaned source text if present
-- Detected entities
-- Detected events and claims where available
-- Retrieved context
-- Source category/evidence-role metadata
-- Required output schema
-- Disclaimer requirement
-
-The AI should be instructed to:
-
-- Stay grounded in source and retrieved context
-- Clearly separate source-specific summary from external context
-- Distinguish facts, interpretation, and speculation
-- Avoid unsupported claims
-- Treat social/community material as sentiment only
-- Avoid personalised financial advice
-- Explain implications, not just summaries
-- Return structured JSON
-
----
-
-# 16. Step 14: Generate Structured Brief
-
-Recommended output sections:
-
-```text
-title
-researchScope
-sourceMix
-quickSummary
-keyFacts
-keyTakeaways
-soWhat
-implicationMap
-bullBearNeutral
-risksAndUncertainties
-financeConcepts
-sourceEvidencePanel
-claims
-contradictionsOrTensions
-assignmentAngles
-researchPathRecommendations
-whatWouldChangeThisView
-studentTakeaway
-investorTakeaway
-confidenceScore
-confidenceExplanation
-disclaimer
-```
-
-For source-based briefs, include:
-
-```text
-sourceSummary
-```
-
-For question-based briefs, include:
-
-```text
-researchQuestion
-researchApproach
-```
-
-For premium/deep briefs, include richer:
-
-```text
-industryContext
-macroContext
-politicalRegulatoryContext
-competitorContext
-secondOrderImplications
-```
-
----
-
-# 17. Step 15: Validate AI Output
+# 14. Validation Rules
 
 Treat AI output as untrusted.
 
 Validation should check:
 
-- Output is valid JSON if JSON mode is used
 - Required fields exist
-- Arrays are arrays
-- Strings are not empty
-- Disclaimer exists
-- No unsupported personalised financial advice
-- Premium-only fields are not exposed incorrectly to free users
-- Source evidence does not misrepresent weak/sentiment sources
-- Social/community sources are not used as factual proof
-- Confidence explanation exists when confidence score exists
+- Markdown is renderable/safe
+- JSON shape matches the workflow
+- Disclaimer exists where needed
+- No personalized financial advice
+- No fabricated source claims
+- No unsupported claim that a source said something it did not say
+- If analysis mode is CONTEXT_BRIEF, output must clearly state that full source text was unavailable
+- If source_access_status is METADATA_ONLY, output must not present the source as fully read
+- Confidence label is present for AI analysis
 
 If validation fails:
 
 ```text
 1. Retry once with a repair prompt
-2. If still invalid, mark brief as failed with AI_OUTPUT_INVALID
+2. If still invalid, mark GenerationJob as FAILED
+3. Save a safe error message
 ```
 
 ---
 
-# 18. Step 16: Persist Brief
+# 15. v0.3 Research Scope
 
-Persist:
-
-- Brief status
-- Input type
-- User query
-- Source if applicable
-- Research scope
-- Source mix
-- Generated content JSON
-- Summary markdown
-- Detected entities
-- Entity insights
-- Brief sources
-- External context items
-- Events, claims, citations where implemented
-- Model provider/name
-- Prompt version
-- Pipeline version
-- Disclaimer/disclaimer version
-- Token and estimated cost data where available
-- Generation timestamp
-- Error message if failed
-
----
-
-# 19. Step 17: Return Result
-
-Recommended flow:
+Keep research scope simple in v0.3:
 
 ```text
-POST /api/v1/briefs
-→ returns briefId and PROCESSING/QUEUED
-
-GET /api/v1/briefs/{briefId}
-→ returns latest status and final brief when completed
+USER_PROVIDED_ONLY
+RECOMMENDED_CONTEXT
 ```
+
+Do not add broad social sentiment or source ranking in v0.3. That belongs to future deep research.
+
 
 ---
 
-# 20. Structured AI Output Example
+# 17. Adaptive External Source Research Pipeline
 
-```json
-{
-  "title": "Fintech industry analysis: payments, regulation, and competition",
-  "inputType": "QUESTION",
-  "researchQuestion": "Analyse the fintech industry for me",
-  "researchScope": "RECOMMENDED_SOURCES",
-  "sourceMix": [
-    "Company and regulatory sources where available",
-    "Established financial media where available",
-    "Market data/context where available"
-  ],
-  "quickSummary": "The fintech industry continues to evolve across digital payments, banking, lending, wealth management, and infrastructure. The strongest themes are payment innovation, regulatory pressure, embedded finance, and competition between banks, fintech startups, and large technology platforms.",
-  "keyFacts": [
-    "Fintech is not one single market; it includes payments, lending, digital banking, wealthtech, insurtech, regtech, and crypto-related infrastructure.",
-    "Regulation is a major factor because fintech businesses often touch payments, consumer finance, banking, data, and compliance.",
-    "Many fintech companies compete with banks but also rely on banks, card networks, cloud providers, and regulated partners."
-  ],
-  "soWhat": "The fintech industry matters because it changes how consumers and businesses access money, payments, credit, banking services, and financial tools. The impact is not limited to startups; it also affects banks, card networks, payment processors, regulators, merchants, and consumers.",
-  "implicationMap": {
-    "companyImpact": [
-      "Banks may face pressure on customer experience and digital product speed.",
-      "Payment networks may partner with fintechs but also face alternative payment rails."
-    ],
-    "industryImpact": [
-      "Competition may shift from standalone apps toward embedded financial services.",
-      "Compliance and licensing may become a stronger barrier to entry."
-    ],
-    "investorImpact": [
-      "Investors need to separate growth narratives from sustainable unit economics.",
-      "Regulatory risk and funding conditions can materially change fintech valuations."
-    ],
-    "regulatoryImpact": [
-      "Regulators may increase scrutiny around consumer protection, data privacy, payments, and lending."
-    ],
-    "whatToWatchNext": [
-      "Interest-rate environment",
-      "Payment regulation",
-      "Bank-fintech partnerships",
-      "Profitability of major fintech firms",
-      "Adoption of account-to-account payments"
-    ]
-  },
-  "bullBearNeutral": {
-    "bull": [
-      "Fintech can expand access, reduce friction, and create more efficient financial infrastructure."
-    ],
-    "bear": [
-      "Many fintech models face pressure from regulation, funding costs, competition, and weak profitability."
-    ],
-    "neutral": [
-      "Fintech may not replace traditional finance directly; it may become integrated into existing financial infrastructure."
-    ]
-  },
-  "financeConcepts": [
-    {
-      "term": "Unit economics",
-      "simpleExplanation": "Whether each customer or transaction is profitable after direct costs.",
-      "whyItMatters": "A fintech company can grow quickly but still lose money if customer acquisition costs or credit losses are too high.",
-      "howToUseIt": "When analysing fintech firms, compare user growth with margins, customer acquisition cost, default risk, and retention."
-    }
-  ],
-  "risksAndUncertainties": [
-    "Regulatory changes may limit fees or business models.",
-    "Higher interest rates can pressure lending-focused fintechs.",
-    "Customer acquisition costs may make growth less profitable than headline numbers suggest."
-  ],
-  "researchPathRecommendations": [
-    "Compare fintech subsectors: payments, lending, digital banking, wealthtech, and regtech.",
-    "Study Visa and Mastercard as payment infrastructure examples.",
-    "Compare fintech startups with incumbent banks.",
-    "Research how regulation affects payment fees and consumer lending."
-  ],
-  "studentTakeaway": "For an assignment, fintech is best analysed as a set of business models and infrastructure changes rather than as one broad industry.",
-  "investorTakeaway": "For investors, the key question is whether a fintech business has durable economics, regulatory resilience, and a defensible role in the financial system.",
-  "confidenceScore": 78,
-  "confidenceExplanation": "Confidence is medium-high because the analysis uses stable industry structure and common finance concepts, but specific company-level conclusions would require current source retrieval.",
-  "disclaimer": "This brief is for informational and educational purposes only and is not financial advice."
-}
-```
+This pipeline applies to every external source type, not only YouTube videos.
 
----
-
-# 21. Important Principle
-
-AlphaBrief should not only summarise.
-
-It should transform messy financial information or finance questions into a repeatable research brief that explains:
+Applicable sources:
 
 ```text
-What happened
-Why it matters
-Who it affects
-What the implications are
-What evidence supports it
-What remains uncertain
-What to research next
+ARTICLE_URL
+YOUTUBE_URL
+PDF_FILE
+BROWSER_PAGE
+COMPANY_PAGE
+EARNINGS_REPORT
+FINANCE_NEWS_ARTICLE
 ```
+
+Core rule:
+
+```text
+Never treat a large external source as one giant prompt blob.
+Always scan, segment, estimate, and analyze with source-aware depth control.
+```
+
+## 17.1 Cheap Pre-Scan
+
+Before full analysis, AlphaBrief should run a cheap scan.
+
+The scan should detect:
+
+```text
+- source length
+- source type
+- transcript/text availability
+- major topics
+- companies/entities/tickers mentioned
+- macro themes/events mentioned
+- section/chunk boundaries
+- estimated source complexity
+- estimated allowance impact
+- confidence in the estimate
+```
+
+The cheap scan should not generate the final answer. It exists to protect cost, improve focus, and prevent a half-completed output. Tiny thing called planning, apparently still underrated.
+
+## 17.2 Segmentation / Chunk Mapping
+
+Every external source should be mapped into segments or chunks.
+
+Examples:
+
+```text
+YouTube video      → timestamped transcript segments
+Article/news page  → article sections or paragraph groups
+Earnings report    → report sections: highlights, income statement, guidance, risks, management commentary
+PDF                → page/section chunks
+Browser page       → extracted readable sections plus metadata
+```
+
+Each segment should store:
+
+```text
+segment_index
+start/end position or timestamp
+title/topic summary
+entities detected
+topic tags
+estimated complexity
+relevance to user intent
+requested research mode
+actual research mode used
+```
+
+## 17.3 Research Intent, Coverage, and Depth
+
+For normal short sources, AlphaBrief can use defaults.
+
+For long or complex sources, AlphaBrief should ask the user to choose:
+
+```text
+Analysis intent:
+- Quick Summary
+- Market Impact
+- Company Analysis
+- Learning Mode
+- Structured Brief
+
+Coverage:
+- Full source
+- Selected topics
+- Selected entities
+- Custom question
+
+Research mode:
+- Quick
+- Standard
+- Deep
+```
+
+Research intent is also a cost-control tool. If a user only cares about Nvidia and AI chips, AlphaBrief should not Deep-analyze unrelated oil, banking, and crypto sections just because they appeared in the same 90-minute finance video.
+
+## 17.4 Pre-Analysis Warning Threshold
+
+After the cheap scan, AlphaBrief should estimate the allowance impact.
+
+Warning rule:
+
+```text
+If one analysis run is estimated to consume more than 50% of the user's current available research allowance, warn the user before generation begins.
+```
+
+Do not warn for small or normal usage. A product that nags on every click becomes a tiny bureaucrat with a loading spinner.
+
+Warning levels:
+
+```text
+< 30%    → no warning
+30–50%   → small inline usage estimate only
+50–80%   → pre-analysis warning
+80%+     → strong warning; recommend Optimize Research or lower mode
+```
+
+Also warn when:
+
+```text
+- Deep mode is selected
+- source is long or high complexity
+- estimate confidence is low
+- projected completion risk is high
+```
+
+Recommended pre-analysis prompt:
+
+```text
+AlphaBrief has completed a quick scan of this source.
+
+This source appears long or complex, so the full content may not be fully analyzed in Deep mode with your current research allowance.
+
+If you continue in Deep mode, AlphaBrief may ask you later to lower the depth for remaining sections so the full analysis can still be completed.
+
+How would you like to continue?
+
+[Continue with Deep]
+[Switch to Standard]
+[Switch to Quick]
+```
+
+## 17.5 Optimize Research
+
+`Optimize Research` is a user-facing feature that allows AlphaBrief to adapt analysis depth by section.
+
+User-facing description:
+
+```text
+Optimize Research lets AlphaBrief adjust analysis depth by section, so important parts get deeper analysis while lower-priority sections use lighter analysis.
+```
+
+Behavior:
+
+```text
+Deep + Optimize Research ON:
+- Deep for high-relevance/high-complexity sections
+- Standard for medium-relevance sections
+- Quick for low-relevance or background sections
+- Full source completion is prioritized
+```
+
+This should be recommended for long sources, dense earnings reports, and mixed-topic market videos.
+
+## 17.6 Mid-Analysis Downgrade Prompt
+
+During analysis, AlphaBrief should track actual usage against projected usage.
+
+If remaining allowance may not support the remaining source at the requested depth, pause and ask:
+
+```text
+AlphaBrief may not be able to complete the remaining sections in Deep mode with your current research allowance.
+
+To finish the full source, you can:
+
+1. Switch remaining sections to Standard
+2. Switch lower-priority sections to Quick
+3. Optimize automatically
+4. Stop here and save partial analysis
+5. Continue later after your allowance recovers
+```
+
+Buttons:
+
+```text
+[Optimize and finish]
+[Switch remaining to Standard]
+[Save partial result]
+[Continue later]
+```
+
+If the user enabled Optimize Research before generation, AlphaBrief can adapt automatically within the promised behavior, but it should still record what changed.
+
+## 17.7 Analysis Depth by Section
+
+Final outputs for segmented sources should include an `Analysis depth by section` block.
+
+Example:
+
+```text
+Analysis depth by section
+
+00:00–12:30 · Fed policy and bond yields
+Depth used: Deep
+Reason: High relevance to selected market-impact intent
+
+12:30–28:00 · Nvidia and AI chip demand
+Depth used: Deep
+Reason: High relevance to selected companies and AI market theme
+
+28:00–41:00 · Oil and geopolitical risk
+Depth used: Standard
+Reason: Medium relevance to selected intent
+
+41:00–60:00 · China trade and tariffs
+Depth used: Standard
+Reason: Important macro context, but secondary to selected focus
+
+60:00–75:00 · Banking sector commentary
+Depth used: Quick
+Reason: Lower relevance to selected focus
+```
+
+The output should make downgraded sections rerunnable later:
+
+```text
+Some sections were analyzed at lower depth to complete the full source within your current research allowance.
+You can rerun selected sections in Deep mode after your allowance recovers.
+```
+
+## 17.8 Completion Priority
+
+For long external sources, optimize around this priority order:
+
+```text
+1. Finish the full selected coverage
+2. Preserve the user's main research intent
+3. Use Deep mode where it matters most
+4. Downgrade lower-priority sections first
+5. Be transparent about actual depth used
+6. Let the user rerun downgraded sections later
+```
+
+---
+
+# 18. Updated v0.3 Pipeline Rule
+
+The v0.3 pipeline should prove this loop:
+
+```text
+Source/question
+→ cheap scan if external source
+→ intent + coverage + research mode selection
+→ allowance risk check
+→ analysis generation
+→ analysis depth by section if segmented
+→ saved ResearchItem
+→ follow-up, compare, tag, or rerun selected sections later
+```
+
+---
+
+# 19. Future Pipeline Additions
+
+Move these to later versions:
+
+- Watchlist event ingestion
+- Company timeline auto-refresh
+- Notification generation
+- Thesis support/weakening evaluation
+- Claim-level citation verification
+- Multi-agent research planner
+- Social sentiment extraction
+- Portfolio-aware implication layer
+- Browser research basket
+- Multi-source research project generation
+- Extension-based highlight-to-analyze

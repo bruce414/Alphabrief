@@ -6,2400 +6,920 @@
 
 ## Status
 
-This data model treats **v0.3 as the first major AlphaBrief milestone**. Earlier ideas that would have been considered v0.1 or v0.2 are now treated as internal implementation slices inside v0.3.
+This document defines the narrowed v0.3 data model for AlphaBrief as a **market learning and research workspace**.
 
-The model supports AlphaBrief as an **AI finance research assistant** where users can:
+The earlier model treated **Brief** as the central artifact and included many advanced entities such as entitlement, promo-code, referral, export, citation, claim, and deep research infrastructure. That model remains useful as a long-term design sketch, but it is too broad for the first build.
 
-* Paste an article URL
-* Paste a YouTube URL
-* Upload a PDF or report
-* Paste raw text
-* Ask a direct finance or market-related question
-
-All input types create the same central product artifact:
-
-> A structured AlphaBrief research brief.
-
-The brief is the core object. Sources are optional inputs, not the parent of every brief.
-
----
-
-# 1. Product Direction
-
-AlphaBrief v0.3 should support both:
-
-## 1.1 Source-Based Briefs
-
-Examples:
+For v0.3, AlphaBrief has two primary output modes:
 
 ```text
-Analyse this Visa earnings report.
-Summarise this fintech article.
-Turn this YouTube video into a finance brief.
+Ask Mode   → flexible finance/source analysis, similar to a ChatGPT-style answer but more market-aware
+Brief Mode → formal structured research artifact, such as a company brief or earnings breakdown
 ```
 
-Source-based briefs start from a user-provided source such as an article, video, PDF, or pasted text.
-
-## 1.2 Question-Based Research Briefs
-
-Examples:
+The central saved object is:
 
 ```text
-Analyse the fintech industry for me.
-What are the main risks facing Tesla?
-How do interest rates affect banks?
-Is Visa threatened by fintech disruption?
+ResearchItem
 ```
 
-Question-based briefs may start without any user-provided source. AlphaBrief should be able to generate a basic response first, and later use agent-discovered sources for deeper analysis.
+A `ResearchItem` can represent an Ask response, a formal Brief, a source analysis, a daily research summary, or a journal entry.
 
-## 1.3 Deep / Agentic Research Briefs
+This updated version also adds **Chrome Extension-ready source ingestion**. The extension is treated as a source access method, not as a separate product universe. Civilization briefly avoids duplicating every table. Incredible.
 
-Deep briefs should not rely on one giant prompt. They should follow a structured pipeline:
+---
+
+# 1. v0.3 Product Scope
+
+## 1.1 In Scope
+
+v0.3 should support:
+
+- User accounts
+- Ask Mode
+- Brief Mode
+- URL-based article source submission
+- YouTube URL source submission
+- PDF/file source upload
+- Chrome Extension-ready source ingestion architecture
+- Source extraction status tracking
+- Metadata-only fallback for blocked/unavailable sources
+- Saved research log
+- Tags
+- Lightweight company references
+- Daily AI research summary
+- User-written market journal
+- Learning / research goals
+- Basic AI generation job tracking
+- Basic usage and cost tracking
+- Quick / Standard / Deep research modes
+- Cheap pre-scan for all external sources
+- Source segmentation/chunk mapping for long or complex sources
+- Optimize Research adaptive section-depth control
+- Pre-analysis high-usage warning when estimated impact exceeds 50%
+- Analysis depth by section in final outputs
+
+## 1.2 Near-Roadmap / Extension-Ready Scope
+
+The Chrome browser extension should be represented in v0.3 architecture and data model, but the actual extension UI can be built as a near-roadmap feature if needed.
+
+Recommended framing:
 
 ```text
-Input
-→ classify input type
-→ extract source content if applicable
-→ detect entities
-→ detect events and claims
-→ retrieve external context if allowed
-→ analyse implications
-→ generate structured brief
-→ verify claims where possible
-→ persist structured output
+v0.3 backend should be extension-compatible.
+The Chrome extension client can be built after the core source ingestion pipeline works.
 ```
 
----
+## 1.3 Out of Scope for v0.3
 
-# 2. Database
+The following should be moved to future versions:
 
-Recommended database:
+- Full company library with live event tracking
+- Watchlist alerts
+- Auto-generated company event impact notes
+- Push/email notifications
+- Paid subscriptions and billing
+- Promo codes
+- Referral rewards
+- Public sharing
+- PDF/DOCX exports
+- Portfolio-aware analysis
+- Broker/trading integrations
+- Full thesis tracking system
+- Full claim/citation verification tables
+- Full research channel registry
+- Social sentiment ingestion
+- Admin console
+- Broad web crawling
+- Paywall/login/CAPTCHA bypass
+- Permanent storage of full copyrighted article text by default
 
-```text
-PostgreSQL
-```
-
-PostgreSQL is suitable because AlphaBrief needs:
-
-* Relational ownership rules
-* User-owned briefs and sources
-* Optional source-based and question-based brief creation
-* JSONB for flexible AI-generated output
-* Indexing for brief history, source lookup, entity lookup, and usage limits
-* Transactional subscription, promo-code, referral, and quota logic
-* Traceable research sources, claims, citations, and external context
-
----
-
-# 3. Core Design Principles
-
-1. **Brief is the central artifact.** A source is only one possible input.
-2. A brief may be created from a source, a direct question, or both.
-3. `briefs.source_id` must be nullable.
-4. Store the user's original question on the brief when the input is question-based.
-5. Use `input_type` on `briefs` to classify how the brief was requested.
-6. Use `sources` only for user-provided source material such as article URLs, YouTube URLs, PDFs, or pasted text.
-7. Use `brief_sources` for any source used in the final brief, including user-provided and agent-discovered sources.
-8. Use `JSONB` for flexible AI-generated sections such as implication maps, finance concepts, assignment angles, and research paths.
-9. Avoid creating a separate table for every AI output section too early.
-10. Store claim, event, citation, and entity data separately enough to support future verification and “what changed” features.
-11. Keep internal source trust/channel metadata private.
-12. Public UI should show safe source categories, not ranked lists of publishers.
-13. Separate access from usage.
-14. Use `user_entitlements` to determine what a user can access.
-15. Use `plan_limits`, `user_usage_daily`, and `credit_transactions` to determine how much a user can use.
-16. Track token and estimated cost internally from v0.3.
-17. Store share tokens/slugs instead of full share URLs.
-18. Model downloadable exports separately from briefs.
-19. Model referrals and rewards as transactional records.
-20. Design beta/testing access with explicit quotas.
-21. Design deep brief generation as a pipeline, not a single prompt.
-22. Store disclaimer text or disclaimer version on each generated brief.
+These are good ideas. They are simply not v0.3. Shocking restraint, I know.
 
 ---
 
-# 4. Core Entities
+# 2. Core Design Principles
 
-The v0.3 first milestone should support:
-
-* Users
-* Sources
-* Briefs
-* Brief generation jobs
-* Research channels
-* Brief source usage records
-* Financial entities
-* Entity insights
-* Brief events
-* Brief claims
-* Brief citations
-* External context items
-* Plans
-* User entitlements
-* Promo codes
-* Promo code redemptions
-* Usage limits
-* Plan limits
-* User daily usage
-* Credit transactions
-* Brief shares
-* Brief exports
-* Referrals
-
-Optional future extensions:
-
-* Paid subscriptions
-* Admin grants
-* Education verifications
-* Watchlists
-* Brief comparisons
-* Entity relationships
-* Legal document acceptance records
+1. `ResearchItem` is the central saved artifact.
+2. `Brief` is a formal subtype of `ResearchItem`, not the only output type.
+3. `Source` represents user-submitted or user-authorized material such as URL, PDF, YouTube URL, or browser-extension page capture.
+4. Direct user questions should not be stored as sources.
+5. Do not expose a primary "paste entire article" workflow in v0.3. If source text is manually provided later, it should be an advanced fallback, not the main UX.
+6. Use JSONB for flexible AI output sections in v0.3.
+7. Normalize only the relationships that matter for retrieval and organization: sources, tags, companies.
+8. Keep the daily summary and journal separate.
+9. Track meaningful user activity so daily summaries can be generated from structured events, not from a giant cursed chat transcript.
+10. Keep compliance-safe language: educational and informational, not personalized financial advice.
+11. Store AI cost/usage data from the beginning, but keep billing out of v0.3.
+12. Track how each source was accessed: server fetch, browser extension, API context, upload, or YouTube metadata/transcript path.
+13. Store generated analysis and source metadata by default; avoid permanent raw full-text storage unless there is a clear retention policy.
+14. Every external source should support cheap pre-scan, segmentation/chunk mapping, source complexity estimation, and research-depth control.
+15. Research depth should be segment-aware: requested mode and actual mode may differ when Optimize Research is enabled or when allowance risk requires user-approved downgrade.
+16. Warn users before generation when a single run is estimated to consume more than 50% of their current available research allowance.
+17. Final outputs for segmented sources should show analysis depth by section.
 
 ---
 
-# 5. Entity Relationship Overview
-
-## 5.1 Updated Core Relationship
+# 3. Entity Relationship Overview
 
 ```text
 User
+ ├── ResearchItem
+ │    ├── Brief optional
+ │    ├── ResearchItemSource
+ │    │    └── Source
+ │    ├── ResearchItemTag
+ │    │    └── Tag
+ │    └── ResearchItemCompany
+ │         └── Company
+ │
  ├── Source
- ├── Brief
- │    ├── Source optional
- │    ├── BriefGenerationJob
- │    ├── BriefSource
- │    │    └── ResearchChannel optional
- │    ├── BriefEntityInsight
- │    │    └── FinancialEntity
- │    ├── BriefEvent
- │    │    └── FinancialEntity optional
- │    ├── BriefClaim
- │    │    ├── BriefEvent optional
- │    │    └── FinancialEntity optional
- │    ├── BriefCitation
- │    │    ├── BriefClaim optional
- │    │    ├── BriefEvent optional
- │    │    └── FinancialEntity optional
- │    ├── ExternalContextItem
- │    │    └── FinancialEntity optional
- │    ├── BriefShare
- │    └── BriefExport
- │
- ├── UserEntitlement
- │    └── Plan
- │
- ├── PromoCodeRedemption
- │    ├── PromoCode
- │    └── UserEntitlement
- │
- ├── Referral
- ├── CreditTransaction
- ├── UserUsageDaily
- └── PlanLimit
-```
-
-## 5.2 Key Design Change
-
-Old conceptual model:
-
-```text
-User
- └── Source
-      └── Brief
-```
-
-Updated conceptual model:
-
-```text
-User
- └── Brief
-      └── Source optional
-```
-
-Reason:
-
-```text
-A brief may be generated from a direct finance question without a user-provided source.
+ ├── ResearchActivity
+ ├── DailyResearchSummary
+ ├── JournalEntry
+ ├── LearningGoal
+ ├── Tag
+ ├── Company optional lightweight reference
+ ├── GenerationJob
+ ├── SourceScan
+ ├── SourceSegment
+ ├── AnalysisRun
+ ├── AnalysisSegment
+ ├── UserResearchAllowance
+ └── UsageEvent
 ```
 
 ---
 
-# 6. Access and Usage Model
+# 4. Tables
 
-```text
-Plan = what product tier exists
-UserEntitlement = what access a user currently has
-PromoCode = one possible way to create an entitlement
-Payment = another possible way to create an entitlement later
-PlanLimit = default usage rules for each plan
-CreditTransaction = grants, rewards, reservations, deductions, and refunds
-UserUsageDaily = daily aggregate usage and cost tracking
-```
-
-Example:
-
-```text
-A user may have PRO access through a promo code.
-That access is stored in user_entitlements.
-Their brief limits are checked through plan_limits, user_usage_daily, and credit_transactions.
-```
-
----
-
-# 7. Tables
-
----
-
-## 7.1 `users`
+## 4.1 `users`
 
 Represents a registered user.
 
-| Field                  | Type         | Notes                               |
-| ---------------------- | ------------ | ----------------------------------- |
-| id                     | UUID         | Primary key                         |
-| email                  | VARCHAR(255) | Unique, required                    |
-| password_hash          | VARCHAR(255) | Nullable if OAuth-only auth is used |
-| display_name           | VARCHAR(120) | Optional                            |
-| role                   | VARCHAR(50)  | USER, ADMIN                         |
-| referral_code          | VARCHAR(50)  | Unique user-owned referral code     |
-| referred_by_user_id    | UUID         | Nullable FK to users                |
-| default_research_scope | VARCHAR(50)  | Defaults to RECOMMENDED_SOURCES     |
-| created_at             | TIMESTAMP    | Required                            |
-| updated_at             | TIMESTAMP    | Required                            |
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| email | VARCHAR(255) | Unique, required |
+| password_hash | VARCHAR(255) | Required unless OAuth-only later |
+| display_name | VARCHAR(120) | Optional |
+| role | VARCHAR(50) | USER, ADMIN |
+| default_output_mode | VARCHAR(50) | ASK or BRIEF, default ASK |
+| default_research_scope | VARCHAR(50) | USER_PROVIDED_ONLY or RECOMMENDED_CONTEXT |
+| default_research_mode | VARCHAR(50) | QUICK, STANDARD, DEEP; default STANDARD |
+| optimize_research_default | BOOLEAN | Default true for long/complex sources |
+| created_at | TIMESTAMP | Required |
+| updated_at | TIMESTAMP | Required |
 
-### Notes
+### Values
 
-Do not rely on `users.subscription_tier` as the source of truth.
-
-A cached field such as `current_plan_code` can be added later for performance, but real access should come from `user_entitlements`.
-
-### Recommended constraints
-
-```sql
-ALTER TABLE users
-ADD CONSTRAINT uq_users_email UNIQUE (email);
-
-ALTER TABLE users
-ADD CONSTRAINT uq_users_referral_code UNIQUE (referral_code);
+```text
+role: USER, ADMIN
+default_output_mode: ASK, BRIEF
+default_research_scope: USER_PROVIDED_ONLY, RECOMMENDED_CONTEXT
+default_research_mode: QUICK, STANDARD, DEEP
 ```
 
 ---
 
-## 7.2 `plans`
+## 4.2 `research_items`
 
-Defines available product plans.
+Central saved artifact for AlphaBrief.
 
-| Field       | Type         | Notes                                      |
-| ----------- | ------------ | ------------------------------------------ |
-| id          | UUID         | Primary key                                |
-| code        | VARCHAR(50)  | FREE, PRO, STUDENT_PRO, BETA_TESTER, ADMIN |
-| name        | VARCHAR(100) | Human-readable name                        |
-| description | TEXT         | Optional                                   |
-| active      | BOOLEAN      | Required, default true                     |
-| created_at  | TIMESTAMP    | Required                                   |
-| updated_at  | TIMESTAMP    | Required                                   |
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| user_id | UUID | FK to users |
+| item_type | VARCHAR(50) | ASK_ANALYSIS, BRIEF, SOURCE_ANALYSIS, DAILY_SUMMARY, JOURNAL_ENTRY |
+| title | TEXT | Display title |
+| status | VARCHAR(50) | DRAFT, QUEUED, PROCESSING, COMPLETED, FAILED, ARCHIVED |
+| original_user_input | TEXT | User question or instruction |
+| output_markdown | TEXT | Renderable output |
+| output_json | JSONB | Structured AI output |
+| short_summary | TEXT | One-paragraph summary for list views |
+| confidence_label | VARCHAR(50) | HIGH, MEDIUM, LOW, UNKNOWN |
+| confidence_explanation | TEXT | Nullable |
+| analysis_mode | VARCHAR(50) | SOURCE_BRIEF, CONTEXT_BRIEF, ASK_ANALYSIS, FORMAL_BRIEF |
+| disclaimer | TEXT | Required for AI-generated research |
+| model_provider | VARCHAR(100) | Nullable |
+| model_name | VARCHAR(100) | Nullable |
+| prompt_version | VARCHAR(50) | Nullable |
+| requested_research_mode | VARCHAR(50) | QUICK, STANDARD, DEEP; nullable for non-AI journal rows |
+| completion_strategy | VARCHAR(50) | STRICT_REQUESTED_MODE, OPTIMIZE_RESEARCH; nullable |
+| coverage_mode | VARCHAR(50) | FULL_SOURCE, SELECTED_TOPICS, SELECTED_ENTITIES, CUSTOM_QUESTION; nullable |
+| analysis_depth_summary | JSONB | Section-level depth summary for segmented outputs |
+| generated_at | TIMESTAMP | Nullable |
+| created_at | TIMESTAMP | Required |
+| updated_at | TIMESTAMP | Required |
 
-### Example plan codes
-
-```text
-FREE
-PRO
-STUDENT_PRO
-BETA_TESTER
-ADMIN
-```
-
-### Notes
-
-Student pricing should be represented as a plan such as `STUDENT_PRO`, not as `user_entitlements.source_type = STUDENT`.
-
-Correct:
-
-```text
-plan_code = STUDENT_PRO
-source_type = EDUCATION_VERIFICATION
-```
-
-or:
+### Values
 
 ```text
-plan_code = STUDENT_PRO
-source_type = PAID_SUBSCRIPTION
-```
+item_type:
+ASK_ANALYSIS
+BRIEF
+SOURCE_ANALYSIS
+DAILY_SUMMARY
+JOURNAL_ENTRY
 
----
-
-## 7.3 `user_entitlements`
-
-Represents a user's active, expired, revoked, or cancelled access.
-
-| Field       | Type        | Notes                                                                                   |
-| ----------- | ----------- | --------------------------------------------------------------------------------------- |
-| id          | UUID        | Primary key                                                                             |
-| user_id     | UUID        | FK to users                                                                             |
-| plan_code   | VARCHAR(50) | FREE, PRO, STUDENT_PRO, BETA_TESTER, ADMIN                                              |
-| source_type | VARCHAR(50) | FREE_DEFAULT, PROMO_CODE, PAID_SUBSCRIPTION, ADMIN_GRANT, TRIAL, EDUCATION_VERIFICATION |
-| source_id   | UUID        | Nullable reference to redemption/payment/admin grant                                    |
-| status      | VARCHAR(50) | ACTIVE, EXPIRED, REVOKED, CANCELLED                                                     |
-| starts_at   | TIMESTAMP   | Required                                                                                |
-| ends_at     | TIMESTAMP   | Nullable                                                                                |
-| created_at  | TIMESTAMP   | Required                                                                                |
-| updated_at  | TIMESTAMP   | Required                                                                                |
-
-### Access rule
-
-A user has access to a plan if:
-
-```text
-user_id = current user
-plan_code = required plan
-status = ACTIVE
-starts_at <= now
-ends_at IS NULL OR ends_at > now
-```
-
----
-
-## 7.4 `promo_codes`
-
-Stores promo codes that can grant temporary or permanent access.
-
-| Field                    | Type         | Notes                                  |
-| ------------------------ | ------------ | -------------------------------------- |
-| id                       | UUID         | Primary key                            |
-| code_hash                | VARCHAR(255) | Hash of normalized promo code          |
-| display_code_suffix      | VARCHAR(12)  | Last few chars for admin/debug display |
-| plan_code                | VARCHAR(50)  | Plan granted by this code              |
-| duration_days            | INTEGER      | Nullable                               |
-| max_redemptions          | INTEGER      | Nullable                               |
-| current_redemptions      | INTEGER      | Required, default 0                    |
-| max_redemptions_per_user | INTEGER      | Required, usually 1                    |
-| starts_at                | TIMESTAMP    | Nullable                               |
-| expires_at               | TIMESTAMP    | Nullable                               |
-| active                   | BOOLEAN      | Required, default true                 |
-| created_by               | UUID         | Nullable FK to users/admin             |
-| created_at               | TIMESTAMP    | Required                               |
-| updated_at               | TIMESTAMP    | Required                               |
-
-### Notes
-
-Recommended flow:
-
-```text
-User enters code
-→ normalize code
-→ hash normalized code
-→ compare with code_hash
-```
-
-For the earliest implementation, plain text storage is possible but not ideal.
-
----
-
-## 7.5 `promo_code_redemptions`
-
-Tracks which users redeemed which promo codes.
-
-| Field          | Type        | Notes                   |
-| -------------- | ----------- | ----------------------- |
-| id             | UUID        | Primary key             |
-| promo_code_id  | UUID        | FK to promo_codes       |
-| user_id        | UUID        | FK to users             |
-| entitlement_id | UUID        | FK to user_entitlements |
-| redeemed_at    | TIMESTAMP   | Required                |
-| status         | VARCHAR(50) | REDEEMED, REVOKED       |
-
-### Recommended constraint
-
-```sql
-ALTER TABLE promo_code_redemptions
-ADD CONSTRAINT uq_promo_redemptions_code_user
-UNIQUE (promo_code_id, user_id);
-```
-
----
-
-## 7.6 `sources`
-
-Represents user-provided input material.
-
-A source is optional for a brief. Direct question-based briefs may not create a source.
-
-| Field                 | Type         | Notes                                           |
-| --------------------- | ------------ | ----------------------------------------------- |
-| id                    | UUID         | Primary key                                     |
-| user_id               | UUID         | FK to users                                     |
-| source_type           | VARCHAR(50)  | ARTICLE_URL, YOUTUBE_URL, PDF_FILE, PASTED_TEXT |
-| original_input        | TEXT         | Original URL, pasted text, or file reference    |
-| normalized_url        | TEXT         | Nullable                                        |
-| file_key              | TEXT         | Nullable storage key for uploaded file          |
-| file_name             | TEXT         | Nullable original filename                      |
-| mime_type             | VARCHAR(120) | Nullable                                        |
-| file_size_bytes       | BIGINT       | Nullable                                        |
-| title                 | TEXT         | Nullable                                        |
-| raw_text              | TEXT         | Extracted or cleaned text                       |
-| extraction_status     | VARCHAR(50)  | PENDING, EXTRACTED, FAILED                      |
-| extraction_error      | TEXT         | Nullable                                        |
-| content_hash          | VARCHAR(255) | Optional deduplication hash                     |
-| submitted_source_role | VARCHAR(50)  | Usually USER_PROVIDED_SOURCE                    |
-| created_at            | TIMESTAMP    | Required                                        |
-| updated_at            | TIMESTAMP    | Required                                        |
-
-### Source type values
-
-```text
-ARTICLE_URL
-YOUTUBE_URL
-PDF_FILE
-PASTED_TEXT
-```
-
-### Extraction status values
-
-```text
-PENDING
-EXTRACTED
-FAILED
-```
-
-### Notes
-
-Do not store direct finance questions in `sources`.
-
-Use:
-
-```text
-briefs.user_query
-```
-
-for question-based requests.
-
----
-
-## 7.7 `briefs`
-
-Represents the generated AlphaBrief research brief.
-
-This is the central product artifact.
-
-| Field                     | Type         | Notes                                                                                      |
-| ------------------------- | ------------ | ------------------------------------------------------------------------------------------ |
-| id                        | UUID         | Primary key                                                                                |
-| user_id                   | UUID         | FK to users                                                                                |
-| source_id                 | UUID         | Nullable FK to sources                                                                     |
-| input_type                | VARCHAR(50)  | QUESTION, ARTICLE_URL, YOUTUBE_URL, PDF_FILE, PASTED_TEXT, MIXED                           |
-| user_query                | TEXT         | Nullable. Stores direct finance question or user instruction                               |
-| title                     | TEXT         | Brief title                                                                                |
-| brief_status              | VARCHAR(50)  | QUEUED, PROCESSING, COMPLETED, FAILED                                                      |
-| plan_code_used            | VARCHAR(50)  | FREE, PRO, STUDENT_PRO, BETA_TESTER, ADMIN                                                 |
-| requested_depth           | VARCHAR(50)  | AUTO, BASIC, DEEP                                                                          |
-| research_scope            | VARCHAR(50)  | RECOMMENDED_SOURCES, EXPANDED_MARKET_CONTEXT, SENTIMENT_AND_DISCUSSION, USER_PROVIDED_ONLY |
-| source_mix                | JSONB        | Safe user-facing source categories used                                                    |
-| source_summary            | TEXT         | Main source summary if applicable                                                          |
-| key_takeaways             | JSONB        | Array of strings or structured points                                                      |
-| risks                     | JSONB        | Array of risks                                                                             |
-| opportunities             | JSONB        | Array of opportunities                                                                     |
-| investor_questions        | JSONB        | Questions investors/students should ask next                                               |
-| bull_case                 | JSONB        | Bullish interpretation                                                                     |
-| bear_case                 | JSONB        | Bearish interpretation                                                                     |
-| confidence_score          | NUMERIC(5,2) | Optional 0-100 score                                                                       |
-| confidence_explanation    | TEXT         | Why confidence is high/medium/low                                                          |
-| generated_content         | JSONB        | Full structured AI output                                                                  |
-| summary_markdown          | TEXT         | Renderable/exportable markdown version                                                     |
-| disclaimer                | TEXT         | Required                                                                                   |
-| disclaimer_version        | VARCHAR(50)  | Optional but recommended                                                                   |
-| model_provider            | VARCHAR(100) | Optional                                                                                   |
-| model_name                | VARCHAR(100) | Optional                                                                                   |
-| prompt_version            | VARCHAR(50)  | Optional                                                                                   |
-| research_pipeline_version | VARCHAR(50)  | Optional                                                                                   |
-| generation_error          | TEXT         | Nullable                                                                                   |
-| generated_at              | TIMESTAMP    | Nullable                                                                                   |
-| created_at                | TIMESTAMP    | Required                                                                                   |
-| updated_at                | TIMESTAMP    | Required                                                                                   |
-
-### Input type values
-
-```text
-QUESTION
-ARTICLE_URL
-YOUTUBE_URL
-PDF_FILE
-PASTED_TEXT
-MIXED
-```
-
-### Brief status values
-
-```text
+status:
+DRAFT
 QUEUED
 PROCESSING
 COMPLETED
 FAILED
-```
+ARCHIVED
 
-### Requested depth values
-
-```text
-AUTO
-BASIC
-DEEP
-```
-
-### Research scope values
-
-```text
-RECOMMENDED_SOURCES
-EXPANDED_MARKET_CONTEXT
-SENTIMENT_AND_DISCUSSION
-USER_PROVIDED_ONLY
+analysis_mode:
+SOURCE_BRIEF       # Full source text/transcript was available
+CONTEXT_BRIEF      # Full source unavailable; analysis uses metadata + public/market context
+ASK_ANALYSIS       # Direct flexible user question
+FORMAL_BRIEF       # Formal Brief Mode output
 ```
 
 ### Notes
 
-`source_id` must be nullable because question-based briefs may not have a user-provided source.
-
-Examples:
-
-```text
-Question brief:
-input_type = QUESTION
-user_query = "Analyse the fintech industry for me"
-source_id = null
-```
-
-```text
-Source brief:
-input_type = PDF_FILE
-source_id = sources.id
-user_query = "Focus on risks and implications"
-```
-
-```text
-Mixed brief:
-input_type = MIXED
-source_id = sources.id
-user_query = "Use this report and compare it with the fintech industry context"
-```
+Use `research_items` for the research log and saved history. Do not create separate list pages for every output type unless the frontend needs a specialized view.
 
 ---
 
-## 7.8 Recommended `generated_content` Structure
+## 4.3 `briefs`
 
-`generated_content` should contain the complete structured output used by the frontend.
+Formal structured research artifact generated when the user chooses Brief Mode.
 
-Recommended shape:
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| research_item_id | UUID | Unique FK to research_items |
+| brief_type | VARCHAR(50) | COMPANY_RESEARCH, EARNINGS_BREAKDOWN, SOURCE_SUMMARY, MARKET_EVENT_EXPLAINER |
+| subject | TEXT | Company/topic/event/source being analyzed |
+| ticker | VARCHAR(20) | Nullable |
+| structure_version | VARCHAR(50) | Example: company_brief_v1 |
+| sections | JSONB | Structured formal sections |
+| created_at | TIMESTAMP | Required |
+| updated_at | TIMESTAMP | Required |
 
-```json
-{
-  "quick_summary": "",
-  "key_facts": [],
-  "key_takeaways": [],
-  "so_what": "",
-  "implication_map": {
-    "company_impact": [],
-    "industry_impact": [],
-    "investor_impact": [],
-    "consumer_impact": [],
-    "regulatory_impact": [],
-    "macro_impact": [],
-    "what_to_watch_next": []
-  },
-  "bull_bear_neutral": {
-    "bull": [],
-    "bear": [],
-    "neutral": []
-  },
-  "risks_and_uncertainties": [],
-  "finance_concepts": [
-    {
-      "term": "",
-      "simple_explanation": "",
-      "why_it_matters": "",
-      "how_to_use_it": ""
-    }
-  ],
-  "source_evidence_panel": [],
-  "claims": [],
-  "contradictions_or_tensions": [],
-  "assignment_angles": [],
-  "research_path_recommendations": [],
-  "what_would_change_this_view": [],
-  "student_takeaway": "",
-  "investor_takeaway": "",
-  "disclaimer": ""
-}
+### v0.3 brief types
+
+```text
+COMPANY_RESEARCH
+EARNINGS_BREAKDOWN
+SOURCE_SUMMARY
+MARKET_EVENT_EXPLAINER
 ```
 
 ### Notes
 
-The structured JSON should be stable enough for frontend rendering but flexible enough to evolve.
-
-Do not create separate tables for every section unless the feature needs querying, filtering, comparison, or long-term tracking.
+Only create a `briefs` row when the output is a formal structured brief. Ask Mode responses should usually stay as `research_items` without a `briefs` row.
 
 ---
 
-## 7.9 `brief_generation_jobs`
+## 4.4 `sources`
 
-Tracks async or step-by-step generation for a brief.
+Represents source material provided or authorized by the user.
 
-| Field         | Type         | Notes                                                   |
-| ------------- | ------------ | ------------------------------------------------------- |
-| id            | UUID         | Primary key                                             |
-| brief_id      | UUID         | FK to briefs                                            |
-| user_id       | UUID         | FK to users                                             |
-| status        | VARCHAR(50)  | QUEUED, RUNNING, COMPLETED, FAILED, RETRYING, CANCELLED |
-| current_step  | VARCHAR(80)  | Current pipeline step                                   |
-| retry_count   | INTEGER      | Required, default 0                                     |
-| max_retries   | INTEGER      | Required, default 3                                     |
-| error_code    | VARCHAR(100) | Nullable                                                |
-| error_message | TEXT         | Nullable                                                |
-| started_at    | TIMESTAMP    | Nullable                                                |
-| completed_at  | TIMESTAMP    | Nullable                                                |
-| created_at    | TIMESTAMP    | Required                                                |
-| updated_at    | TIMESTAMP    | Required                                                |
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| user_id | UUID | FK to users |
+| source_type | VARCHAR(50) | ARTICLE_URL, YOUTUBE_URL, PDF_FILE, BROWSER_PAGE |
+| source_access_method | VARCHAR(50) | SERVER_FETCH, BROWSER_EXTENSION, API_CONTEXT, UPLOAD, YOUTUBE_METADATA, YOUTUBE_TRANSCRIPT |
+| source_access_status | VARCHAR(50) | PENDING, FULL_TEXT_EXTRACTED, METADATA_ONLY, BLOCKED, FAILED |
+| original_input | TEXT | URL, file reference, or browser page URL |
+| normalized_url | TEXT | Nullable canonical URL |
+| file_key | TEXT | Nullable storage key |
+| file_name | TEXT | Nullable |
+| mime_type | VARCHAR(120) | Nullable |
+| file_size_bytes | BIGINT | Nullable |
+| title | TEXT | Nullable |
+| publisher | TEXT | Nullable |
+| author | TEXT | Nullable |
+| published_at | TIMESTAMP | Nullable |
+| extracted_text | TEXT | Nullable; preferably temporary or limited retention |
+| extracted_text_word_count | INTEGER | Nullable |
+| extraction_confidence | VARCHAR(50) | HIGH, MEDIUM, LOW, UNKNOWN |
+| extraction_error | TEXT | Nullable |
+| raw_text_retention | VARCHAR(50) | EPHEMERAL, TEMPORARY_24H, NOT_STORED |
+| content_hash | VARCHAR(255) | Optional deduplication |
+| metadata | JSONB | OpenGraph, JSON-LD, YouTube metadata, DOM extraction metadata, etc. |
+| source_complexity | VARCHAR(50) | LOW, MEDIUM, HIGH, VERY_HIGH; nullable until scanned |
+| segment_count | INTEGER | Nullable |
+| scan_status | VARCHAR(50) | NOT_SCANNED, SCANNED, SCAN_FAILED |
+| created_at | TIMESTAMP | Required |
+| updated_at | TIMESTAMP | Required |
 
-### Current step values
+### Values
 
 ```text
-VALIDATING_INPUT
-CREATING_SOURCE
-EXTRACTING_SOURCE
-CLEANING_CONTENT
-CLASSIFYING_REQUEST
-DETECTING_ENTITIES
-DETECTING_EVENTS
-EXTRACTING_CLAIMS
-RETRIEVING_CONTEXT
-GENERATING_BRIEF
-VALIDATING_OUTPUT
-PERSISTING_RESULT
-COMPLETED
-FAILED
-```
-
-### Recommended flow
-
-```text
-POST /api/v1/briefs
-→ validate input
-→ create source if input is source-based
-→ create brief with status QUEUED
-→ create brief_generation_job with status QUEUED
-→ return briefId
-→ worker processes job
-→ frontend polls GET /api/v1/briefs/{briefId}
-```
-
----
-
-## 7.10 `research_channels`
-
-Represents an internal registry of sources/channels AlphaBrief may search during context retrieval.
-
-| Field                  | Type         | Notes                                                |
-| ---------------------- | ------------ | ---------------------------------------------------- |
-| id                     | UUID         | Primary key                                          |
-| name                   | VARCHAR(255) | Internal channel name                                |
-| slug                   | VARCHAR(180) | Unique machine-friendly identifier                   |
-| channel_type           | VARCHAR(80)  | REGULATORY_FILING, COMPANY_IR, FINANCIAL_MEDIA, etc. |
-| base_url               | TEXT         | Nullable                                             |
-| internal_trust_tier    | VARCHAR(50)  | INTERNAL_ONLY                                        |
-| research_scope         | VARCHAR(50)  | Highest user-facing scope this channel belongs to    |
-| default_usage_role     | VARCHAR(80)  | PRIMARY_EVIDENCE, SUPPORTING_EVIDENCE, etc.          |
-| is_default_enabled     | BOOLEAN      | Whether usable in default retrieval                  |
-| requires_subscription  | BOOLEAN      | Whether provider normally requires paid access       |
-| requires_api           | BOOLEAN      | Whether integration requires API/client              |
-| public_display_enabled | BOOLEAN      | Default false                                        |
-| active                 | BOOLEAN      | Required, default true                               |
-| created_at             | TIMESTAMP    | Required                                             |
-| updated_at             | TIMESTAMP    | Required                                             |
-
-### User-facing research scope labels
-
-```text
-Recommended Sources
-Expanded Market Context
-Sentiment & Discussion Signals
-User-Provided Sources Only
-```
-
-### Internal trust tier values
-
-```text
-VERY_HIGH
-HIGH
-MEDIUM
-LOW
-BLOCKED
-UNKNOWN
-```
-
-### Notes
-
-Never expose internal trust tiers directly in public UI.
-
----
-
-## 7.11 `brief_sources`
-
-Represents the relationship between a generated brief and all sources used during research.
-
-This includes user-provided sources and agent-discovered sources.
-
-| Field                 | Type         | Notes                                                                                                             |
-| --------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------- |
-| id                    | UUID         | Primary key                                                                                                       |
-| brief_id              | UUID         | FK to briefs                                                                                                      |
-| source_id             | UUID         | Nullable FK to sources for user-provided source                                                                   |
-| research_channel_id   | UUID         | Nullable FK to research_channels                                                                                  |
-| source_origin         | VARCHAR(50)  | USER_PROVIDED, AGENT_DISCOVERED, SYSTEM_CONTEXT                                                                   |
-| source_title          | TEXT         | Article/report/video/page title                                                                                   |
-| source_url            | TEXT         | Nullable                                                                                                          |
-| publisher             | VARCHAR(255) | Nullable                                                                                                          |
-| source_type           | VARCHAR(80)  | FILING, ARTICLE, TRANSCRIPT, VIDEO, DATASET, SOCIAL_POST, USER_PROVIDED, OTHER                                    |
-| usage_role            | VARCHAR(80)  | MAIN_EVIDENCE, SUPPORTING_EVIDENCE, CONTRADICTING_EVIDENCE, BACKGROUND_CONTEXT, OPINION_CONTEXT, SENTIMENT_SIGNAL |
-| source_category_label | VARCHAR(120) | Safe user-facing category                                                                                         |
-| published_at          | TIMESTAMP    | Nullable                                                                                                          |
-| accessed_at           | TIMESTAMP    | Required                                                                                                          |
-| reliability_score     | NUMERIC(5,2) | Internal optional 0-100 score                                                                                     |
-| relevance_score       | NUMERIC(5,2) | Internal optional 0-100 score                                                                                     |
-| recency_score         | NUMERIC(5,2) | Internal optional 0-100 score                                                                                     |
-| snippet               | TEXT         | Short excerpt or paraphrased evidence note                                                                        |
-| created_at            | TIMESTAMP    | Required                                                                                                          |
-| updated_at            | TIMESTAMP    | Required                                                                                                          |
-
-### Source origin values
-
-```text
-USER_PROVIDED
-AGENT_DISCOVERED
-SYSTEM_CONTEXT
-```
-
-### Notes
-
-Social/community sources should normally use `SENTIMENT_SIGNAL`, not `MAIN_EVIDENCE` for factual claims.
-
----
-
-## 7.12 `financial_entities`
-
-Represents a detected company, ticker, sector, asset, index, or macro factor.
-
-| Field             | Type         | Notes                         |
-| ----------------- | ------------ | ----------------------------- |
-| id                | UUID         | Primary key                   |
-| name              | VARCHAR(255) | Required                      |
-| ticker            | VARCHAR(50)  | Nullable                      |
-| exchange          | VARCHAR(50)  | Nullable                      |
-| entity_type       | VARCHAR(50)  | COMPANY, TICKER, SECTOR, etc. |
-| country           | VARCHAR(100) | Nullable                      |
-| sector            | VARCHAR(100) | Nullable                      |
-| industry          | VARCHAR(150) | Nullable                      |
-| external_provider | VARCHAR(100) | Nullable                      |
-| external_id       | VARCHAR(150) | Nullable                      |
-| created_at        | TIMESTAMP    | Required                      |
-| updated_at        | TIMESTAMP    | Required                      |
-
-### Entity type values
-
-```text
-COMPANY
-TICKER
-SECTOR
-INDEX
-CRYPTO
-COMMODITY
-MACRO_FACTOR
-CURRENCY
-ETF
-INDUSTRY
-REGION
-UNKNOWN
-```
-
----
-
-## 7.13 `brief_entity_insights`
-
-Represents analysis for one financial entity within one brief.
-
-| Field                        | Type      | Notes                                |
-| ---------------------------- | --------- | ------------------------------------ |
-| id                           | UUID      | Primary key                          |
-| brief_id                     | UUID      | FK to briefs                         |
-| entity_id                    | UUID      | FK to financial_entities             |
-| source_specific_insight      | TEXT      | What the submitted source says       |
-| company_context              | TEXT      | Basic context                        |
-| industry_context             | TEXT      | Industry context                     |
-| macro_context                | TEXT      | Macro context                        |
-| political_regulatory_context | TEXT      | Political/regulatory context         |
-| competitor_context           | TEXT      | Competitor context                   |
-| risk_factors                 | JSONB     | Array of strings                     |
-| opportunity_factors          | JSONB     | Array of strings                     |
-| premium_only                 | BOOLEAN   | Whether this insight is premium-only |
-| created_at                   | TIMESTAMP | Required                             |
-| updated_at                   | TIMESTAMP | Required                             |
-
-### Notes
-
-This table is useful when AlphaBrief detects multiple companies or market entities inside one brief.
-
----
-
-## 7.14 `brief_events`
-
-Represents a financial, market, company, political, regulatory, macro, or industry event identified inside a brief.
-
-| Field             | Type         | Notes                                              |
-| ----------------- | ------------ | -------------------------------------------------- |
-| id                | UUID         | Primary key                                        |
-| brief_id          | UUID         | FK to briefs                                       |
-| entity_id         | UUID         | Nullable FK to financial_entities                  |
-| event_type        | VARCHAR(80)  | EARNINGS, TARIFF, REGULATION, PRODUCT_LAUNCH, etc. |
-| title             | TEXT         | Short event title                                  |
-| event_date        | DATE         | Nullable                                           |
-| description       | TEXT         | Event summary                                      |
-| source_origin     | VARCHAR(50)  | SOURCE_MENTIONED, EXTERNAL_CONTEXT, MODEL_INFERRED |
-| impact_direction  | VARCHAR(50)  | POSITIVE, NEGATIVE, MIXED, UNCLEAR                 |
-| impact_magnitude  | VARCHAR(50)  | LOW, MEDIUM, HIGH, UNKNOWN                         |
-| confidence_score  | NUMERIC(5,2) | Optional 0-100 score                               |
-| reasoning_summary | TEXT         | Why this event matters                             |
-| created_at        | TIMESTAMP    | Required                                           |
-| updated_at        | TIMESTAMP    | Required                                           |
-
-### Event type values
-
-```text
-EARNINGS
-GUIDANCE
-TARIFF
-REGULATION
-PRODUCT_LAUNCH
-LITIGATION
-MACRO
-SUPPLY_CHAIN
-COMPETITOR_NEWS
-MANAGEMENT_CHANGE
-M_AND_A
-INDUSTRY_TREND
-MARKET_MOVEMENT
-UNKNOWN
-```
-
----
-
-## 7.15 `brief_claims`
-
-Represents key claims extracted from the source or generated during analysis.
-
-| Field              | Type         | Notes                                                    |
-| ------------------ | ------------ | -------------------------------------------------------- |
-| id                 | UUID         | Primary key                                              |
-| brief_id           | UUID         | FK to briefs                                             |
-| event_id           | UUID         | Nullable FK to brief_events                              |
-| entity_id          | UUID         | Nullable FK to financial_entities                        |
-| claim_text         | TEXT         | The claim being made                                     |
-| claim_type         | VARCHAR(80)  | FACTUAL, INTERPRETIVE, FORECAST, RISK, OPPORTUNITY       |
-| support_status     | VARCHAR(50)  | SUPPORTED, PARTIALLY_SUPPORTED, UNSUPPORTED, SPECULATIVE |
-| confidence_score   | NUMERIC(5,2) | Optional 0-100 score                                     |
-| verification_notes | TEXT         | Why this support status was assigned                     |
-| created_at         | TIMESTAMP    | Required                                                 |
-| updated_at         | TIMESTAMP    | Required                                                 |
-
-### Notes
-
-This helps AlphaBrief distinguish between:
-
-```text
-What the source said
-What external evidence supports
-What the model inferred
-What remains speculative
-```
-
----
-
-## 7.16 `brief_citations`
-
-Stores supporting evidence used in the brief.
-
-| Field           | Type         | Notes                                                 |
-| --------------- | ------------ | ----------------------------------------------------- |
-| id              | UUID         | Primary key                                           |
-| brief_id        | UUID         | FK to briefs                                          |
-| claim_id        | UUID         | Nullable FK to brief_claims                           |
-| event_id        | UUID         | Nullable FK to brief_events                           |
-| entity_id       | UUID         | Nullable FK to financial_entities                     |
-| brief_source_id | UUID         | Nullable FK to brief_sources                          |
-| source_title    | TEXT         | Article/page/report title                             |
-| source_url      | TEXT         | Nullable                                              |
-| publisher       | VARCHAR(255) | Nullable                                              |
-| published_at    | TIMESTAMP    | Nullable                                              |
-| accessed_at     | TIMESTAMP    | Required                                              |
-| snippet         | TEXT         | Short supporting excerpt or paraphrased evidence note |
-| source_quality  | VARCHAR(50)  | INTERNAL_ONLY                                         |
-| created_at      | TIMESTAMP    | Required                                              |
-| updated_at      | TIMESTAMP    | Required                                              |
-
-### Source quality values
-
-```text
-HIGH
-MEDIUM
-LOW
-UNKNOWN
-```
-
-### Notes
-
-Do not expose `source_quality` directly if it may create publisher/channel ranking problems.
-
----
-
-## 7.17 `external_context_items`
-
-Stores external data used to enrich a brief, especially for deep briefs.
-
-| Field          | Type         | Notes                                                      |
-| -------------- | ------------ | ---------------------------------------------------------- |
-| id             | UUID         | Primary key                                                |
-| brief_id       | UUID         | FK to briefs                                               |
-| entity_id      | UUID         | Nullable FK to financial_entities                          |
-| context_type   | VARCHAR(80)  | NEWS, COMPANY_PROFILE, MARKET_DATA, INDUSTRY_CONTEXT, etc. |
-| provider       | VARCHAR(100) | External provider or internal source                       |
-| title          | TEXT         | Nullable                                                   |
-| url            | TEXT         | Nullable                                                   |
-| published_at   | TIMESTAMP    | Nullable                                                   |
-| snippet        | TEXT         | Nullable                                                   |
-| raw_payload    | JSONB        | Optional structured provider response                      |
-| used_in_prompt | BOOLEAN      | Required, default true                                     |
-| created_at     | TIMESTAMP    | Required                                                   |
-| updated_at     | TIMESTAMP    | Required                                                   |
-
-### Context type values
-
-```text
-NEWS
-COMPANY_PROFILE
-MARKET_DATA
-INDUSTRY_CONTEXT
-MACRO_CONTEXT
-REGULATORY_CONTEXT
-COMPETITOR_CONTEXT
-ANALYST_COMMENTARY
-EARNINGS_CONTEXT
-SOCIAL_SENTIMENT
-UNKNOWN
-```
-
----
-
-## 7.18 `brief_shares`
-
-Represents a shareable public or unlisted version of a brief.
-
-| Field          | Type         | Notes                           |
-| -------------- | ------------ | ------------------------------- |
-| id             | UUID         | Primary key                     |
-| brief_id       | UUID         | FK to briefs                    |
-| user_id        | UUID         | Owner FK to users               |
-| share_token    | VARCHAR(120) | Unique random token used in URL |
-| slug           | VARCHAR(180) | Optional SEO-friendly slug      |
-| visibility     | VARCHAR(50)  | PRIVATE, UNLISTED, PUBLIC       |
-| enabled        | BOOLEAN      | Required, default true          |
-| allow_download | BOOLEAN      | Required, default false         |
-| view_count     | INTEGER      | Required, default 0             |
-| created_at     | TIMESTAMP    | Required                        |
-| shared_at      | TIMESTAMP    | Nullable                        |
-| expires_at     | TIMESTAMP    | Nullable                        |
-| revoked_at     | TIMESTAMP    | Nullable                        |
-| updated_at     | TIMESTAMP    | Required                        |
-
-### Notes
-
-Store:
-
-```text
-share_token = brf_9xK2pLmQ
-```
-
-Generate URLs dynamically:
-
-```text
-https://alphabrief.ai/share/brf_9xK2pLmQ
-```
-
-Do not store full URLs as the source of truth.
-
----
-
-## 7.19 `brief_exports`
-
-Represents downloadable versions of a brief.
-
-| Field            | Type        | Notes                               |
-| ---------------- | ----------- | ----------------------------------- |
-| id               | UUID        | Primary key                         |
-| brief_id         | UUID        | FK to briefs                        |
-| user_id          | UUID        | FK to users                         |
-| export_type      | VARCHAR(50) | MARKDOWN, PDF, DOCX                 |
-| status           | VARCHAR(50) | PENDING, COMPLETED, FAILED, EXPIRED |
-| storage_provider | VARCHAR(50) | LOCAL, S3, R2, NONE                 |
-| storage_key      | TEXT        | Nullable object key                 |
-| file_url         | TEXT        | Nullable temporary/signed URL       |
-| file_size_bytes  | BIGINT      | Nullable                            |
-| error_message    | TEXT        | Nullable                            |
-| created_at       | TIMESTAMP   | Required                            |
-| completed_at     | TIMESTAMP   | Nullable                            |
-| expires_at       | TIMESTAMP   | Nullable                            |
-| updated_at       | TIMESTAMP   | Required                            |
-
-### Notes
-
-For the first implementation, Markdown can be generated on demand from `summary_markdown`.
-
-PDF/DOCX exports should eventually be asynchronous.
-
----
-
-## 7.20 `referrals`
-
-Tracks referral relationships between users.
-
-| Field                        | Type        | Notes                                                            |
-| ---------------------------- | ----------- | ---------------------------------------------------------------- |
-| id                           | UUID        | Primary key                                                      |
-| referrer_user_id             | UUID        | FK to users                                                      |
-| referred_user_id             | UUID        | Nullable FK to users                                             |
-| referral_code                | VARCHAR(50) | Code used at signup                                              |
-| status                       | VARCHAR(50) | INVITED, SIGNED_UP, ACTIVATED, REWARDED, CANCELLED, FRAUD_REVIEW |
-| reward_granted               | BOOLEAN     | Required, default false                                          |
-| reward_credit_transaction_id | UUID        | Nullable FK to credit_transactions                               |
-| created_at                   | TIMESTAMP   | Required                                                         |
-| signed_up_at                 | TIMESTAMP   | Nullable                                                         |
-| activated_at                 | TIMESTAMP   | Nullable                                                         |
-| rewarded_at                  | TIMESTAMP   | Nullable                                                         |
-| updated_at                   | TIMESTAMP   | Required                                                         |
-
----
-
-## 7.21 `credit_transactions`
-
-Tracks brief credits, referral bonuses, signup bonuses, purchases, trial grants, reservations, refunds, and usage deductions.
-
-| Field              | Type         | Notes                                                                                                                           |
-| ------------------ | ------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| id                 | UUID         | Primary key                                                                                                                     |
-| user_id            | UUID         | FK to users                                                                                                                     |
-| amount             | INTEGER      | Positive for grants/refunds, negative for deductions/reservations                                                               |
-| credit_type        | VARCHAR(50)  | BASIC_BRIEF, DEEP_BRIEF, EXPORT_MARKDOWN, EXPORT_PDF, EXPORT_DOCX, GENERAL                                                      |
-| transaction_type   | VARCHAR(80)  | REFERRAL_BONUS, SIGNUP_BONUS, PURCHASE, TRIAL_GRANT, USAGE_RESERVATION, USAGE_DEDUCTION, USAGE_REFUND, ADMIN_ADJUSTMENT, EXPIRY |
-| transaction_status | VARCHAR(50)  | RESERVED, CONFIRMED, REFUNDED, CANCELLED, EXPIRED                                                                               |
-| source_type        | VARCHAR(80)  | REFERRAL, PROMO_CODE, SUBSCRIPTION, USER_ENTITLEMENT, BRIEF_GENERATION, EXPORT_GENERATION, ADMIN, SYSTEM                        |
-| source_id          | UUID         | Nullable reference to source object                                                                                             |
-| idempotency_key    | VARCHAR(120) | Optional but recommended                                                                                                        |
-| description        | TEXT         | Optional                                                                                                                        |
-| expires_at         | TIMESTAMP    | Nullable                                                                                                                        |
-| created_at         | TIMESTAMP    | Required                                                                                                                        |
-| updated_at         | TIMESTAMP    | Required                                                                                                                        |
-
-### Reservation pattern for expensive briefs
-
-```text
-1. Create -1 DEEP_BRIEF reservation before generation.
-2. If generation succeeds, mark reservation CONFIRMED.
-3. If generation fails before useful output, cancel or refund reservation.
-```
-
----
-
-## 7.22 `user_usage_daily`
-
-Tracks daily usage for product limits, cost control, and monitoring.
-
-| Field                    | Type          | Notes                                      |
-| ------------------------ | ------------- | ------------------------------------------ |
-| id                       | UUID          | Primary key                                |
-| user_id                  | UUID          | FK to users                                |
-| usage_date               | DATE          | Required                                   |
-| plan_code_at_usage       | VARCHAR(50)   | FREE, PRO, STUDENT_PRO, BETA_TESTER, ADMIN |
-| basic_brief_count        | INTEGER       | Number of basic briefs generated           |
-| deep_brief_count         | INTEGER       | Number of deep briefs generated            |
-| total_brief_count        | INTEGER       | Total briefs generated                     |
-| export_count             | INTEGER       | Number of exports generated                |
-| ai_input_token_estimate  | INTEGER       | Optional internal estimate                 |
-| ai_output_token_estimate | INTEGER       | Optional internal estimate                 |
-| ai_total_token_estimate  | INTEGER       | Optional internal estimate                 |
-| ai_search_call_count     | INTEGER       | Optional retrieval/search count            |
-| estimated_ai_cost_usd    | NUMERIC(12,6) | Optional internal estimate                 |
-| created_at               | TIMESTAMP     | Required                                   |
-| updated_at               | TIMESTAMP     | Required                                   |
-
-### Recommended unique constraint
-
-```sql
-ALTER TABLE user_usage_daily
-ADD CONSTRAINT uq_user_usage_daily_user_date
-UNIQUE (user_id, usage_date);
-```
-
----
-
-## 7.23 `plan_limits`
-
-Defines reusable usage rules for each plan.
-
-| Field        | Type        | Notes                                                                                     |
-| ------------ | ----------- | ----------------------------------------------------------------------------------------- |
-| id           | UUID        | Primary key                                                                               |
-| plan_code    | VARCHAR(50) | FREE, PRO, STUDENT_PRO, BETA_TESTER, ADMIN                                                |
-| feature_code | VARCHAR(80) | TOTAL_BRIEF, BASIC_BRIEF, DEEP_BRIEF, EXPORT_PDF, EXPORT_DOCX, PREMIUM_CONTEXT, WATCHLIST |
-| limit_amount | INTEGER     | Nullable for unlimited                                                                    |
-| reset_period | VARCHAR(50) | DAILY, WEEKLY, MONTHLY, LIFETIME, NONE                                                    |
-| active       | BOOLEAN     | Required, default true                                                                    |
-| created_at   | TIMESTAMP   | Required                                                                                  |
-| updated_at   | TIMESTAMP   | Required                                                                                  |
-
-### Example plan limits
-
-```text
-FREE + TOTAL_BRIEF + 3 + DAILY
-FREE + DEEP_BRIEF + 0 + MONTHLY
-
-BETA_TESTER + TOTAL_BRIEF + 10 + LIFETIME
-BETA_TESTER + DEEP_BRIEF + 2 + LIFETIME
-
-PRO + TOTAL_BRIEF + 50 + DAILY
-PRO + DEEP_BRIEF + 10 + MONTHLY
-
-STUDENT_PRO + TOTAL_BRIEF + 30 + DAILY
-STUDENT_PRO + DEEP_BRIEF + 5 + MONTHLY
-
-ADMIN + TOTAL_BRIEF + null + NONE
-ADMIN + DEEP_BRIEF + null + NONE
-```
-
----
-
-# 8. Optional Future Tables
-
-These are useful later but do not have to block the v0.3 first implementation.
-
----
-
-## 8.1 `paid_subscriptions`
-
-Use when Stripe or another payment provider is added.
-
-| Field                    | Type         | Notes                                |
-| ------------------------ | ------------ | ------------------------------------ |
-| id                       | UUID         | Primary key                          |
-| user_id                  | UUID         | FK to users                          |
-| provider                 | VARCHAR(50)  | STRIPE, etc.                         |
-| provider_customer_id     | VARCHAR(255) | External customer ID                 |
-| provider_subscription_id | VARCHAR(255) | External subscription ID             |
-| plan_code                | VARCHAR(50)  | PRO, STUDENT_PRO                     |
-| status                   | VARCHAR(50)  | ACTIVE, PAST_DUE, CANCELLED, EXPIRED |
-| current_period_start     | TIMESTAMP    | Nullable                             |
-| current_period_end       | TIMESTAMP    | Nullable                             |
-| created_at               | TIMESTAMP    | Required                             |
-| updated_at               | TIMESTAMP    | Required                             |
-
-Successful payment should create or update a `user_entitlements` row.
-
----
-
-## 8.2 `admin_grants`
-
-Use if admins need to manually grant access.
-
-| Field      | Type        | Notes                   |
-| ---------- | ----------- | ----------------------- |
-| id         | UUID        | Primary key             |
-| user_id    | UUID        | FK to users             |
-| granted_by | UUID        | FK to admin user        |
-| plan_code  | VARCHAR(50) | PRO, STUDENT_PRO, ADMIN |
-| reason     | TEXT        | Optional                |
-| starts_at  | TIMESTAMP   | Required                |
-| ends_at    | TIMESTAMP   | Nullable                |
-| created_at | TIMESTAMP   | Required                |
-
-Admin grants should create a `user_entitlements` row.
-
----
-
-## 8.3 `education_verifications`
-
-Use if AlphaBrief adds student pricing and needs verification.
-
-| Field                 | Type         | Notes                                |
-| --------------------- | ------------ | ------------------------------------ |
-| id                    | UUID         | Primary key                          |
-| user_id               | UUID         | FK to users                          |
-| institution_name      | VARCHAR(255) | Nullable                             |
-| institution_email     | VARCHAR(255) | Nullable                             |
-| verification_provider | VARCHAR(100) | INTERNAL, MANUAL, SHEER_ID, etc.     |
-| status                | VARCHAR(50)  | PENDING, VERIFIED, REJECTED, EXPIRED |
-| verified_at           | TIMESTAMP    | Nullable                             |
-| expires_at            | TIMESTAMP    | Nullable                             |
-| created_at            | TIMESTAMP    | Required                             |
-| updated_at            | TIMESTAMP    | Required                             |
-
-Successful verification can create or update:
-
-```text
-plan_code = STUDENT_PRO
-source_type = EDUCATION_VERIFICATION
-```
-
----
-
-## 8.4 `watchlists`
-
-Use later for tracked companies/topics.
-
-| Field      | Type         | Notes          |
-| ---------- | ------------ | -------------- |
-| id         | UUID         | Primary key    |
-| user_id    | UUID         | FK to users    |
-| name       | VARCHAR(120) | Watchlist name |
-| created_at | TIMESTAMP    | Required       |
-| updated_at | TIMESTAMP    | Required       |
-
----
-
-## 8.5 `watchlist_items`
-
-Use later for saved entities or topics.
-
-| Field        | Type      | Notes                             |
-| ------------ | --------- | --------------------------------- |
-| id           | UUID      | Primary key                       |
-| watchlist_id | UUID      | FK to watchlists                  |
-| entity_id    | UUID      | Nullable FK to financial_entities |
-| topic_text   | TEXT      | Nullable custom topic             |
-| created_at   | TIMESTAMP | Required                          |
-| updated_at   | TIMESTAMP | Required                          |
-
----
-
-## 8.6 `brief_comparisons`
-
-Use later for “What Changed?” tracking.
-
-| Field              | Type      | Notes              |
-| ------------------ | --------- | ------------------ |
-| id                 | UUID      | Primary key        |
-| user_id            | UUID      | FK to users        |
-| previous_brief_id  | UUID      | FK to briefs       |
-| current_brief_id   | UUID      | FK to briefs       |
-| comparison_summary | TEXT      | Summary of changes |
-| changed_items      | JSONB     | Structured changes |
-| created_at         | TIMESTAMP | Required           |
-
----
-
-## 8.7 `entity_relationships`
-
-Use later for entity graphs.
-
-| Field             | Type         | Notes                                    |
-| ----------------- | ------------ | ---------------------------------------- |
-| id                | UUID         | Primary key                              |
-| source_entity_id  | UUID         | FK to financial_entities                 |
-| target_entity_id  | UUID         | FK to financial_entities                 |
-| relationship_type | VARCHAR(80)  | COMPETITOR, SUPPLIER, REGULATED_BY, etc. |
-| confidence_score  | NUMERIC(5,2) | Optional                                 |
-| created_at        | TIMESTAMP    | Required                                 |
-| updated_at        | TIMESTAMP    | Required                                 |
-
-### Relationship type values
-
-```text
-COMPETITOR
-SUPPLIER
-CUSTOMER
-SECTOR_MEMBER
-REGULATED_BY
-AFFECTED_BY
-PARTNER
-SUBSTITUTE
-PARENT_COMPANY
-SUBSIDIARY
-UNKNOWN
-```
-
----
-
-# 9. Enums
-
-## 9.1 `role`
-
-```text
-USER
-ADMIN
-```
-
-## 9.2 `plan_code`
-
-```text
-FREE
-PRO
-STUDENT_PRO
-BETA_TESTER
-ADMIN
-```
-
-## 9.3 `entitlement_source_type`
-
-```text
-FREE_DEFAULT
-PROMO_CODE
-PAID_SUBSCRIPTION
-ADMIN_GRANT
-TRIAL
-EDUCATION_VERIFICATION
-```
-
-## 9.4 `entitlement_status`
-
-```text
-ACTIVE
-EXPIRED
-REVOKED
-CANCELLED
-```
-
-## 9.5 `source_type`
-
-```text
+source_type:
 ARTICLE_URL
 YOUTUBE_URL
 PDF_FILE
-PASTED_TEXT
-```
+BROWSER_PAGE
 
-## 9.6 `brief_input_type`
+source_access_method:
+SERVER_FETCH         # Backend attempts safe public URL extraction
+BROWSER_EXTENSION    # User clicked extension on a page they were viewing
+API_CONTEXT          # Market/news/filing API fallback context
+UPLOAD               # User uploaded a file, usually PDF
+YOUTUBE_METADATA     # Title, description, channel, public metadata only
+YOUTUBE_TRANSCRIPT   # Transcript/captions available through an allowed path
 
-```text
-QUESTION
-ARTICLE_URL
-YOUTUBE_URL
-PDF_FILE
-PASTED_TEXT
-MIXED
-```
-
-## 9.7 `extraction_status`
-
-```text
+source_access_status:
 PENDING
-EXTRACTED
-FAILED
-```
-
-## 9.8 `research_scope`
-
-```text
-RECOMMENDED_SOURCES
-EXPANDED_MARKET_CONTEXT
-SENTIMENT_AND_DISCUSSION
-USER_PROVIDED_ONLY
-```
-
-## 9.9 `channel_type`
-
-```text
-REGULATORY_FILING
-COMPANY_IR
-FINANCIAL_MEDIA
-NEWSLETTER
-VIDEO_CHANNEL
-SOCIAL_PLATFORM
-MARKET_DATA
-MACRO_DATA
-SPECIALIST_RESEARCH
-UNKNOWN
-```
-
-## 9.10 `internal_trust_tier`
-
-```text
-VERY_HIGH
-HIGH
-MEDIUM
-LOW
+FULL_TEXT_EXTRACTED
+METADATA_ONLY
 BLOCKED
-UNKNOWN
-```
-
-## 9.11 `brief_status`
-
-```text
-QUEUED
-PROCESSING
-COMPLETED
 FAILED
+
+raw_text_retention:
+EPHEMERAL       # Used in memory only during generation
+TEMPORARY_24H   # Kept briefly for debugging/retry, then deleted
+NOT_STORED      # Only metadata and generated output stored
 ```
 
-## 9.12 `job_status`
+### Notes
 
-```text
-QUEUED
-RUNNING
-COMPLETED
-FAILED
-RETRYING
-CANCELLED
-```
+Direct questions belong in `research_items.original_user_input`, not in `sources`.
 
-## 9.13 `requested_depth`
+`BROWSER_PAGE` is for Chrome extension ingestion. It represents a page the user explicitly chose to analyze from their browser. It should not imply broad crawling, background browsing, or bypassing access controls.
 
-```text
-AUTO
-BASIC
-DEEP
-```
-
-## 9.14 `entity_type`
-
-```text
-COMPANY
-TICKER
-SECTOR
-INDEX
-CRYPTO
-COMMODITY
-MACRO_FACTOR
-CURRENCY
-ETF
-INDUSTRY
-REGION
-UNKNOWN
-```
-
-## 9.15 `source_origin`
-
-```text
-USER_PROVIDED
-AGENT_DISCOVERED
-SYSTEM_CONTEXT
-```
-
-## 9.16 `brief_source_usage_role`
-
-```text
-MAIN_EVIDENCE
-SUPPORTING_EVIDENCE
-CONTRADICTING_EVIDENCE
-BACKGROUND_CONTEXT
-OPINION_CONTEXT
-SENTIMENT_SIGNAL
-```
-
-## 9.17 `event_type`
-
-```text
-EARNINGS
-GUIDANCE
-TARIFF
-REGULATION
-PRODUCT_LAUNCH
-LITIGATION
-MACRO
-SUPPLY_CHAIN
-COMPETITOR_NEWS
-MANAGEMENT_CHANGE
-M_AND_A
-INDUSTRY_TREND
-MARKET_MOVEMENT
-UNKNOWN
-```
-
-## 9.18 `impact_direction`
-
-```text
-POSITIVE
-NEGATIVE
-MIXED
-UNCLEAR
-```
-
-## 9.19 `impact_magnitude`
-
-```text
-LOW
-MEDIUM
-HIGH
-UNKNOWN
-```
-
-## 9.20 `claim_type`
-
-```text
-FACTUAL
-INTERPRETIVE
-FORECAST
-RISK
-OPPORTUNITY
-```
-
-## 9.21 `claim_support_status`
-
-```text
-SUPPORTED
-PARTIALLY_SUPPORTED
-UNSUPPORTED
-SPECULATIVE
-```
-
-## 9.22 `brief_visibility`
-
-```text
-PRIVATE
-UNLISTED
-PUBLIC
-```
-
-## 9.23 `export_type`
-
-```text
-MARKDOWN
-PDF
-DOCX
-```
-
-## 9.24 `export_status`
-
-```text
-PENDING
-COMPLETED
-FAILED
-EXPIRED
-```
-
-## 9.25 `referral_status`
-
-```text
-INVITED
-SIGNED_UP
-ACTIVATED
-REWARDED
-CANCELLED
-FRAUD_REVIEW
-```
-
-## 9.26 `credit_transaction_type`
-
-```text
-REFERRAL_BONUS
-SIGNUP_BONUS
-PURCHASE
-TRIAL_GRANT
-USAGE_RESERVATION
-USAGE_DEDUCTION
-USAGE_REFUND
-ADMIN_ADJUSTMENT
-EXPIRY
-```
-
-## 9.27 `credit_transaction_status`
-
-```text
-RESERVED
-CONFIRMED
-REFUNDED
-CANCELLED
-EXPIRED
-```
-
-## 9.28 `credit_type`
-
-```text
-BASIC_BRIEF
-DEEP_BRIEF
-EXPORT_MARKDOWN
-EXPORT_PDF
-EXPORT_DOCX
-GENERAL
-```
-
-## 9.29 `plan_limit_feature_code`
-
-```text
-TOTAL_BRIEF
-BASIC_BRIEF
-DEEP_BRIEF
-EXPORT_MARKDOWN
-EXPORT_PDF
-EXPORT_DOCX
-PREMIUM_CONTEXT
-WATCHLIST
-```
-
-## 9.30 `limit_reset_period`
-
-```text
-DAILY
-WEEKLY
-MONTHLY
-LIFETIME
-NONE
-```
+`PASTED_TEXT` is intentionally not a primary v0.3 source type. The user-facing product should avoid asking users to paste entire articles. If manual source text is added later, use a separate advanced flow and retention policy.
 
 ---
 
-# 10. Recommended Indexes
+## 4.5 `research_item_sources`
+
+Many-to-many join between saved research outputs and sources.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| research_item_id | UUID | FK to research_items |
+| source_id | UUID | FK to sources |
+| role | VARCHAR(50) | PRIMARY_INPUT, SUPPORTING_CONTEXT, API_ENRICHMENT |
+| created_at | TIMESTAMP | Required |
+
+---
+
+## 4.6 `tags`
+
+User-owned tags for organization.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| user_id | UUID | FK to users |
+| name | VARCHAR(80) | Required |
+| color | VARCHAR(30) | Nullable frontend hint |
+| created_at | TIMESTAMP | Required |
+| updated_at | TIMESTAMP | Required |
+
+### Constraint
 
 ```sql
-CREATE INDEX idx_sources_user_id ON sources(user_id);
-CREATE INDEX idx_sources_source_type ON sources(source_type);
-CREATE INDEX idx_sources_content_hash ON sources(content_hash);
-
-CREATE INDEX idx_briefs_user_id ON briefs(user_id);
-CREATE INDEX idx_briefs_source_id ON briefs(source_id);
-CREATE INDEX idx_briefs_input_type ON briefs(input_type);
-CREATE INDEX idx_briefs_status ON briefs(brief_status);
-CREATE INDEX idx_briefs_created_at ON briefs(created_at);
-CREATE INDEX idx_briefs_research_scope ON briefs(research_scope);
-
-CREATE INDEX idx_brief_generation_jobs_brief_id ON brief_generation_jobs(brief_id);
-CREATE INDEX idx_brief_generation_jobs_user_id ON brief_generation_jobs(user_id);
-CREATE INDEX idx_brief_generation_jobs_status ON brief_generation_jobs(status);
-CREATE INDEX idx_brief_generation_jobs_created_at ON brief_generation_jobs(created_at);
-
-CREATE INDEX idx_research_channels_scope ON research_channels(research_scope);
-CREATE INDEX idx_research_channels_type ON research_channels(channel_type);
-CREATE INDEX idx_research_channels_active ON research_channels(active);
-
-CREATE INDEX idx_brief_sources_brief_id ON brief_sources(brief_id);
-CREATE INDEX idx_brief_sources_source_id ON brief_sources(source_id);
-CREATE INDEX idx_brief_sources_channel_id ON brief_sources(research_channel_id);
-CREATE INDEX idx_brief_sources_origin ON brief_sources(source_origin);
-CREATE INDEX idx_brief_sources_usage_role ON brief_sources(usage_role);
-
-CREATE INDEX idx_financial_entities_ticker ON financial_entities(ticker);
-CREATE INDEX idx_financial_entities_name ON financial_entities(name);
-CREATE INDEX idx_financial_entities_type ON financial_entities(entity_type);
-
-CREATE INDEX idx_brief_entity_insights_brief_id ON brief_entity_insights(brief_id);
-CREATE INDEX idx_brief_entity_insights_entity_id ON brief_entity_insights(entity_id);
-
-CREATE INDEX idx_brief_events_brief_id ON brief_events(brief_id);
-CREATE INDEX idx_brief_events_entity_id ON brief_events(entity_id);
-CREATE INDEX idx_brief_events_event_type ON brief_events(event_type);
-CREATE INDEX idx_brief_events_event_date ON brief_events(event_date);
-
-CREATE INDEX idx_brief_claims_brief_id ON brief_claims(brief_id);
-CREATE INDEX idx_brief_claims_event_id ON brief_claims(event_id);
-CREATE INDEX idx_brief_claims_entity_id ON brief_claims(entity_id);
-CREATE INDEX idx_brief_claims_support_status ON brief_claims(support_status);
-
-CREATE INDEX idx_brief_citations_brief_id ON brief_citations(brief_id);
-CREATE INDEX idx_brief_citations_claim_id ON brief_citations(claim_id);
-CREATE INDEX idx_brief_citations_event_id ON brief_citations(event_id);
-CREATE INDEX idx_brief_citations_entity_id ON brief_citations(entity_id);
-CREATE INDEX idx_brief_citations_brief_source_id ON brief_citations(brief_source_id);
-
-CREATE INDEX idx_external_context_items_brief_id ON external_context_items(brief_id);
-CREATE INDEX idx_external_context_items_entity_id ON external_context_items(entity_id);
-CREATE INDEX idx_external_context_items_context_type ON external_context_items(context_type);
-CREATE INDEX idx_external_context_items_provider ON external_context_items(provider);
-CREATE INDEX idx_external_context_items_published_at ON external_context_items(published_at);
-
-CREATE INDEX idx_user_entitlements_user_id ON user_entitlements(user_id);
-CREATE INDEX idx_user_entitlements_user_plan_status ON user_entitlements(user_id, plan_code, status);
-CREATE INDEX idx_user_entitlements_active_window ON user_entitlements(starts_at, ends_at);
-
-CREATE UNIQUE INDEX uq_promo_codes_code_hash ON promo_codes(code_hash);
-CREATE INDEX idx_promo_codes_active ON promo_codes(active);
-CREATE INDEX idx_promo_codes_expires_at ON promo_codes(expires_at);
-
-CREATE INDEX idx_promo_redemptions_user_id ON promo_code_redemptions(user_id);
-CREATE INDEX idx_promo_redemptions_promo_code_id ON promo_code_redemptions(promo_code_id);
-
-CREATE UNIQUE INDEX uq_brief_shares_share_token ON brief_shares(share_token);
-CREATE INDEX idx_brief_shares_brief_id ON brief_shares(brief_id);
-CREATE INDEX idx_brief_shares_user_id ON brief_shares(user_id);
-CREATE INDEX idx_brief_shares_visibility ON brief_shares(visibility);
-CREATE INDEX idx_brief_shares_enabled ON brief_shares(enabled);
-
-CREATE INDEX idx_brief_exports_brief_id ON brief_exports(brief_id);
-CREATE INDEX idx_brief_exports_user_id ON brief_exports(user_id);
-CREATE INDEX idx_brief_exports_status ON brief_exports(status);
-CREATE INDEX idx_brief_exports_export_type ON brief_exports(export_type);
-
-CREATE INDEX idx_referrals_referrer_user_id ON referrals(referrer_user_id);
-CREATE INDEX idx_referrals_referred_user_id ON referrals(referred_user_id);
-CREATE INDEX idx_referrals_referral_code ON referrals(referral_code);
-CREATE INDEX idx_referrals_status ON referrals(status);
-
-CREATE INDEX idx_credit_transactions_user_id ON credit_transactions(user_id);
-CREATE INDEX idx_credit_transactions_credit_type ON credit_transactions(credit_type);
-CREATE INDEX idx_credit_transactions_status ON credit_transactions(transaction_status);
-CREATE UNIQUE INDEX uq_credit_transactions_idempotency_key ON credit_transactions(idempotency_key) WHERE idempotency_key IS NOT NULL;
-CREATE INDEX idx_credit_transactions_source ON credit_transactions(source_type, source_id);
-CREATE INDEX idx_credit_transactions_created_at ON credit_transactions(created_at);
-
-CREATE INDEX idx_user_usage_daily_user_date ON user_usage_daily(user_id, usage_date);
-CREATE UNIQUE INDEX uq_user_usage_daily_user_date ON user_usage_daily(user_id, usage_date);
-
-CREATE INDEX idx_plan_limits_plan_code ON plan_limits(plan_code);
-CREATE INDEX idx_plan_limits_feature_code ON plan_limits(feature_code);
-CREATE UNIQUE INDEX uq_plan_limits_plan_feature_period ON plan_limits(plan_code, feature_code, reset_period) WHERE active = true;
+UNIQUE (user_id, name)
 ```
 
 ---
 
-# 11. Recommended Alembic Migration Order
+## 4.7 `research_item_tags`
 
-```text
-001_create_users
-002_create_plans
-003_create_plan_limits
-004_create_user_entitlements
-005_create_promo_codes
-006_create_promo_code_redemptions
-007_create_sources
-008_create_briefs
-009_create_brief_generation_jobs
-010_create_research_channels
-011_create_brief_sources
-012_create_financial_entities
-013_create_brief_entity_insights
-014_create_brief_events
-015_create_brief_claims
-016_create_brief_citations
-017_create_external_context_items
-018_create_brief_shares
-019_create_brief_exports
-020_create_referrals
-021_create_credit_transactions
-022_create_user_usage_daily
-023_create_indexes
-```
+Many-to-many join between research items and tags.
 
-### Practical note
-
-Even though this is the v0.3 first milestone model, implementation can still be sliced internally:
-
-```text
-Foundation slice:
-users, sources, briefs, jobs
-
-Research slice:
-brief_sources, research_channels, external_context_items
-
-Analysis slice:
-financial_entities, entity_insights, events, claims, citations
-
-Commercial/control slice:
-plans, entitlements, limits, credits, promo codes
-
-Distribution slice:
-shares, exports, referrals
-```
-
-This keeps v0.3 as one milestone while avoiding one horrifying mega-PR.
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| research_item_id | UUID | FK to research_items |
+| tag_id | UUID | FK to tags |
+| created_at | TIMESTAMP | Required |
 
 ---
 
-# 12. Brief Creation Flow
+## 4.8 `companies`
 
-## 12.1 Source-Based Brief
+Lightweight company reference table for v0.3.
 
-```text
-User submits article/video/PDF/text
-→ create source
-→ create brief with source_id
-→ create generation job
-→ extract source text
-→ classify source
-→ detect entities/events/claims
-→ generate structured brief
-→ persist generated_content and summary_markdown
-```
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| ticker | VARCHAR(20) | Nullable but preferred for public companies |
+| name | VARCHAR(255) | Required |
+| exchange | VARCHAR(50) | Nullable |
+| sector | VARCHAR(120) | Nullable |
+| industry | VARCHAR(150) | Nullable |
+| country | VARCHAR(100) | Nullable |
+| description | TEXT | Nullable |
+| created_at | TIMESTAMP | Required |
+| updated_at | TIMESTAMP | Required |
 
-## 12.2 Question-Based Brief
+### Notes
 
-```text
-User asks finance question
-→ create brief with source_id = null
-→ store question in user_query
-→ create generation job
-→ classify intent
-→ detect entities/topics
-→ retrieve context if allowed
-→ generate structured brief
-→ persist generated_content and summary_markdown
-```
-
-## 12.3 Mixed Brief
-
-```text
-User uploads source and asks a custom question
-→ create source
-→ create brief with source_id and user_query
-→ process source and query together
-→ retrieve extra context if allowed
-→ generate structured brief
-```
+This is not the full Company Library yet. For v0.3, it exists only to support filtering, tagging, and future expansion.
 
 ---
 
-# 13. Shareable Brief Flow
+## 4.9 `research_item_companies`
 
-Recommended endpoint:
+Many-to-many join between research outputs and companies.
 
-```http
-POST /api/v1/briefs/{briefId}/share
-```
-
-Backend flow:
-
-```text
-1. Verify current user owns the brief.
-2. Verify brief status is COMPLETED.
-3. Create unique share_token if no active share exists.
-4. Set visibility to UNLISTED by default.
-5. Return generated share URL.
-```
-
-Response:
-
-```json
-{
-  "shareUrl": "https://alphabrief.ai/share/brf_9xK2pLmQ",
-  "visibility": "UNLISTED",
-  "allowDownload": false
-}
-```
-
-Disable sharing:
-
-```http
-DELETE /api/v1/briefs/{briefId}/share
-```
-
-Public read endpoint:
-
-```http
-GET /api/v1/shared-briefs/{shareToken}
-```
-
-Public shared pages must not expose:
-
-* private user data
-* raw upload metadata
-* internal model traces
-* internal trust tiers
-* paid-only private context unless intentionally included
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| research_item_id | UUID | FK to research_items |
+| company_id | UUID | FK to companies |
+| relevance | VARCHAR(50) | PRIMARY, MENTIONED, AFFECTED |
+| created_at | TIMESTAMP | Required |
 
 ---
 
-# 14. Download / Export Flow
+## 4.10 `research_activities`
 
-For Markdown:
+Tracks meaningful user/product activity for daily summaries.
 
-```http
-GET /api/v1/briefs/{briefId}/download?type=MARKDOWN
-```
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| user_id | UUID | FK to users |
+| activity_type | VARCHAR(50) | ASKED_QUESTION, ANALYZED_SOURCE, GENERATED_BRIEF, SAVED_RESEARCH, CREATED_JOURNAL_ENTRY, CREATED_GOAL, GENERATED_DAILY_SUMMARY, ANALYZED_BROWSER_PAGE |
+| title | TEXT | Short human-readable title |
+| description | TEXT | Nullable |
+| related_research_item_id | UUID | Nullable FK |
+| related_source_id | UUID | Nullable FK |
+| activity_metadata | JSONB | Optional structured context |
+| created_at | TIMESTAMP | Required |
 
-For PDF/DOCX:
+### Notes
 
-```http
-POST /api/v1/briefs/{briefId}/exports
-```
-
-Request:
-
-```json
-{
-  "type": "PDF"
-}
-```
-
-Backend flow:
-
-```text
-1. Verify access.
-2. Create brief_export with PENDING status.
-3. Generate export from summary_markdown or generated_content.
-4. Store file if needed.
-5. Mark export COMPLETED.
-6. Return download URL or export status.
-```
+Daily summaries should be generated from `research_activities`, `research_items`, tags, sources, and linked companies.
 
 ---
 
-# 15. Referral Reward Flow
+## 4.11 `daily_research_summaries`
 
-Recommended endpoints:
+AI-generated summary of what a user researched on a given day.
 
-```http
-GET /api/v1/me/referral-code
-POST /api/v1/referrals/apply
-GET /api/v1/me/referrals
-```
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| user_id | UUID | FK to users |
+| research_item_id | UUID | Nullable FK to research_items if saved as item |
+| summary_date | DATE | Required |
+| title | TEXT | Required |
+| topics_covered | JSONB | Array |
+| companies_mentioned | JSONB | Array |
+| sources_analyzed | JSONB | Array |
+| key_insights | JSONB | Array |
+| open_questions | JSONB | Array |
+| suggested_followups | JSONB | Array |
+| summary_markdown | TEXT | Renderable summary |
+| generated_at | TIMESTAMP | Required |
+| created_at | TIMESTAMP | Required |
+| updated_at | TIMESTAMP | Required |
 
-Suggested flow:
-
-```text
-1. Existing user shares referral_code.
-2. New user signs up with referral_code.
-3. Create referral with SIGNED_UP status.
-4. When referred user generates first completed brief, mark referral ACTIVATED.
-5. Create credit_transactions for rewards.
-6. Mark referral REWARDED.
-```
-
----
-
-# 16. Beta Tester / Trial Usage Control Flow
-
-Recommended setup:
-
-```text
-plans:
-BETA_TESTER
-
-user_entitlements:
-plan_code = BETA_TESTER
-source_type = TRIAL
-status = ACTIVE
-
-plan_limits:
-BETA_TESTER + DEEP_BRIEF + 2 + LIFETIME
-```
-
-Alternative:
-
-```text
-credit_transactions:
-credit_type = DEEP_BRIEF
-amount = +2
-transaction_type = TRIAL_GRANT
-transaction_status = CONFIRMED
-source_type = USER_ENTITLEMENT
-source_id = user_entitlements.id
-```
-
-Deep brief generation should check:
-
-```text
-1. Does user have active entitlement?
-2. Does user have remaining quota or credits?
-3. Reserve or deduct 1 DEEP_BRIEF.
-4. Generate brief.
-5. Confirm deduction if successful.
-6. Refund/cancel if failed before usable output.
-```
-
----
-
-# 17. Deep Brief Analysis Pipeline
-
-A deep brief should use a pipeline, not one giant prompt.
-
-Recommended pipeline:
-
-```text
-1. Validate input
-2. Create source if needed
-3. Create brief
-4. Create generation job
-5. Extract/transcribe source content if applicable
-6. Clean content
-7. Classify request intent
-8. Detect financial entities
-9. Detect events
-10. Extract claims
-11. Resolve research scope
-12. Retrieve external context
-13. Generate structured analysis
-14. Verify claims against evidence where possible
-15. Persist brief sources, events, claims, citations, entity insights, and generated content
-16. Render summary_markdown
-17. Mark brief completed
-```
-
-This supports AlphaBrief's core differentiation:
-
-```text
-It does not only summarise financial information.
-It explains what happened, why it matters, what it affects, and what to research next.
-```
-
----
-
-# 18. Promo Code Redemption Flow
-
-Recommended endpoint:
-
-```http
-POST /api/v1/subscription/redeem-promo-code
-```
-
-Request:
-
-```json
-{
-  "code": "ALPHA-BETA-2026"
-}
-```
-
-Backend flow:
-
-```text
-1. Normalize submitted code.
-2. Hash normalized code.
-3. Find promo code by code_hash.
-4. Validate active status.
-5. Validate starts_at and expires_at.
-6. Validate max_redemptions.
-7. Validate max_redemptions_per_user.
-8. Check whether user already has equal or better access.
-9. Create user_entitlement.
-10. Create promo_code_redemption.
-11. Increment promo_codes.current_redemptions.
-12. Return updated subscription status.
-```
-
-Concurrency requirement:
+### Constraint
 
 ```sql
-SELECT *
-FROM promo_codes
-WHERE code_hash = :code_hash
-FOR UPDATE;
+UNIQUE (user_id, summary_date)
 ```
 
 ---
 
-# 19. Access Checking
+## 4.12 `journal_entries`
 
-Premium feature access should check active entitlements, not payment records directly.
+User-written market learning / reflection journal entries.
 
-Pseudo logic:
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| user_id | UUID | FK to users |
+| research_item_id | UUID | Nullable FK if saved in research log |
+| linked_daily_summary_id | UUID | Nullable FK to daily_research_summaries |
+| entry_date | DATE | Required |
+| entry_type | VARCHAR(50) | LEARNING_REFLECTION, MARKET_REFLECTION |
+| title | TEXT | Required |
+| body | TEXT | User-written body |
+| ai_assisted | BOOLEAN | Default false |
+| reflection_prompts | JSONB | Optional prompts shown to user |
+| created_at | TIMESTAMP | Required |
+| updated_at | TIMESTAMP | Required |
+
+### v0.3 entry types
 
 ```text
-function hasProAccess(userId):
-    return exists user_entitlements
-    where user_id = userId
-    and plan_code in ('PRO', 'STUDENT_PRO', 'ADMIN')
-    and status = 'ACTIVE'
-    and starts_at <= now
-    and (ends_at is null or ends_at > now)
+LEARNING_REFLECTION
+MARKET_REFLECTION
 ```
 
-Free access can be treated as the default if no Pro/Admin entitlement exists.
+### Future entry types
+
+```text
+TRADE_REFLECTION
+THESIS_UPDATE
+```
 
 ---
 
-# 20. Effective Subscription Status Response
+## 4.13 `learning_goals`
 
-Example backend response:
+User-defined research or learning goals.
 
-```json
-{
-  "effectivePlanCode": "PRO",
-  "accessSource": "PROMO_CODE",
-  "startsAt": "2026-04-29T00:00:00Z",
-  "endsAt": "2026-05-29T00:00:00Z",
-  "dailyBriefLimit": 50,
-  "briefsUsedToday": 2,
-  "deepBriefsRemaining": 8,
-  "premiumContextEnabled": true
-}
-```
-
-This can power frontend subscription, usage, and gating UI.
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| user_id | UUID | FK to users |
+| title | TEXT | Required |
+| description | TEXT | Nullable |
+| goal_type | VARCHAR(50) | LEARN_TOPIC, RESEARCH_COMPANY, FOLLOW_MARKET, BUILD_THESIS |
+| status | VARCHAR(50) | ACTIVE, COMPLETED, PAUSED, ARCHIVED |
+| target_date | DATE | Nullable |
+| progress_notes | TEXT | Nullable |
+| created_at | TIMESTAMP | Required |
+| updated_at | TIMESTAMP | Required |
 
 ---
 
-# 21. v0.3 Implementation Slices
+## 4.14 `generation_jobs`
 
-Even though v0.3 is the first milestone, implementation should still be sliced.
+Tracks AI generation for Ask Mode, Brief Mode, daily summaries, and reflection assistance.
 
-## Slice A: Core Brief Foundation
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| user_id | UUID | FK to users |
+| research_item_id | UUID | Nullable FK |
+| job_type | VARCHAR(50) | ASK_ANALYSIS, BRIEF_GENERATION, DAILY_SUMMARY, REFLECTION_ASSIST, SOURCE_EXTRACTION |
+| status | VARCHAR(50) | QUEUED, RUNNING, COMPLETED, FAILED, CANCELLED |
+| current_step | VARCHAR(80) | Nullable |
+| retry_count | INTEGER | Default 0 |
+| error_code | VARCHAR(100) | Nullable |
+| error_message | TEXT | Nullable |
+| started_at | TIMESTAMP | Nullable |
+| completed_at | TIMESTAMP | Nullable |
+| created_at | TIMESTAMP | Required |
+| updated_at | TIMESTAMP | Required |
+
+---
+
+
+
+## 4.15 `source_scans`
+
+Stores cheap pre-analysis scan results for external sources.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| user_id | UUID | FK to users |
+| source_id | UUID | FK to sources |
+| requested_output_mode | VARCHAR(50) | ASK, BRIEF |
+| analysis_intent | VARCHAR(50) | QUICK_SUMMARY, MARKET_IMPACT, COMPANY_ANALYSIS, LEARNING_MODE, STRUCTURED_BRIEF |
+| requested_research_mode | VARCHAR(50) | QUICK, STANDARD, DEEP |
+| coverage_mode | VARCHAR(50) | FULL_SOURCE, SELECTED_TOPICS, SELECTED_ENTITIES, CUSTOM_QUESTION |
+| focus_question | TEXT | Nullable |
+| source_complexity | VARCHAR(50) | LOW, MEDIUM, HIGH, VERY_HIGH |
+| estimate_confidence | VARCHAR(50) | HIGH, MEDIUM, LOW, UNKNOWN |
+| estimated_allowance_impact_percent | NUMERIC(5,2) | Estimated impact on current available allowance |
+| requires_warning | BOOLEAN | True when estimate exceeds warning threshold |
+| warning_level | VARCHAR(50) | NONE, INLINE, HIGH, VERY_HIGH |
+| recommended_research_mode | VARCHAR(50) | QUICK, STANDARD, DEEP |
+| recommended_completion_strategy | VARCHAR(50) | STRICT_REQUESTED_MODE, OPTIMIZE_RESEARCH |
+| detected_topics | JSONB | Array |
+| detected_entities | JSONB | Array of companies, tickers, commodities, events, macro terms |
+| created_at | TIMESTAMP | Required |
+
+### Warning Rule
+
+```text
+If estimated_allowance_impact_percent > 50, show a pre-analysis warning before generation begins.
+```
+
+Do not warn users for small jobs. The goal is cost transparency, not turning the product into a nervous hall monitor.
+
+---
+
+## 4.16 `source_segments`
+
+Represents source sections/chunks discovered during cheap scan.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| source_id | UUID | FK to sources |
+| source_scan_id | UUID | Nullable FK to source_scans |
+| segment_index | INTEGER | Required |
+| start_offset_seconds | INTEGER | Nullable; for video/audio transcript |
+| end_offset_seconds | INTEGER | Nullable; for video/audio transcript |
+| start_char_offset | INTEGER | Nullable; for text/PDF/article chunks |
+| end_char_offset | INTEGER | Nullable; for text/PDF/article chunks |
+| page_start | INTEGER | Nullable; for PDFs |
+| page_end | INTEGER | Nullable; for PDFs |
+| title | TEXT | Nullable |
+| topic_summary | TEXT | Nullable |
+| detected_entities | JSONB | Array |
+| detected_topics | JSONB | Array |
+| estimated_complexity | VARCHAR(50) | LOW, MEDIUM, HIGH, VERY_HIGH |
+| relevance_to_intent | VARCHAR(50) | HIGH, MEDIUM, LOW, UNKNOWN |
+| recommended_research_mode | VARCHAR(50) | QUICK, STANDARD, DEEP |
+| metadata | JSONB | Extra segment information |
+| created_at | TIMESTAMP | Required |
+| updated_at | TIMESTAMP | Required |
+
+---
+
+## 4.17 `analysis_runs`
+
+Represents a generation run over a source or question, especially when segmented analysis is involved.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| user_id | UUID | FK to users |
+| research_item_id | UUID | FK to research_items |
+| source_id | UUID | Nullable FK to sources |
+| source_scan_id | UUID | Nullable FK to source_scans |
+| requested_output_mode | VARCHAR(50) | ASK, BRIEF |
+| analysis_intent | VARCHAR(50) | QUICK_SUMMARY, MARKET_IMPACT, COMPANY_ANALYSIS, LEARNING_MODE, STRUCTURED_BRIEF |
+| requested_research_mode | VARCHAR(50) | QUICK, STANDARD, DEEP |
+| completion_strategy | VARCHAR(50) | STRICT_REQUESTED_MODE, OPTIMIZE_RESEARCH |
+| coverage_mode | VARCHAR(50) | FULL_SOURCE, SELECTED_TOPICS, SELECTED_ENTITIES, CUSTOM_QUESTION |
+| focus_question | TEXT | Nullable |
+| status | VARCHAR(50) | QUEUED, RUNNING, PAUSED, COMPLETED, FAILED, CANCELLED |
+| estimated_allowance_impact_percent | NUMERIC(5,2) | Nullable |
+| actual_allowance_impact_percent | NUMERIC(5,2) | Nullable |
+| warning_acknowledged | BOOLEAN | Required, default false |
+| allowance_before_percent | NUMERIC(5,2) | Nullable |
+| allowance_after_percent | NUMERIC(5,2) | Nullable |
+| started_at | TIMESTAMP | Nullable |
+| completed_at | TIMESTAMP | Nullable |
+| created_at | TIMESTAMP | Required |
+| updated_at | TIMESTAMP | Required |
+
+### Completion Strategy Values
+
+```text
+STRICT_REQUESTED_MODE
+OPTIMIZE_RESEARCH
+```
+
+---
+
+## 4.18 `analysis_segments`
+
+Stores the actual analysis produced for each source segment and records whether the requested research depth was changed.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| analysis_run_id | UUID | FK to analysis_runs |
+| source_segment_id | UUID | Nullable FK to source_segments |
+| segment_index | INTEGER | Required |
+| title | TEXT | Nullable |
+| start_offset_seconds | INTEGER | Nullable |
+| end_offset_seconds | INTEGER | Nullable |
+| requested_research_mode | VARCHAR(50) | QUICK, STANDARD, DEEP |
+| actual_research_mode | VARCHAR(50) | QUICK, STANDARD, DEEP |
+| status | VARCHAR(50) | QUEUED, RUNNING, COMPLETED, FAILED, SKIPPED |
+| downgrade_reason | VARCHAR(80) | Nullable |
+| analysis_markdown | TEXT | Nullable |
+| analysis_json | JSONB | Nullable |
+| key_entities | JSONB | Array |
+| key_topics | JSONB | Array |
+| can_rerun | BOOLEAN | True if lower-depth section can be rerun later |
+| rerun_of_segment_id | UUID | Nullable self-reference |
+| created_at | TIMESTAMP | Required |
+| updated_at | TIMESTAMP | Required |
+
+### Downgrade Reasons
+
+```text
+ALLOWANCE_LIMIT
+LOWER_RELEVANCE_TO_USER_INTENT
+SOURCE_COMPLEXITY_HIGH
+USER_SELECTED_OPTIMIZATION
+ESTIMATE_UNCERTAINTY
+```
+
+---
+
+## 4.19 `user_research_allowances`
+
+Tracks the user-facing allowance percentage and cooldown/recovery state.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| user_id | UUID | Unique FK to users |
+| allowance_percent_remaining | NUMERIC(5,2) | 0–100 user-facing value |
+| cooldown_until | TIMESTAMP | Nullable |
+| last_recovered_at | TIMESTAMP | Nullable |
+| next_recovery_at | TIMESTAMP | Nullable |
+| quick_available | BOOLEAN | Required |
+| standard_available | BOOLEAN | Required |
+| deep_available | BOOLEAN | Required |
+| metadata | JSONB | Internal cost score, plan rules, recovery policy; do not expose directly |
+| created_at | TIMESTAMP | Required |
+| updated_at | TIMESTAMP | Required |
+
+### Notes
+
+The UI should show percentages or plain labels. Internal cost scoring can consider tokens, entity count, source complexity, retrieval calls, source length, and uncertainty. Do not rely on fixed public units as the real source of truth.
+
+
+## 4.20 `usage_events`
+
+Basic usage and cost tracking for v0.3.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| user_id | UUID | FK to users |
+| research_item_id | UUID | Nullable FK |
+| source_id | UUID | Nullable FK to sources |
+| event_type | VARCHAR(50) | ASK, BRIEF, SUMMARY, REFLECTION_ASSIST, SOURCE_EXTRACTION, BROWSER_EXTENSION_INGESTION, API_CONTEXT_RETRIEVAL, SOURCE_SCAN, SEGMENT_ANALYSIS, ANALYSIS_RERUN |
+| model_provider | VARCHAR(100) | Nullable |
+| model_name | VARCHAR(100) | Nullable |
+| input_tokens | INTEGER | Nullable |
+| output_tokens | INTEGER | Nullable |
+| estimated_allowance_impact_percent | NUMERIC(5,2) | Nullable |
+| actual_allowance_impact_percent | NUMERIC(5,2) | Nullable |
+| internal_cost_score | NUMERIC(12,4) | Nullable; not shown directly to users |
+| estimated_cost_usd | NUMERIC(10,4) | Nullable |
+| created_at | TIMESTAMP | Required |
+
+### Notes
+
+This gives cost visibility without implementing billing, subscriptions, credits, or plan limits yet.
+
+---
+
+# 5. Recommended v0.3 Implementation Slices
+
+## Slice A: Core Workspace Foundation
 
 Build:
 
 ```text
 users
+research_items
 sources
-briefs
-brief_generation_jobs
-basic structured generated_content
-summary_markdown
+research_item_sources
+generation_jobs
+source_scans
+source_segments
+analysis_runs
+analysis_segments
+user_research_allowances
+usage_events
 ```
 
 Supports:
 
 ```text
-article URL → brief
-YouTube URL → brief
-PDF upload → brief
-pasted text → brief
-direct finance question → brief
+Ask Mode
+Brief Mode foundation
+source upload/submission
+URL / YouTube input
+browser-extension-compatible source ingestion
+basic research log
 ```
 
-## Slice B: Source and Research Traceability
+## Slice B: Organization Layer
 
 Build:
 
 ```text
-research_channels
-brief_sources
-external_context_items
+tags
+research_item_tags
+companies
+research_item_companies
 ```
 
 Supports:
 
 ```text
-agent-discovered sources
-source evidence panel
-research scope
-source category labels
+saved research organization
+company/topic filtering
+future company library foundation
 ```
 
-## Slice C: Finance Intelligence Layer
+## Slice C: Learning Layer
 
 Build:
 
 ```text
-financial_entities
-brief_entity_insights
-brief_events
-brief_claims
-brief_citations
+research_activities
+daily_research_summaries
+journal_entries
+learning_goals
 ```
 
 Supports:
 
 ```text
-implication map
-claim extraction
-claim support status
-event-to-entity reasoning
-citations
-contradiction detection
+daily research summary
+market journal
+learning/reflection goals
+engagement loop
 ```
 
-## Slice D: Usage and Access Control
+## Slice D: Adaptive Research + Allowance Guardrails
 
 Build:
 
 ```text
-plans
-user_entitlements
-plan_limits
-user_usage_daily
-credit_transactions
-promo_codes
-promo_code_redemptions
+source_scans
+source_segments
+analysis_runs
+analysis_segments
+user_research_allowances
+research_mode fields
+completion_strategy fields
+50% pre-analysis warning logic
+Optimize Research support
+analysis depth by section output
 ```
 
 Supports:
 
 ```text
-free/pro/student/beta tester access
-usage limits
-cost control
-promo access
-trial access
+cheap scan for all external sources
+source complexity estimation
+segment-level research depth
+long-source cost control
+rerunnable downgraded sections
 ```
 
-## Slice E: Distribution and Growth
+## Slice E: Browser Extension Integration
 
-Build:
+Backend-ready slice:
 
 ```text
-brief_shares
-brief_exports
-referrals
+source_access_method = BROWSER_EXTENSION
+source_type = BROWSER_PAGE
+POST /sources/browser-extension payload support
+analysis_mode selection: SOURCE_BRIEF or CONTEXT_BRIEF
+raw_text_retention handling
 ```
 
-Supports:
-
-```text
-shareable briefs
-downloadable briefs
-referral rewards
-```
+Frontend/extension client can be built after Slice A if desired.
 
 ---
 
-# 22. Critical Editor Review
+# 6. Critical Scope Decision
 
-## 22.1 v0.3 as first milestone is ambitious
+Do not implement the old full v0.3 model all at once.
 
-This model is intentionally broad. It supports the full early product vision, but implementing all tables before testing the product could slow development.
+The previous model included many serious future-facing concepts: entitlements, promo codes, referrals, shares, exports, claim tables, citation tables, and deep research channels. Those are useful, but they are not necessary to prove the first product loop.
 
-Recommendation:
-
-```text
-Keep v0.3 as the first milestone, but implement it through internal slices.
-```
-
-Do not make one enormous migration and one enormous PR unless the goal is to create a debugging swamp.
-
-## 22.2 Brief must remain central
-
-The most important architecture correction is:
+For v0.3, the product loop is:
 
 ```text
-Brief is the central product artifact.
-Source is optional input.
+Ask or submit source
+→ receive market-aware analysis or formal brief
+→ save research
+→ organize by tags/company
+→ generate daily research summary
+→ reflect in journal
+→ progress toward learning goal
 ```
 
-This supports:
+The Chrome extension should support the same loop by making source capture easier:
 
 ```text
-source-based brief
-question-based brief
-mixed brief
-agent-discovered-source brief
+Read article/video page
+→ click AlphaBrief extension
+→ generate source/context brief
+→ save to research log
 ```
 
-## 22.3 JSONB should carry early feature experimentation
-
-Unique AlphaBrief features such as:
-
-```text
-So What?
-Implication Map
-Bull/Bear/Neutral
-Finance Concepts
-Assignment Angles
-Research Path
-What Would Change This View?
-```
-
-should start inside `generated_content`.
-
-Only normalize later if the data needs:
-
-```text
-search
-filtering
-comparison
-analytics
-cross-brief tracking
-```
-
-## 22.4 AI quality depends on pipeline quality
-
-The data model supports high-quality analysis, but does not guarantee it.
-
-Quality depends on:
-
-* source extraction quality
-* financial entity resolution
-* retrieval quality
-* prompt/schema design
-* citation quality
-* verification pass quality
-* cost limits
-* latency tolerance
-
-A table named `brief_claims` does not magically create reliable research. The pipeline must earn that reliability.
-
-## 22.5 Source trust must stay carefully framed
-
-Do not expose internal trust tiers publicly.
-
-Use safe public labels:
-
-```text
-Official Source
-Established Financial Media
-Market Commentary
-Public Discussion
-User-Provided Source
-```
-
-Avoid public labels like:
-
-```text
-Publisher X = low trust
-Channel Y = Tier 3
-```
-
-## 22.6 Student pricing should not be rushed
-
-`STUDENT_PRO` is useful for future positioning, but verification can wait.
-
-Do not implement `education_verifications` until student pricing is close to launch.
-
-## 22.7 Shareable briefs need privacy filtering
-
-A public shared brief should use a safe public view model.
-
-Do not dump raw `generated_content`, model traces, upload metadata, or private notes directly into the public page.
-
-## 22.8 Anti-abuse is not fully modeled
-
-Referral and credit systems invite abuse.
-
-Future additions may include:
-
-```text
-email verification
-account verification status
-suspicious referral flags
-rate limit records
-IP/device heuristics
-admin review workflow
-```
-
-For v0.3, keep reward rules conservative.
+That is enough. The database is not supposed to be a museum of every thought you had at 2 a.m.
 
 ---
 
-# 23. Final Recommendation
+# 7. Future Migration Path
 
-Use this model for AlphaBrief v0.3 first milestone:
+Later versions can add:
 
-```text
-User
-→ owns Briefs
-→ may submit Sources
-→ may have Entitlements
-→ may consume Usage/Credits
+- `watchlists`
+- `company_events`
+- `event_impact_notes`
+- `notifications`
+- `theses`
+- `thesis_updates`
+- `plans`
+- `user_entitlements`
+- `plan_limits`
+- `credit_transactions`
+- `brief_shares`
+- `brief_exports`
+- `referrals`
+- `research_channels`
+- `claims`
+- `citations`
+- `extension_sessions`
+- `extension_devices`
+- `research_baskets`
+- `multi_source_research_projects`
 
-Brief
-→ is the central artifact
-→ may or may not have a Source
-→ stores structured generated_content
-→ may use BriefSources, Events, Claims, Citations, EntityInsights, and ExternalContextItems
-→ may be shared or exported
-
-Source
-→ stores user-provided material only
-→ does not represent direct finance questions
-
-BriefSource
-→ stores all sources used in final analysis
-→ includes user-provided and agent-discovered sources
-
-Entitlements + Limits + Credits
-→ control access and usage
-→ prevent AI cost chaos
-```
-
-The most important architectural rule:
-
-```text
-Do not force every brief to belong to a source.
-```
-
-The most important product rule:
-
-```text
-AlphaBrief should not only summarise finance content.
-It should explain implications, risks, evidence, and what to research next.
-```
+Do not add these until the workflow demands them.

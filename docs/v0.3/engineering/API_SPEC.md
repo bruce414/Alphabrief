@@ -12,52 +12,46 @@
 
 ## Status
 
-This API spec treats **v0.3 as the first major AlphaBrief milestone**.
-
-Earlier v0.1/v0.2 ideas are now internal implementation slices inside v0.3:
+This API spec reflects AlphaBrief's v0.3 direction:
 
 ```text
-v0.3 foundation slice
-v0.3 source/question brief flow
-v0.3 agentic/deep analysis flow
-v0.3 validation before launch
+Market learning + research workspace
+Ask Mode + Brief Mode
+Saved research log
+Daily research summary
+Journal
+Learning goals
+Chrome Extension-ready source ingestion
 ```
+
+The API uses `ResearchItem` as the central saved object, with `Brief` reserved for formal structured outputs.
+
+The Chrome extension is represented as an additional source ingestion path. It should reuse the same source, research item, and generation job pipeline rather than creating a separate parallel system, because one haunted code path is enough.
 
 ---
 
 # 1. API Principles
 
-The API should be:
-
-- Predictable
-- Frontend-friendly
 - Authenticated by default
-- Consistent in error shape
-- Designed for async brief generation
-- Able to support both source-based and question-based briefs
-- Able to support future deep/agentic research workflows
-
-Important product rule:
-
-```text
-Brief is the central artifact.
-Source is optional input.
-```
-
-This means a brief can be created from:
-
-```text
-ARTICLE_URL
-YOUTUBE_URL
-PDF_FILE
-PASTED_TEXT
-QUESTION
-MIXED
-```
+- Frontend-friendly
+- Async-ready for AI generation
+- Consistent error shape
+- Supports both flexible Ask Mode and formal Brief Mode
+- Saves outputs into a research log
+- Tracks daily activity for summaries
+- Keeps trading/investment advice language compliance-safe
+- Supports URL, YouTube, PDF, and browser-extension source ingestion
+- Clearly distinguishes full source analysis from metadata/API context fallback
+- Does not expose a primary paste-entire-article workflow
+- Supports Quick, Standard, and Deep research modes
+- Supports cheap source scanning before expensive generation
+- Supports Optimize Research for adaptive section-level depth control
+- Warns users before generation when estimated allowance impact exceeds 50%
+- Tracks analysis depth by section for segmented external sources
 
 ---
 
-# 2. Authentication Endpoints
+# 2. Auth Endpoints
 
 ## Register
 
@@ -71,7 +65,7 @@ Request:
 {
   "email": "user@example.com",
   "password": "password",
-  "displayName": "Bruce"
+  "displayName": "Alex"
 }
 ```
 
@@ -81,8 +75,7 @@ Response:
 {
   "userId": "uuid",
   "email": "user@example.com",
-  "displayName": "Bruce",
-  "effectivePlanCode": "FREE"
+  "displayName": "Alex"
 }
 ```
 
@@ -92,43 +85,15 @@ Response:
 POST /api/v1/auth/login
 ```
 
-Request:
-
-```json
-{
-  "email": "user@example.com",
-  "password": "password"
-}
-```
-
-Response:
-
-```json
-{
-  "userId": "uuid",
-  "email": "user@example.com",
-  "displayName": "Bruce",
-  "effectivePlanCode": "FREE"
-}
-```
-
 ## Logout
 
 ```http
 POST /api/v1/auth/logout
 ```
 
-Response:
-
-```json
-{
-  "success": true
-}
-```
-
 ---
 
-# 3. User Endpoints
+# 3. Current User Endpoints
 
 ## Get Current User
 
@@ -142,10 +107,13 @@ Response:
 {
   "id": "uuid",
   "email": "user@example.com",
-  "displayName": "Bruce",
-  "effectivePlanCode": "FREE",
-  "defaultResearchScope": "RECOMMENDED_SOURCES",
-  "createdAt": "2026-04-29T00:00:00Z"
+  "displayName": "Alex",
+  "defaultOutputMode": "ASK",
+  "defaultResearchScope": "RECOMMENDED_CONTEXT",
+  "defaultResearchMode": "STANDARD",
+  "optimizeResearchDefault": true,
+  "researchAllowancePercentRemaining": 76,
+  "createdAt": "2026-05-04T00:00:00Z"
 }
 ```
 
@@ -159,149 +127,17 @@ Request:
 
 ```json
 {
-  "displayName": "New Name",
-  "defaultResearchScope": "RECOMMENDED_SOURCES"
-}
-```
-
-Response:
-
-```json
-{
-  "id": "uuid",
-  "email": "user@example.com",
-  "displayName": "New Name",
-  "effectivePlanCode": "FREE",
-  "defaultResearchScope": "RECOMMENDED_SOURCES"
+  "displayName": "Alex",
+  "defaultOutputMode": "ASK",
+  "defaultResearchScope": "RECOMMENDED_CONTEXT",
+  "defaultResearchMode": "STANDARD",
+  "optimizeResearchDefault": true
 }
 ```
 
 ---
 
-# 4. Brief Endpoints
-
-## Create Brief
-
-```http
-POST /api/v1/briefs
-```
-
-This endpoint creates a brief from:
-
-```text
-1. A source
-2. A direct finance question
-3. A source plus an additional user question/instruction
-```
-
-### Request: Article URL
-
-```json
-{
-  "inputType": "ARTICLE_URL",
-  "input": "https://example.com/article",
-  "userQuery": null,
-  "requestedDepth": "AUTO",
-  "researchScope": "RECOMMENDED_SOURCES"
-}
-```
-
-### Request: YouTube URL
-
-```json
-{
-  "inputType": "YOUTUBE_URL",
-  "input": "https://www.youtube.com/watch?v=example",
-  "userQuery": "Focus on the investment implications.",
-  "requestedDepth": "AUTO",
-  "researchScope": "RECOMMENDED_SOURCES"
-}
-```
-
-### Request: Pasted Text
-
-```json
-{
-  "inputType": "PASTED_TEXT",
-  "input": "Long pasted finance article or report excerpt...",
-  "userQuery": null,
-  "requestedDepth": "BASIC",
-  "researchScope": "USER_PROVIDED_ONLY"
-}
-```
-
-### Request: Question
-
-```json
-{
-  "inputType": "QUESTION",
-  "input": "Analyse the fintech industry for me.",
-  "userQuery": "Analyse the fintech industry for me.",
-  "requestedDepth": "AUTO",
-  "researchScope": "RECOMMENDED_SOURCES"
-}
-```
-
-### Request: Mixed
-
-```json
-{
-  "inputType": "MIXED",
-  "input": "source_id_or_uploaded_file_id_or_url",
-  "userQuery": "Use this report and explain the implications for Visa and Mastercard.",
-  "requestedDepth": "DEEP",
-  "researchScope": "EXPANDED_MARKET_CONTEXT"
-}
-```
-
-If `researchScope` is omitted, the backend should default to:
-
-```text
-RECOMMENDED_SOURCES
-```
-
-Supported `inputType` values:
-
-```text
-QUESTION
-ARTICLE_URL
-YOUTUBE_URL
-PDF_FILE
-PASTED_TEXT
-MIXED
-```
-
-Supported `requestedDepth` values:
-
-```text
-AUTO
-BASIC
-DEEP
-```
-
-Supported `researchScope` values:
-
-```text
-RECOMMENDED_SOURCES
-EXPANDED_MARKET_CONTEXT
-SENTIMENT_AND_DISCUSSION
-USER_PROVIDED_ONLY
-```
-
-Response:
-
-```json
-{
-  "briefId": "uuid",
-  "jobId": "uuid",
-  "status": "QUEUED",
-  "inputType": "QUESTION",
-  "researchScope": "RECOMMENDED_SOURCES",
-  "requestedDepth": "AUTO"
-}
-```
-
----
+# 4. Source Endpoints
 
 ## Upload Source File
 
@@ -309,7 +145,7 @@ Response:
 POST /api/v1/sources/upload
 ```
 
-Use this for PDF upload.
+Use for PDF files.
 
 Request:
 
@@ -324,39 +160,301 @@ Response:
 {
   "sourceId": "uuid",
   "sourceType": "PDF_FILE",
+  "sourceAccessMethod": "UPLOAD",
+  "sourceAccessStatus": "PENDING",
   "fileName": "visa-annual-report.pdf",
   "mimeType": "application/pdf",
-  "fileSizeBytes": 1048576,
-  "extractionStatus": "PENDING"
+  "fileSizeBytes": 1048576
 }
 ```
 
-Then create a brief with:
+## Create Source From URL
+
+```http
+POST /api/v1/sources
+```
+
+Use for article URLs and YouTube URLs submitted from the web app.
+
+Request:
 
 ```json
 {
-  "inputType": "PDF_FILE",
-  "sourceId": "uuid",
-  "userQuery": "Focus on revenue growth, risks, and payment volume.",
-  "requestedDepth": "AUTO",
-  "researchScope": "RECOMMENDED_SOURCES"
+  "sourceType": "ARTICLE_URL",
+  "input": "https://example.com/market-news"
 }
 ```
 
-Alternative simple path:
+Supported v0.3 source types:
 
 ```text
-POST /api/v1/briefs
+ARTICLE_URL
+YOUTUBE_URL
+PDF_FILE
+BROWSER_PAGE
 ```
 
-can accept multipart form data later, but keeping file upload separate is cleaner for v0.3.
+Response:
+
+```json
+{
+  "sourceId": "uuid",
+  "sourceType": "ARTICLE_URL",
+  "sourceAccessMethod": "SERVER_FETCH",
+  "sourceAccessStatus": "PENDING",
+  "normalizedUrl": "https://example.com/market-news"
+}
+```
+
+### Important UX Rule
+
+`PASTED_TEXT` is intentionally not a primary v0.3 source type. The main product should avoid asking users to paste full articles. If manual text support is added later, treat it as an advanced fallback, not the core workflow.
 
 ---
 
-## List Briefs
+# 5. Browser Extension Source Endpoint
+
+## Create Source From Browser Extension
 
 ```http
-GET /api/v1/briefs
+POST /api/v1/sources/browser-extension
+```
+
+Use when the user clicks the AlphaBrief Chrome extension on a page they are viewing.
+
+The extension should send page metadata and, when available, extracted readable content from the currently active page. This endpoint should not be used for background crawling.
+
+Request:
+
+```json
+{
+  "url": "https://finance.yahoo.com/news/example-article",
+  "canonicalUrl": "https://finance.yahoo.com/news/example-article",
+  "title": "Nvidia shares rise after earnings beat",
+  "publisher": "Yahoo Finance",
+  "author": "Example Author",
+  "publishedAt": "2026-05-05T10:00:00Z",
+  "extractedText": "Readable article text extracted from the current page...",
+  "extractedTextWordCount": 1426,
+  "extractionConfidence": "HIGH",
+  "metadata": {
+    "siteName": "Yahoo Finance",
+    "ogTitle": "Nvidia shares rise after earnings beat",
+    "domExtractionVersion": "readability_v1",
+    "extensionVersion": "0.1.0"
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "sourceId": "uuid",
+  "sourceType": "BROWSER_PAGE",
+  "sourceAccessMethod": "BROWSER_EXTENSION",
+  "sourceAccessStatus": "FULL_TEXT_EXTRACTED",
+  "rawTextRetention": "EPHEMERAL",
+  "title": "Nvidia shares rise after earnings beat"
+}
+```
+
+## Browser Extension Metadata-Only Source
+
+If the extension cannot reliably extract readable article text, it should still submit metadata.
+
+Request:
+
+```json
+{
+  "url": "https://finance.yahoo.com/news/example-article",
+  "title": "Nvidia shares rise after earnings beat",
+  "publisher": "Yahoo Finance",
+  "extractedText": null,
+  "extractionConfidence": "LOW",
+  "metadata": {
+    "reason": "NO_READABLE_ARTICLE_DETECTED",
+    "extensionVersion": "0.1.0"
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "sourceId": "uuid",
+  "sourceType": "BROWSER_PAGE",
+  "sourceAccessMethod": "BROWSER_EXTENSION",
+  "sourceAccessStatus": "METADATA_ONLY",
+  "recommendedAnalysisMode": "CONTEXT_BRIEF"
+}
+```
+
+---
+
+# 6. Ask Mode Endpoints
+
+## Create Ask Analysis
+
+```http
+POST /api/v1/ask
+```
+
+Use this for flexible finance/source analysis that does not need to become a formal brief.
+
+Request:
+
+```json
+{
+  "question": "Explain why Visa's earnings matter for payment networks.",
+  "sourceIds": ["uuid"],
+  "analysisIntent": "MARKET_IMPACT",
+  "researchScope": "RECOMMENDED_CONTEXT",
+  "researchMode": "STANDARD",
+  "coverageMode": "FULL_SOURCE",
+  "optimizeResearch": true,
+  "saveToResearchLog": true
+}
+```
+
+Response:
+
+```json
+{
+  "researchItemId": "uuid",
+  "jobId": "uuid",
+  "status": "QUEUED",
+  "itemType": "ASK_ANALYSIS"
+}
+```
+
+---
+
+# 7. Brief Mode Endpoints
+
+## Create Brief
+
+```http
+POST /api/v1/briefs
+```
+
+Use this when the user explicitly wants a formal structured artifact.
+
+Request:
+
+```json
+{
+  "briefType": "COMPANY_RESEARCH",
+  "subject": "Visa",
+  "ticker": "V",
+  "userQuery": "Generate a company brief for Visa.",
+  "sourceIds": [],
+  "researchScope": "RECOMMENDED_CONTEXT"
+}
+```
+
+Supported v0.3 brief types:
+
+```text
+COMPANY_RESEARCH
+EARNINGS_BREAKDOWN
+SOURCE_SUMMARY
+MARKET_EVENT_EXPLAINER
+```
+
+Response:
+
+```json
+{
+  "researchItemId": "uuid",
+  "briefId": "uuid",
+  "jobId": "uuid",
+  "status": "QUEUED",
+  "briefType": "COMPANY_RESEARCH"
+}
+```
+
+## Get Brief
+
+```http
+GET /api/v1/briefs/{briefId}
+```
+
+Response:
+
+```json
+{
+  "id": "uuid",
+  "researchItemId": "uuid",
+  "briefType": "COMPANY_RESEARCH",
+  "subject": "Visa",
+  "ticker": "V",
+  "sections": {
+    "companyOverview": "...",
+    "businessModel": "...",
+    "growthDrivers": [],
+    "risks": [],
+    "bullCase": [],
+    "bearCase": [],
+    "whatToWatchNext": []
+  },
+  "createdAt": "2026-05-04T00:00:00Z"
+}
+```
+
+---
+
+# 8. Research Item Endpoints
+
+## Create Research Item From Source
+
+```http
+POST /api/v1/research-items/from-source
+```
+
+Use this endpoint when a source already exists and the user wants AlphaBrief to generate either a source brief or context brief.
+
+Request:
+
+```json
+{
+  "sourceId": "uuid",
+  "requestedOutputMode": "ASK",
+  "analysisIntent": "MARKET_IMPACT",
+  "researchScope": "RECOMMENDED_CONTEXT",
+  "researchMode": "DEEP",
+  "coverageMode": "FULL_SOURCE",
+  "focusQuestion": "What does this source imply for Nvidia and AI chip demand?",
+  "selectedSegmentIds": [],
+  "selectedEntityIds": [],
+  "optimizeResearch": true,
+  "saveToResearchLog": true
+}
+```
+
+Response:
+
+```json
+{
+  "researchItemId": "uuid",
+  "analysisRunId": "uuid",
+  "jobId": "uuid",
+  "status": "QUEUED",
+  "analysisMode": "SOURCE_BRIEF",
+  "researchMode": "DEEP",
+  "completionStrategy": "OPTIMIZE_RESEARCH",
+  "estimatedAllowanceImpactPercent": 62,
+  "requiresPreAnalysisWarning": true
+}
+```
+
+If the source is metadata-only, the backend should select `CONTEXT_BRIEF` unless the user specifically requests otherwise.
+
+## List Research Items
+
+```http
+GET /api/v1/research-items
 ```
 
 Query params:
@@ -364,10 +462,14 @@ Query params:
 ```text
 page
 size
+itemType
 status
-inputType
-researchScope
-requestedDepth
+companyId
+tag
+fromDate
+toDate
+analysisMode
+sourceAccessMethod
 ```
 
 Response:
@@ -377,14 +479,14 @@ Response:
   "items": [
     {
       "id": "uuid",
-      "title": "Fintech industry analysis",
-      "inputType": "QUESTION",
+      "itemType": "ASK_ANALYSIS",
+      "title": "Visa earnings impact analysis",
+      "shortSummary": "Explains why cross-border volume matters for Visa.",
       "status": "COMPLETED",
-      "planCodeUsed": "FREE",
-      "requestedDepth": "AUTO",
-      "researchScope": "RECOMMENDED_SOURCES",
-      "createdAt": "2026-04-29T00:00:00Z",
-      "generatedAt": "2026-04-29T00:01:00Z"
+      "analysisMode": "SOURCE_BRIEF",
+      "tags": ["visa", "earnings"],
+      "companies": [{ "ticker": "V", "name": "Visa Inc." }],
+      "createdAt": "2026-05-04T00:00:00Z"
     }
   ],
   "page": 0,
@@ -393,89 +495,26 @@ Response:
 }
 ```
 
----
-
-## Get Brief By ID
+## Get Research Item
 
 ```http
-GET /api/v1/briefs/{briefId}
+GET /api/v1/research-items/{researchItemId}
 ```
 
-Response:
+## Delete Research Item
 
-```json
-{
-  "id": "uuid",
-  "title": "Fintech industry analysis",
-  "inputType": "QUESTION",
-  "userQuery": "Analyse the fintech industry for me.",
-  "status": "COMPLETED",
-  "planCodeUsed": "FREE",
-  "requestedDepth": "AUTO",
-  "researchScope": "RECOMMENDED_SOURCES",
-  "researchScopeLabel": "Recommended Sources",
-  "sourceMix": [
-    "Established financial media where available",
-    "Company and regulatory sources where available"
-  ],
-  "source": null,
-  "generatedContent": {
-    "quickSummary": "The fintech industry includes payments, lending, digital banking, wealthtech, insurtech, regtech, and crypto-related infrastructure.",
-    "keyFacts": [
-      "Fintech is not one single market.",
-      "Regulation is a major factor.",
-      "Many fintech firms both compete with and rely on traditional finance infrastructure."
-    ],
-    "keyTakeaways": [
-      "Payments and embedded finance remain important growth areas.",
-      "Profitability and regulation are key risks.",
-      "Incumbents and fintechs often partner as much as they compete."
-    ],
-    "soWhat": "This matters because fintech changes how consumers and businesses access money, credit, payments, and financial tools.",
-    "implicationMap": {
-      "companyImpact": [],
-      "industryImpact": [],
-      "investorImpact": [],
-      "regulatoryImpact": [],
-      "whatToWatchNext": []
-    },
-    "bullBearNeutral": {
-      "bull": [],
-      "bear": [],
-      "neutral": []
-    },
-    "financeConcepts": [],
-    "risksAndUncertainties": [],
-    "researchPathRecommendations": [],
-    "studentTakeaway": "",
-    "investorTakeaway": ""
-  },
-  "summaryMarkdown": "# Fintech industry analysis\n\n...",
-  "confidenceScore": 78,
-  "confidenceExplanation": "Confidence is medium-high because the brief uses stable industry structure, but specific company-level conclusions require current source retrieval.",
-  "disclaimer": "This brief is for informational and educational purposes only and is not financial advice.",
-  "createdAt": "2026-04-29T00:00:00Z",
-  "generatedAt": "2026-04-29T00:01:00Z"
-}
-```
-
-For source-based briefs, `source` should be populated:
-
-```json
-{
-  "id": "uuid",
-  "sourceType": "ARTICLE_URL",
-  "title": "Original article title",
-  "normalizedUrl": "https://example.com/article"
-}
+```http
+DELETE /api/v1/research-items/{researchItemId}
 ```
 
 ---
 
-## Get Brief Generation Job
+# 9. Job Endpoints
+
+## Get Generation Job
 
 ```http
-GET /api/v1/briefs/{briefId}/job
+GET /api/v1/jobs/{jobId}
 ```
 
 Response:
@@ -483,13 +522,10 @@ Response:
 ```json
 {
   "jobId": "uuid",
-  "briefId": "uuid",
+  "researchItemId": "uuid",
+  "jobType": "ASK_ANALYSIS",
   "status": "RUNNING",
-  "currentStep": "RETRIEVING_CONTEXT",
-  "retryCount": 0,
-  "maxRetries": 3,
-  "startedAt": "2026-04-29T00:00:05Z",
-  "completedAt": null,
+  "currentStep": "GENERATING_OUTPUT",
   "errorCode": null,
   "errorMessage": null
 }
@@ -497,28 +533,51 @@ Response:
 
 ---
 
-## Delete Brief
+# 10. Tag Endpoints
+
+## List Tags
 
 ```http
-DELETE /api/v1/briefs/{briefId}
+GET /api/v1/tags
 ```
 
-Response:
+## Create Tag
+
+```http
+POST /api/v1/tags
+```
+
+Request:
 
 ```json
 {
-  "success": true
+  "name": "payments",
+  "color": "blue"
+}
+```
+
+## Add Tags to Research Item
+
+```http
+POST /api/v1/research-items/{researchItemId}/tags
+```
+
+Request:
+
+```json
+{
+  "tagNames": ["visa", "payments", "earnings"]
 }
 ```
 
 ---
 
-# 5. Brief Source / Evidence Endpoints
+# 11. Company Endpoints
 
-## List Sources Used In Brief
+## Search Companies
 
 ```http
-GET /api/v1/briefs/{briefId}/sources
+GET /api/v1/companies/search?q=visa
 ```
 
 Response:
@@ -528,31 +587,54 @@ Response:
   "items": [
     {
       "id": "uuid",
-      "sourceOrigin": "USER_PROVIDED",
-      "sourceTitle": "Visa Annual Report",
-      "sourceUrl": null,
-      "publisher": "Visa",
-      "sourceType": "FILING",
-      "usageRole": "MAIN_EVIDENCE",
-      "sourceCategoryLabel": "User-Provided Source",
-      "publishedAt": null,
-      "accessedAt": "2026-04-29T00:00:00Z",
-      "snippet": "Revenue and payment volume details were used for the brief."
+      "ticker": "V",
+      "name": "Visa Inc.",
+      "exchange": "NYSE",
+      "sector": "Financial Services"
     }
   ]
 }
 ```
 
-Do not expose internal trust tiers directly.
+## Get Company
+
+```http
+GET /api/v1/companies/{companyId}
+```
+
+For v0.3, this is a lightweight reference endpoint only. Full company library pages belong to a future version.
 
 ---
 
-# 6. Entity Endpoints
+# 12. Daily Research Summary Endpoints
 
-## Get Entity
+## Generate Today's Research Summary
 
 ```http
-GET /api/v1/entities/{entityId}
+POST /api/v1/daily-summaries/today/generate
+```
+
+Response:
+
+```json
+{
+  "summaryId": "uuid",
+  "researchItemId": "uuid",
+  "jobId": "uuid",
+  "status": "QUEUED"
+}
+```
+
+## Get Summary By Date
+
+```http
+GET /api/v1/daily-summaries/{date}
+```
+
+Example:
+
+```http
+GET /api/v1/daily-summaries/2026-05-04
 ```
 
 Response:
@@ -560,19 +642,115 @@ Response:
 ```json
 {
   "id": "uuid",
-  "name": "Visa Inc.",
-  "ticker": "V",
-  "exchange": "NYSE",
-  "entityType": "COMPANY",
-  "country": "United States",
-  "sector": "Financial Services",
-  "industry": "Payments"
+  "summaryDate": "2026-05-04",
+  "topicsCovered": ["Visa earnings", "payment networks"],
+  "companiesMentioned": ["Visa", "Mastercard"],
+  "keyInsights": [],
+  "openQuestions": [],
+  "suggestedFollowups": [],
+  "summaryMarkdown": "..."
 }
 ```
 
 ---
 
-# 7. Research Scope Endpoints
+# 13. Journal Endpoints
+
+## Create Journal Entry
+
+```http
+POST /api/v1/journal-entries
+```
+
+Request:
+
+```json
+{
+  "entryDate": "2026-05-04",
+  "entryType": "LEARNING_REFLECTION",
+  "title": "What I learned about Visa today",
+  "body": "Today I learned that cross-border volume is important because...",
+  "linkedDailySummaryId": "uuid",
+  "aiAssisted": false
+}
+```
+
+## Reflection Assistant
+
+```http
+POST /api/v1/journal-entries/reflection-assist
+```
+
+Request:
+
+```json
+{
+  "summaryDate": "2026-05-04",
+  "currentDraft": "Today I researched Visa earnings...",
+  "step": "SUGGEST_LEARNING_POINTS"
+}
+```
+
+Supported steps:
+
+```text
+STARTER_SUMMARY
+SUGGEST_LEARNING_POINTS
+SUGGEST_OPEN_QUESTIONS
+DRAFT_NEXT_PARAGRAPH
+```
+
+Response:
+
+```json
+{
+  "suggestion": "One important lesson from today's research is that strong earnings can still disappoint if expectations were higher.",
+  "nextPrompt": "What changed your view today?"
+}
+```
+
+## List Journal Entries
+
+```http
+GET /api/v1/journal-entries
+```
+
+---
+
+# 14. Learning Goal Endpoints
+
+## Create Learning Goal
+
+```http
+POST /api/v1/learning-goals
+```
+
+Request:
+
+```json
+{
+  "title": "Understand how earnings reports affect stock prices",
+  "description": "Focus on revenue, EPS, guidance, and market expectations.",
+  "goalType": "LEARN_TOPIC",
+  "targetDate": "2026-06-01"
+}
+```
+
+## List Learning Goals
+
+```http
+GET /api/v1/learning-goals
+```
+
+## Update Learning Goal
+
+```http
+PATCH /api/v1/learning-goals/{goalId}
+```
+
+---
+
+# 15. Research Scopes
 
 ## List Research Scopes
 
@@ -580,253 +758,183 @@ Response:
 GET /api/v1/research-scopes
 ```
 
+v0.3 scopes:
+
+```text
+USER_PROVIDED_ONLY
+RECOMMENDED_CONTEXT
+```
+
+Advanced scopes such as social sentiment or expanded market context can wait until the retrieval layer is more mature.
+
+---
+
+# 16. Common Error Shape
+
+```json
+{
+  "errorCode": "SOURCE_EXTRACTION_FAILED",
+  "message": "We could not extract readable content from this source.",
+  "details": null,
+  "timestamp": "2026-05-04T00:00:00Z"
+}
+```
+
+## Error Codes
+
+```text
+INVALID_INPUT
+INVALID_SOURCE_TYPE
+INVALID_URL
+UNSUPPORTED_FILE_TYPE
+FILE_TOO_LARGE
+SOURCE_EXTRACTION_FAILED
+SOURCE_METADATA_ONLY
+SOURCE_BLOCKED
+BROWSER_EXTENSION_PAYLOAD_INVALID
+QUESTION_TOO_VAGUE
+GENERATION_FAILED
+AI_OUTPUT_INVALID
+SOURCE_SCAN_FAILED
+ANALYSIS_ALLOWANCE_TOO_LOW
+HIGH_USAGE_WARNING_REQUIRED
+ANALYSIS_SEGMENT_NOT_FOUND
+ANALYSIS_RUN_NOT_FOUND
+JOB_NOT_FOUND
+RESEARCH_ITEM_NOT_FOUND
+BRIEF_NOT_FOUND
+DAILY_SUMMARY_NOT_FOUND
+UNAUTHORIZED
+FORBIDDEN
+NOT_FOUND
+INTERNAL_ERROR
+```
+
+
+---
+
+# 17. Adaptive Research / Source Scan Endpoints
+
+These endpoints support the v0.3 external-source architecture for all external source types: article URLs, browser pages, YouTube videos, earnings reports, PDFs, and company pages.
+
+## Run Source Scan
+
+```http
+POST /api/v1/sources/{sourceId}/scan
+```
+
+Runs a cheap pre-analysis scan before expensive generation.
+
+Request:
+
+```json
+{
+  "requestedOutputMode": "ASK",
+  "analysisIntent": "MARKET_IMPACT",
+  "researchMode": "DEEP",
+  "coverageMode": "FULL_SOURCE",
+  "focusQuestion": "What does this source imply for Nvidia and AI chips?"
+}
+```
+
 Response:
 
 ```json
 {
-  "defaultResearchScope": "RECOMMENDED_SOURCES",
-  "items": [
+  "sourceId": "uuid",
+  "scanId": "uuid",
+  "sourceComplexity": "HIGH",
+  "estimateConfidence": "MEDIUM",
+  "estimatedAllowanceImpactPercent": 64,
+  "requiresWarning": true,
+  "warningLevel": "HIGH",
+  "recommendedResearchMode": "STANDARD",
+  "recommendedCompletionStrategy": "OPTIMIZE_RESEARCH",
+  "detectedTopics": ["AI chips", "earnings", "margin pressure"],
+  "detectedEntities": [
+    { "name": "Nvidia", "ticker": "NVDA", "type": "COMPANY" },
+    { "name": "AMD", "ticker": "AMD", "type": "COMPANY" }
+  ],
+  "segments": [
     {
-      "code": "RECOMMENDED_SOURCES",
-      "label": "Recommended Sources",
-      "description": "Prioritises official, regulatory, company, government, and established financial media sources.",
-      "recommended": true
-    },
-    {
-      "code": "EXPANDED_MARKET_CONTEXT",
-      "label": "Expanded Market Context",
-      "description": "Adds selected market commentary, newsletters, videos, and specialist finance platforms.",
-      "recommended": false
-    },
-    {
-      "code": "SENTIMENT_AND_DISCUSSION",
-      "label": "Sentiment & Discussion Signals",
-      "description": "Adds limited public discussion sources for sentiment and market narrative only.",
-      "recommended": false
-    },
-    {
-      "code": "USER_PROVIDED_ONLY",
-      "label": "User-Provided Sources Only",
-      "description": "Uses the submitted source plus minimal entity metadata only.",
-      "recommended": false
+      "segmentId": "uuid",
+      "segmentIndex": 0,
+      "startOffsetSeconds": 0,
+      "endOffsetSeconds": 720,
+      "title": "Opening market context",
+      "topicSummary": "Fed policy, bond yields, and tech market setup",
+      "estimatedComplexity": "MEDIUM",
+      "recommendedDepth": "STANDARD"
     }
   ]
 }
 ```
 
-This endpoint must not expose individual publisher/channel trust tiers.
-
----
-
-# 8. Subscription / Entitlement Endpoints
-
-## Get My Subscription
+## Create Analysis Run From Source
 
 ```http
-GET /api/v1/subscription/me
+POST /api/v1/research-items/from-source
+```
+
+This existing endpoint now accepts adaptive research options.
+
+Important request fields:
+
+```json
+{
+  "sourceId": "uuid",
+  "requestedOutputMode": "ASK",
+  "analysisIntent": "MARKET_IMPACT",
+  "researchScope": "RECOMMENDED_CONTEXT",
+  "researchMode": "DEEP",
+  "coverageMode": "FULL_SOURCE",
+  "focusQuestion": "What does this source imply for Nvidia and AI chips?",
+  "selectedSegmentIds": [],
+  "selectedEntityIds": [],
+  "completionStrategy": "OPTIMIZE_RESEARCH",
+  "acknowledgedHighUsageWarning": true,
+  "saveToResearchLog": true
+}
+```
+
+Rules:
+
+```text
+- If estimatedAllowanceImpactPercent > 50, require warning acknowledgement before starting.
+- If estimatedAllowanceImpactPercent > 80, recommend Optimize Research or lower research mode.
+- If the source is long/complex and Deep mode is selected, run source scan before generation.
+- If completionStrategy = OPTIMIZE_RESEARCH, section depth may be adapted, but actual depth must be stored and shown in the final result.
+```
+
+## Get Analysis Run
+
+```http
+GET /api/v1/analysis-runs/{analysisRunId}
 ```
 
 Response:
 
 ```json
 {
-  "effectivePlanCode": "FREE",
-  "accessSource": "FREE_DEFAULT",
-  "startsAt": "2026-04-29T00:00:00Z",
-  "endsAt": null,
-  "dailyBriefLimit": 3,
-  "briefsUsedToday": 1,
-  "deepBriefsRemaining": 0,
-  "premiumContextEnabled": false,
-  "defaultResearchScope": "RECOMMENDED_SOURCES"
+  "id": "uuid",
+  "researchItemId": "uuid",
+  "sourceId": "uuid",
+  "requestedResearchMode": "DEEP",
+  "completionStrategy": "OPTIMIZE_RESEARCH",
+  "coverageMode": "FULL_SOURCE",
+  "status": "RUNNING",
+  "estimatedAllowanceImpactPercent": 64,
+  "actualAllowanceImpactPercent": 38,
+  "warningAcknowledged": true,
+  "currentSegmentIndex": 3,
+  "segmentsTotal": 8
 }
 ```
 
-## Redeem Promo Code
+## List Analysis Segments
 
 ```http
-POST /api/v1/subscription/redeem-promo-code
-```
-
-Request:
-
-```json
-{
-  "code": "ALPHA-BETA-2026"
-}
-```
-
-Response:
-
-```json
-{
-  "success": true,
-  "effectivePlanCode": "PRO",
-  "accessSource": "PROMO_CODE",
-  "startsAt": "2026-04-29T00:00:00Z",
-  "endsAt": "2026-05-29T00:00:00Z",
-  "message": "Promo code redeemed successfully. Pro access is now active."
-}
-```
-
----
-
-# 9. Share Endpoints
-
-## Create Share Link
-
-```http
-POST /api/v1/briefs/{briefId}/share
-```
-
-Request:
-
-```json
-{
-  "visibility": "UNLISTED",
-  "allowDownload": false
-}
-```
-
-Response:
-
-```json
-{
-  "shareUrl": "https://alphabrief.ai/share/brf_9xK2pLmQ",
-  "shareToken": "brf_9xK2pLmQ",
-  "visibility": "UNLISTED",
-  "allowDownload": false
-}
-```
-
-## Disable Share Link
-
-```http
-DELETE /api/v1/briefs/{briefId}/share
-```
-
-Response:
-
-```json
-{
-  "success": true
-}
-```
-
-## Get Shared Brief
-
-```http
-GET /api/v1/shared-briefs/{shareToken}
-```
-
-Response should return a public-safe view model.
-
-It must not expose:
-
-- private user metadata
-- raw upload metadata
-- internal model traces
-- internal trust tiers
-- private premium context unless intentionally included
-
----
-
-# 10. Export Endpoints
-
-## Download Markdown
-
-```http
-GET /api/v1/briefs/{briefId}/download?type=MARKDOWN
-```
-
-## Create Export
-
-```http
-POST /api/v1/briefs/{briefId}/exports
-```
-
-Request:
-
-```json
-{
-  "type": "PDF"
-}
-```
-
-Response:
-
-```json
-{
-  "exportId": "uuid",
-  "briefId": "uuid",
-  "type": "PDF",
-  "status": "PENDING"
-}
-```
-
-## Get Export Status
-
-```http
-GET /api/v1/briefs/{briefId}/exports/{exportId}
-```
-
-Response:
-
-```json
-{
-  "exportId": "uuid",
-  "type": "PDF",
-  "status": "COMPLETED",
-  "downloadUrl": "https://signed-url.example.com/file.pdf",
-  "expiresAt": "2026-04-29T01:00:00Z"
-}
-```
-
----
-
-# 11. Referral Endpoints
-
-## Get My Referral Code
-
-```http
-GET /api/v1/me/referral-code
-```
-
-Response:
-
-```json
-{
-  "referralCode": "BRUCE-ALPHA-123"
-}
-```
-
-## Apply Referral Code
-
-```http
-POST /api/v1/referrals/apply
-```
-
-Request:
-
-```json
-{
-  "referralCode": "BRUCE-ALPHA-123"
-}
-```
-
-Response:
-
-```json
-{
-  "success": true,
-  "status": "SIGNED_UP"
-}
-```
-
-## List My Referrals
-
-```http
-GET /api/v1/me/referrals
+GET /api/v1/analysis-runs/{analysisRunId}/segments
 ```
 
 Response:
@@ -836,137 +944,145 @@ Response:
   "items": [
     {
       "id": "uuid",
-      "status": "ACTIVATED",
-      "rewardGranted": false,
-      "createdAt": "2026-04-29T00:00:00Z"
+      "segmentIndex": 0,
+      "title": "AI chip demand and Nvidia guidance",
+      "startOffsetSeconds": 720,
+      "endOffsetSeconds": 1680,
+      "requestedResearchMode": "DEEP",
+      "actualResearchMode": "DEEP",
+      "status": "COMPLETED",
+      "downgradeReason": null,
+      "canRerun": false
+    },
+    {
+      "id": "uuid",
+      "segmentIndex": 1,
+      "title": "Oil and geopolitical risk",
+      "requestedResearchMode": "DEEP",
+      "actualResearchMode": "STANDARD",
+      "status": "COMPLETED",
+      "downgradeReason": "LOWER_RELEVANCE_TO_USER_INTENT",
+      "canRerun": true
     }
   ]
 }
 ```
 
----
+## Rerun Analysis Segment
 
-# 12. Common Error Response
+```http
+POST /api/v1/analysis-segments/{segmentId}/rerun
+```
+
+Use this later when a user wants a downgraded section rerun at a higher research mode after allowance recovers.
+
+Request:
 
 ```json
 {
-  "errorCode": "SOURCE_EXTRACTION_FAILED",
-  "message": "We could not extract readable content from this source.",
-  "details": null,
-  "timestamp": "2026-04-29T00:00:00Z"
+  "researchMode": "DEEP"
+}
+```
+
+Response:
+
+```json
+{
+  "analysisRunId": "uuid",
+  "segmentId": "uuid",
+  "jobId": "uuid",
+  "status": "QUEUED"
 }
 ```
 
 ---
 
-# 13. Error Codes
+# 18. Research Allowance Endpoints
+
+## Get Current Allowance
+
+```http
+GET /api/v1/me/research-allowance
+```
+
+Response:
+
+```json
+{
+  "allowancePercentRemaining": 76,
+  "cooldownUntil": null,
+  "nextRecoveryAt": "2026-05-05T16:00:00Z",
+  "quickAvailable": true,
+  "standardAvailable": true,
+  "deepAvailable": true
+}
+```
+
+User-facing UI should prefer percentage/labels over exact internal cost numbers.
+
+---
+
+# 19. Adaptive Research Values
 
 ```text
-INVALID_INPUT_TYPE
-INVALID_SOURCE_TYPE
-INVALID_URL
-UNSUPPORTED_FILE_TYPE
-FILE_TOO_LARGE
-SOURCE_EXTRACTION_FAILED
-SOURCE_TOO_LONG
-SOURCE_TOO_SHORT
-QUESTION_TOO_VAGUE
-BRIEF_GENERATION_FAILED
-BRIEF_JOB_FAILED
-AI_OUTPUT_INVALID
-USAGE_LIMIT_REACHED
-DEEP_BRIEF_LIMIT_REACHED
-INVALID_RESEARCH_SCOPE
-RESEARCH_SCOPE_NOT_ALLOWED
-PREMIUM_REQUIRED
-UNAUTHORIZED
-FORBIDDEN
-NOT_FOUND
-INTERNAL_ERROR
+researchMode:
+QUICK
+STANDARD
+DEEP
 
-PROMO_CODE_INVALID
-PROMO_CODE_INACTIVE
-PROMO_CODE_NOT_STARTED
-PROMO_CODE_EXPIRED
-PROMO_CODE_FULLY_REDEEMED
-PROMO_CODE_ALREADY_USED
-USER_ALREADY_HAS_PRO
-PROMO_CODE_REDEMPTION_FAILED
+completionStrategy:
+STRICT_REQUESTED_MODE
+OPTIMIZE_RESEARCH
 
-SHARE_NOT_FOUND
-SHARE_DISABLED
-EXPORT_FAILED
+coverageMode:
+FULL_SOURCE
+SELECTED_TOPICS
+SELECTED_ENTITIES
+CUSTOM_QUESTION
+
+sourceComplexity:
+LOW
+MEDIUM
+HIGH
+VERY_HIGH
+
+warningLevel:
+NONE
+INLINE
+HIGH
+VERY_HIGH
+
+analysisIntent:
+QUICK_SUMMARY
+MARKET_IMPACT
+COMPANY_ANALYSIS
+LEARNING_MODE
+STRUCTURED_BRIEF
 ```
 
 ---
 
-# 14. Status Values
+# 20. Future API Endpoints Not in v0.3
 
-## Brief Status
-
-```text
-QUEUED
-PROCESSING
-COMPLETED
-FAILED
-```
-
-## Job Status
+Move these to future versions:
 
 ```text
-QUEUED
-RUNNING
-COMPLETED
-FAILED
-RETRYING
-CANCELLED
+/watchlists
+/watchlist-items
+/company-events
+/event-impact-notes
+/notifications
+/theses
+/thesis-updates
+/subscription
+/promo-codes
+/referrals
+/shares
+/exports
+/extension/connect
+/extension/devices
+/research-baskets
+/multi-source-projects
 ```
 
-## Extraction Status
-
-```text
-PENDING
-EXTRACTED
-FAILED
-```
-
-## Research Scope
-
-```text
-RECOMMENDED_SOURCES
-EXPANDED_MARKET_CONTEXT
-SENTIMENT_AND_DISCUSSION
-USER_PROVIDED_ONLY
-```
-
-## Input Type
-
-```text
-QUESTION
-ARTICLE_URL
-YOUTUBE_URL
-PDF_FILE
-PASTED_TEXT
-MIXED
-```
-
----
-
-# 15. Notes
-
-For v0.3, brief generation should be designed around async behavior.
-
-Recommended flow:
-
-```text
-POST /api/v1/briefs
-→ returns briefId, jobId, and QUEUED/PROCESSING status
-
-GET /api/v1/briefs/{briefId}
-→ frontend polls until COMPLETED or FAILED
-
-GET /api/v1/briefs/{briefId}/job
-→ optional detailed job progress
-```
-
-The API should support source-based, question-based, and mixed brief creation from the beginning, even if deeper external retrieval is implemented in later internal slices of v0.3.
+`/extension/connect` and `/extension/devices` are only needed if the Chrome extension requires a separate device/session token model. For early builds, authenticated web sessions or a simple extension token flow may be enough.
