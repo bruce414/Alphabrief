@@ -20,6 +20,7 @@ def _make_doc(ticker: str, form: str = "10-Q") -> EnrichmentDoc:
         url=f"https://www.sec.gov/cgi-bin/browse-edgar?CIK={ticker}",
         snippet=None,
         retrieved_at=datetime.now(UTC),
+        category="PERIODIC",
         metadata={"ticker": ticker, "form": form},
     )
 

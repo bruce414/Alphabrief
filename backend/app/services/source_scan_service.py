@@ -352,6 +352,7 @@ def _to_response(
                 url=d.url,
                 snippet=d.snippet,
                 retrievedAt=d.retrieved_at,
+                category=d.category,
                 metadata=dict(d.metadata),
             )
             for d in enrichment_docs

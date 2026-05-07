@@ -81,6 +81,7 @@ class EnrichmentDocResponse(BaseModel):
     url: str
     snippet: str | None = None
     retrieved_at: datetime = Field(alias="retrievedAt")
+    category: str = "OTHER"
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

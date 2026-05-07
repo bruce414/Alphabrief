@@ -227,6 +227,7 @@ def _make_edgar_doc(ticker: str = "NVDA") -> EnrichmentDoc:
         ),
         snippet="Quarterly report.",
         retrieved_at=datetime.now(UTC),
+        category="PERIODIC",
         metadata={"ticker": ticker, "form": "10-Q", "filed_at": "2025-10-15"},
     )
 
