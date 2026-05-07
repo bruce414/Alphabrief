@@ -52,13 +52,15 @@ class ResearchItem(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     model_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     prompt_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
+    error_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     requested_research_mode: Mapped[str | None] = mapped_column(String(50), nullable=True)
     completion_strategy: Mapped[str | None] = mapped_column(String(50), nullable=True)
     coverage_mode: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
-    analysis_depth_summary: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB, nullable=True
-    )
+    # JSONB: interim dict (_optimizationContext) or completed list of segment depth rows.
+    analysis_depth_summary: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
 
     generated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),

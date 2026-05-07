@@ -42,3 +42,9 @@ def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with get_sessionmaker()() as session:
         yield session
+
+
+def async_session_factory() -> AsyncSession:
+    """Return a new session context manager; use only outside request scope (e.g. BackgroundTasks)."""
+
+    return get_sessionmaker()()

@@ -37,21 +37,21 @@ class AnalysisIntent(str, Enum):
 
 class ResearchItemStatus(str, Enum):
     QUEUED = "QUEUED"
-    PROCESSING = "PROCESSING"
+    RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
 
 
 class GenerationJobStatus(str, Enum):
     QUEUED = "QUEUED"
-    PROCESSING = "PROCESSING"
+    RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
 
 
 class AnalysisRunStatus(str, Enum):
     QUEUED = "QUEUED"
-    PROCESSING = "PROCESSING"
+    RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
 

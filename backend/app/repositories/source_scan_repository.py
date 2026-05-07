@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -25,6 +25,17 @@ class SourceScanRepository:
             select(SourceScan)
             .options(selectinload(SourceScan.segments))
             .where(SourceScan.id == scan_id)
+        )
+        result = await self._db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_latest_by_source_id(self, source_id: UUID) -> SourceScan | None:
+        stmt = (
+            select(SourceScan)
+            .options(selectinload(SourceScan.segments))
+            .where(SourceScan.source_id == source_id)
+            .order_by(desc(SourceScan.created_at))
+            .limit(1)
         )
         result = await self._db.execute(stmt)
         return result.scalar_one_or_none()

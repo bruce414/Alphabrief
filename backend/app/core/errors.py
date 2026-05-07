@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.websockets import WebSocket
 
 
 class AppError(Exception):
@@ -62,7 +63,11 @@ def error_payload(
     }
 
 
-async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
+async def app_error_handler(_request: Request | WebSocket, exc: Exception) -> JSONResponse:
+    if not isinstance(_request, Request):
+        raise exc
+    if not isinstance(exc, AppError):
+        raise exc
     return JSONResponse(
         status_code=exc.status_code,
         content=error_payload(
@@ -74,8 +79,12 @@ async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
 
 
 async def request_validation_error_handler(
-    _request: Request, exc: RequestValidationError
+    _request: Request | WebSocket, exc: Exception
 ) -> JSONResponse:
+    if not isinstance(_request, Request):
+        raise exc
+    if not isinstance(exc, RequestValidationError):
+        raise exc
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content=error_payload(

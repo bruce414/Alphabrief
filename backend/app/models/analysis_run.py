@@ -61,6 +61,9 @@ class AnalysisRun(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     status: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
 
+    error_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     estimated_allowance_impact_percent: Mapped[Decimal | None] = mapped_column(
         Numeric(5, 2), nullable=True
     )
