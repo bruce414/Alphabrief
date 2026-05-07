@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from app.core.enums import (
     AnalysisIntent,
     CompletionStrategy,
@@ -9,6 +11,7 @@ from app.core.enums import (
 )
 
 
+@pytest.mark.asyncio
 async def test_get_research_scopes_returns_expected_payload(client):
     r = await client.get("/api/v1/research-scopes")
     assert r.status_code == 200, r.text

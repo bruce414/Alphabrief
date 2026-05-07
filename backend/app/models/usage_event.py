@@ -12,6 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from app.models.research_item import ResearchItem
     from app.models.user import User
 
 
@@ -32,6 +33,7 @@ class UsageEvent(Base, UUIDPrimaryKeyMixin):
     )
     research_item_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
+        ForeignKey("research_items.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -61,3 +63,4 @@ class UsageEvent(Base, UUIDPrimaryKeyMixin):
     )
 
     user: Mapped["User"] = relationship("User", back_populates="usage_events")
+    research_item: Mapped["ResearchItem | None"] = relationship("ResearchItem")

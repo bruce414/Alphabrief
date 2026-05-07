@@ -13,10 +13,18 @@ from app.models.source_fetch_policy import SourceFetchPolicy
 from app.models.source_scan import SourceScan
 from app.models.source_segment import SourceSegment
 from app.models.usage_event import UsageEvent
+from app.models.research_item import ResearchItem
+from app.models.generation_job import GenerationJob
+from app.models.analysis_run import AnalysisRun
+from app.models.analysis_segment import AnalysisSegment
 
 __all__ = [
+    "AnalysisRun",
+    "AnalysisSegment",
     "Brief",
     "BriefSource",
+    "GenerationJob",
+    "ResearchItem",
     "Source",
     "SourceFetchLog",
     "SourceFetchPolicy",

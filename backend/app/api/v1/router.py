@@ -6,6 +6,9 @@ from app.api.v1.health import router as health_router
 from app.api.v1.users import router as users_router
 from app.api.v1.sources import router as sources_router
 from app.api.v1.research_scopes import router as research_scopes_router
+from app.api.v1.research_items import router as research_items_router
+from app.api.v1.jobs import router as jobs_router
+from app.api.v1.analysis_runs import router as analysis_runs_router
 
 router = APIRouter()
 
@@ -15,4 +18,7 @@ router.include_router(auth_router)
 router.include_router(users_router)
 router.include_router(sources_router)
 router.include_router(research_scopes_router)
+router.include_router(research_items_router)
+router.include_router(jobs_router)
+router.include_router(analysis_runs_router)
 

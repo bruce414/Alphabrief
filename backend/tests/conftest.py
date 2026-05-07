@@ -13,25 +13,17 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-import asyncio
 import pytest
 
 from app.db.base import Base
-from app.db.session import engine, get_db
+from app.db.session import get_db, get_engine
 from app.main import app
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Force a single event loop for all async tests (asyncpg binds connections to a loop)."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def prepare_schema() -> None:
     """Drop and recreate tables once for the test session."""
+    engine = get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
@@ -39,6 +31,7 @@ async def prepare_schema() -> None:
 
 @pytest_asyncio.fixture
 async def db_session() -> AsyncSession:
+    engine = get_engine()
     async with engine.connect() as connection:
         trans = await connection.begin()
         session_maker = async_sessionmaker(
