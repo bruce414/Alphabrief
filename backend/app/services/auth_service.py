@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import status
 
 from app.core.errors import AppError
+from app.core.enums import ResearchMode, ResearchScope
 from app.core.security import hash_password, verify_password
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
@@ -27,8 +28,8 @@ class AuthService:
             display_name=display_name,
             role="USER",
             default_output_mode="ASK",
-            default_research_scope="RECOMMENDED_CONTEXT",
-            default_research_mode="STANDARD",
+            default_research_scope=ResearchScope.RECOMMENDED_CONTEXT.value,
+            default_research_mode=ResearchMode.STANDARD.value,
             optimize_research_default=True,
         )
         return await self._repo.create(user)

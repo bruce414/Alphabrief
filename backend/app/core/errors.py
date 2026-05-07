@@ -26,6 +26,25 @@ class AppError(Exception):
         super().__init__(message)
 
 
+class WarningNotAcknowledgedError(AppError):
+    error_code = "WARNING_NOT_ACKNOWLEDGED"
+    status_code = status.HTTP_400_BAD_REQUEST
+
+    def __init__(self, *, estimated_pct: float, warning_level: str) -> None:
+        super().__init__(
+            error_code=self.error_code,
+            message=(
+                f"Estimated impact {estimated_pct:.1f}% (level={warning_level}); "
+                "user must acknowledge before proceeding."
+            ),
+            status_code=self.status_code,
+            details={
+                "estimatedAllowanceImpactPercent": estimated_pct,
+                "warningLevel": warning_level,
+            },
+        )
+
+
 def error_payload(
     *,
     error_code: str,

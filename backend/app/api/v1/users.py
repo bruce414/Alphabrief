@@ -29,9 +29,9 @@ async def patch_me(
     if data.default_output_mode is not None:
         current_user.default_output_mode = data.default_output_mode
     if data.default_research_scope is not None:
-        current_user.default_research_scope = data.default_research_scope
+        current_user.default_research_scope = data.default_research_scope.value
     if data.default_research_mode is not None:
-        current_user.default_research_mode = data.default_research_mode
+        current_user.default_research_mode = data.default_research_mode.value
     if data.optimize_research_default is not None:
         current_user.optimize_research_default = data.optimize_research_default
 

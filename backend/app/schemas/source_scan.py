@@ -6,26 +6,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.enums import AnalysisIntent, CompletionStrategy, CoverageMode, ResearchMode
+
 
 RequestedOutputMode = Literal["ASK", "BRIEF"]
-AnalysisIntent = Literal[
-    "QUICK_SUMMARY",
-    "MARKET_IMPACT",
-    "COMPANY_ANALYSIS",
-    "LEARNING_MODE",
-    "STRUCTURED_BRIEF",
-]
-ResearchMode = Literal["QUICK", "STANDARD", "DEEP"]
-CoverageMode = Literal[
-    "FULL_SOURCE",
-    "SELECTED_TOPICS",
-    "SELECTED_ENTITIES",
-    "CUSTOM_QUESTION",
-]
 SourceComplexity = Literal["LOW", "MEDIUM", "HIGH", "VERY_HIGH"]
 EstimateConfidence = Literal["HIGH", "MEDIUM", "LOW", "UNKNOWN"]
 WarningLevel = Literal["NONE", "INLINE", "HIGH", "VERY_HIGH"]
-CompletionStrategy = Literal["STRICT_REQUESTED_MODE", "OPTIMIZE_RESEARCH"]
 
 
 class RunSourceScanRequest(BaseModel):

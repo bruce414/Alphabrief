@@ -133,14 +133,16 @@ async def run_source_scan(
     ]
     impact_pct, confidence = estimate_impact_percent(
         seg_estimates,
-        request.research_mode,
+        request.research_mode.value,
         single_run_token_budget=settings.single_run_token_budget,
     )
     if seg_result.estimate_confidence_floor == "LOW":
         confidence = "LOW"
 
     warning_level, requires_warning = warning_level_for(impact_pct)
-    rec_mode = recommend_research_mode(complexity, request.research_mode, warning_level)
+    rec_mode = recommend_research_mode(
+        complexity, request.research_mode.value, warning_level
+    )
     if seg_result.estimate_confidence_floor == "LOW":
         rec_mode = "QUICK"
     rec_strategy = recommend_completion_strategy(warning_level, complexity)
@@ -251,9 +253,9 @@ async def _persist_scan(
         user_id=user_id,
         source_id=source.id,
         requested_output_mode=request.requested_output_mode,
-        analysis_intent=request.analysis_intent,
-        requested_research_mode=request.research_mode,
-        coverage_mode=request.coverage_mode,
+        analysis_intent=request.analysis_intent.value,
+        requested_research_mode=request.research_mode.value,
+        coverage_mode=request.coverage_mode.value,
         focus_question=request.focus_question,
         source_complexity=complexity,
         estimate_confidence=confidence,
