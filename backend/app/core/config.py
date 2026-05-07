@@ -58,6 +58,12 @@ class Settings(BaseSettings):
     source_fetch_rate_limit_burst: int = Field(
         default=2, validation_alias="SOURCE_FETCH_RATE_LIMIT_BURST"
     )
+    # Token budget assumed for a single research run when computing the
+    # estimated_allowance_impact_percent before persistent allowance/cooldown
+    # exists (AI_PIPELINE §17.4). Tune later once usage telemetry catches up.
+    single_run_token_budget: int = Field(
+        default=200_000, validation_alias="SINGLE_RUN_TOKEN_BUDGET"
+    )
 
     model_config = SettingsConfigDict(
         env_file=str(_BACKEND_ROOT / ".env"),

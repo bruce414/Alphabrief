@@ -191,21 +191,24 @@ async def apply_article_extraction(
         source.published_at = None
         meta_bundle["publishedDateRaw"] = date_val
 
-    source.extracted_text = None
-    source.raw_text_retention = "NOT_STORED"
-
     if wc >= 200:
         source.source_access_status = "FULL_TEXT_EXTRACTED"
         source.extraction_confidence = "HIGH" if wc >= 400 else "MEDIUM"
+        source.extracted_text = text
         source.extracted_text_word_count = wc
+        source.raw_text_retention = "EPHEMERAL"
     elif wc >= 50:
         source.source_access_status = "FULL_TEXT_EXTRACTED"
         source.extraction_confidence = "LOW"
+        source.extracted_text = text
         source.extracted_text_word_count = wc
+        source.raw_text_retention = "EPHEMERAL"
     else:
         source.source_access_status = "METADATA_ONLY"
         source.extraction_confidence = "LOW"
+        source.extracted_text = None
         source.extracted_text_word_count = wc
+        source.raw_text_retention = "NOT_STORED"
 
     source.metadata_ = meta_bundle
 

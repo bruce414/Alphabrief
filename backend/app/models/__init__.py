@@ -10,6 +10,8 @@ from app.models.brief_source import BriefSource
 from app.models.source import Source
 from app.models.source_fetch_log import SourceFetchLog
 from app.models.source_fetch_policy import SourceFetchPolicy
+from app.models.source_scan import SourceScan
+from app.models.source_segment import SourceSegment
 from app.models.usage_event import UsageEvent
 
 __all__ = [
@@ -18,6 +20,8 @@ __all__ = [
     "Source",
     "SourceFetchLog",
     "SourceFetchPolicy",
+    "SourceScan",
+    "SourceSegment",
     "UsageEvent",
     "User",
 ]

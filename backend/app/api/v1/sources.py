@@ -11,8 +11,10 @@ from app.db.session import get_db
 from app.models.user import User
 from app.repositories.source_repository import SourceRepository
 from app.schemas.source import CreateSourceRequest, SourceCreateResponse, SourceDetailResponse
+from app.schemas.source_scan import RunSourceScanRequest, RunSourceScanResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.source_scan_service import run_source_scan
 from app.services.source_service import create_source_from_request
 
 router = APIRouter(prefix="/sources", tags=["sources"])
@@ -99,3 +101,22 @@ async def get_source(
             status_code=status.HTTP_403_FORBIDDEN,
         )
     return _to_detail_response(src)
+
+
+@router.post(
+    "/{source_id}/scan",
+    response_model=RunSourceScanResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def run_scan(
+    source_id: UUID,
+    data: RunSourceScanRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> RunSourceScanResponse:
+    return await run_source_scan(
+        db=db,
+        current_user=current_user,
+        source_id=source_id,
+        request=data,
+    )
