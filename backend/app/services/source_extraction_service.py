@@ -8,10 +8,13 @@ from typing import Any
 
 import httpx
 import trafilatura
+from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import status
 
-from app.clients.article_extraction_client import safe_fetch_url
+from app.services.scraping_policy import fetch_with_policy
 from app.clients.youtube_client import fetch_oembed, fetch_transcript_text, parse_youtube_video_id
 from app.core.config import get_settings
+from app.core.errors import AppError
 from app.models.source import Source
 
 
@@ -58,27 +61,70 @@ def _extract_article_core(html: bytes, final_url: str) -> tuple[str, dict[str, A
 async def apply_article_extraction(
     source: Source,
     *,
+    db: AsyncSession,
     http_client: httpx.AsyncClient | None = None,
 ) -> None:
     settings = get_settings()
-    fetch = await safe_fetch_url(
+    fetch = await fetch_with_policy(
         source.original_input,
-        settings=settings,
-        client=http_client,
+        db=db,
+        user_id=source.user_id,
+        source_id=source.id,
+        http_client=http_client,
     )
 
-    html = fetch.content
     source.normalized_url = fetch.final_url
+    # Publisher's own declaration of where the content lives — preferred citation
+    # target, especially for aggregator-hosted articles. None if not present.
+    source.canonical_url = fetch.canonical_url
+
+    # Pre-fetch policy blocks or robots metadata-only: no page body is available and must not be fetched.
+    if fetch.decision.value == "BLOCKED":
+        raise AppError(
+            error_code="SOURCE_BLOCKED",
+            message=f"Blocked by fetch policy: {fetch.reason}",
+            status_code=status.HTTP_403_FORBIDDEN,
+            details={"policyReason": fetch.reason},
+        )
+
+    if fetch.decision.value == "METADATA_ONLY" and fetch.content is None:
+        source.source_access_status = "METADATA_ONLY"
+        source.extraction_confidence = "LOW"
+        source.extracted_text = None
+        source.extracted_text_word_count = None
+        source.raw_text_retention = "NOT_STORED"
+        source.metadata_ = {"policyDecision": fetch.decision, "policyReason": fetch.reason, "finalUrl": fetch.final_url}
+        return
+
+    html = fetch.content or b""
     source.content_hash = hashlib.sha256(html).hexdigest()
 
     meta_bundle: dict[str, Any] = {
         "fetchStatusCode": fetch.status_code,
         "contentType": fetch.content_type,
         "finalUrl": fetch.final_url,
+        "policyDecision": fetch.decision,
+        "policyReason": fetch.reason,
     }
 
-    sc = fetch.status_code
+    sc = fetch.status_code or 0
     ctype = (fetch.content_type or "").lower()
+
+    # Post-fetch policy gates (noai / paywall / fetch_failed / unsupported content type / etc).
+    # In these cases we may still have an HTML body, but we must not treat it as full-text extracted.
+    if fetch.decision.value == "METADATA_ONLY":
+        text, tm = _extract_article_core(html, fetch.final_url)
+        meta_bundle.update(tm)
+        source.title = source.title or tm.get("title")
+        source.publisher = source.publisher or tm.get("sitename")
+        source.author = source.author or tm.get("author")
+        source.source_access_status = "METADATA_ONLY"
+        source.extraction_confidence = "LOW"
+        source.extracted_text = None
+        source.extracted_text_word_count = _word_count(text)
+        source.raw_text_retention = "NOT_STORED"
+        source.metadata_ = meta_bundle
+        return
 
     # Paywall / auth-style responses → metadata-only path
     if sc in (401, 402, 403):

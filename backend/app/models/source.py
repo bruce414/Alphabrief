@@ -31,6 +31,7 @@ class Source(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     original_input: Mapped[str] = mapped_column(Text, nullable=False)
     normalized_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    canonical_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     file_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     file_name: Mapped[str | None] = mapped_column(String(512), nullable=True)

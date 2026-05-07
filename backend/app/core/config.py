@@ -40,10 +40,24 @@ class Settings(BaseSettings):
         default="AlphaBrief/0.3 (+https://alphabrief.example)",
         validation_alias="HTTP_USER_AGENT",
     )
+    scraping_user_agent: str = Field(
+        default="AlphaBriefBot/0.1 (+https://alphabrief.com/bot; user-initiated single-fetch)",
+        validation_alias="SCRAPING_USER_AGENT",
+    )
     max_fetch_bytes: int = Field(default=5 * 1024 * 1024, validation_alias="MAX_FETCH_BYTES")
     fetch_timeout_seconds: float = Field(default=30.0, validation_alias="FETCH_TIMEOUT_SECONDS")
     # Comma-separated domain suffixes (case-insensitive), e.g. ".mil"
     source_domain_denylist: str = Field(default=".mil", validation_alias="SOURCE_DOMAIN_DENYLIST")
+    robots_cache_ttl_hours: int = Field(default=24, validation_alias="ROBOTS_CACHE_TTL_HOURS")
+    robots_failure_ttl_hours: int = Field(default=1, validation_alias="ROBOTS_FAILURE_TTL_HOURS")
+    robots_timeout_seconds: float = Field(default=5.0, validation_alias="ROBOTS_TIMEOUT_SECONDS")
+    robots_max_bytes: int = Field(default=100 * 1024, validation_alias="ROBOTS_MAX_BYTES")
+    source_fetch_rate_limit_per_minute: int = Field(
+        default=6, validation_alias="SOURCE_FETCH_RATE_LIMIT_PER_MINUTE"
+    )
+    source_fetch_rate_limit_burst: int = Field(
+        default=2, validation_alias="SOURCE_FETCH_RATE_LIMIT_BURST"
+    )
 
     model_config = SettingsConfigDict(
         env_file=str(_BACKEND_ROOT / ".env"),

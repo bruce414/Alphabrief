@@ -60,7 +60,7 @@ async def create_source_from_request(
 
     try:
         if st == "ARTICLE_URL":
-            await apply_article_extraction(source, http_client=http_client)
+            await apply_article_extraction(source, db=db, http_client=http_client)
         else:
             await apply_youtube_extraction(source, http_client=http_client)
     except AppError as exc:

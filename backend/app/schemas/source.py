@@ -24,6 +24,7 @@ class SourceCreateResponse(BaseModel):
     source_access_method: str = Field(alias="sourceAccessMethod")
     source_access_status: str = Field(alias="sourceAccessStatus")
     normalized_url: str | None = Field(default=None, alias="normalizedUrl")
+    canonical_url: str | None = Field(default=None, alias="canonicalUrl")
     title: str | None = None
     publisher: str | None = None
     extracted_text_word_count: int | None = Field(default=None, alias="extractedTextWordCount")
@@ -41,6 +42,7 @@ class SourceDetailResponse(BaseModel):
     source_access_status: str = Field(alias="sourceAccessStatus")
     original_input: str = Field(alias="originalInput")
     normalized_url: str | None = Field(default=None, alias="normalizedUrl")
+    canonical_url: str | None = Field(default=None, alias="canonicalUrl")
     title: str | None = None
     publisher: str | None = None
     author: str | None = None
