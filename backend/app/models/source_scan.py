@@ -53,6 +53,7 @@ class SourceScan(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     detected_topics: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
     detected_entities: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
+    enrichment_docs: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
 
     segments: Mapped[list["SourceSegment"]] = relationship(
         "SourceSegment",

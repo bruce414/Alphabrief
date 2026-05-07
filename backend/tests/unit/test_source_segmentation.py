@@ -8,6 +8,7 @@ from app.services.source_segmentation_service import (
     segment_article,
     segment_metadata_only,
     segment_youtube_transcript,
+    url_slug_to_text,
 )
 
 
@@ -86,3 +87,56 @@ def test_segment_metadata_only_returns_single_synthetic_segment():
     assert drafts[0].segment_index == 0
     assert drafts[0].has_text is False
     assert drafts[0].metadata.get("metadataOnly") is True
+
+
+def test_segment_metadata_only_harvests_url_slug_when_title_is_empty():
+    """A barrons-style paywall URL should still surface the slug keywords."""
+
+    drafts = segment_metadata_only(
+        title=None,
+        url="https://www.barrons.com/articles/apple-stock-record-track-june-5a777ea2",
+    )
+    assert len(drafts) == 1
+    body = drafts[0].text.lower()
+    assert "apple" in body
+    assert "stock" in body
+    # Hex-like article ids should be dropped.
+    assert "5a777ea2" not in body
+    assert drafts[0].metadata.get("slugTextUsed") is True
+
+
+def test_segment_metadata_only_concatenates_title_description_and_slug():
+    drafts = segment_metadata_only(
+        title="Apple stock on track for June record",
+        description="Bullish setup for AAPL into earnings.",
+        publisher="Barron's",
+        url="https://www.barrons.com/articles/apple-stock-record-track-june-5a777ea2",
+    )
+    assert len(drafts) == 1
+    body = drafts[0].text
+    assert "Apple stock on track for June record" in body
+    assert "AAPL" in body
+    assert "Barron's" in body
+    assert "apple stock record track june" in body.lower()
+
+
+def test_segment_metadata_only_handles_no_signals_at_all():
+    drafts = segment_metadata_only(title=None, url=None)
+    assert len(drafts) == 1
+    assert drafts[0].text == "Source metadata only"
+    assert drafts[0].metadata.get("slugTextUsed") is False
+
+
+def test_url_slug_to_text_drops_short_path_prefixes_and_hashes():
+    assert url_slug_to_text(
+        "https://www.barrons.com/articles/apple-stock-record-track-june-5a777ea2"
+    ) == "apple stock record track june"
+    assert url_slug_to_text(
+        "https://www.example.com/news/2025/10/nvidia-earnings-preview-1234"
+    ).startswith("nvidia earnings preview")
+
+
+def test_url_slug_to_text_returns_empty_for_uninformative_paths():
+    assert url_slug_to_text("https://example.com") == ""
+    assert url_slug_to_text("https://example.com/") == ""
+    assert url_slug_to_text(None) == ""

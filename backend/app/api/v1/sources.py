@@ -113,10 +113,12 @@ async def run_scan(
     data: RunSourceScanRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    http_client: httpx.AsyncClient = Depends(get_http_client),
 ) -> RunSourceScanResponse:
     return await run_source_scan(
         db=db,
         current_user=current_user,
         source_id=source_id,
         request=data,
+        http_client=http_client,
     )

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
 
+from app.clients import edgar_client
+from app.clients.edgar_client import EnrichmentDoc
 from app.services.scraping_policy import FetchDecision, FetchResult
 
 
@@ -212,6 +215,219 @@ async def test_scan_400_when_no_text_and_not_metadata_only(client, monkeypatch):
     r = await client.post(f"/api/v1/sources/{sid}/scan", json=SCAN_REQUEST)
     assert r.status_code == 400
     assert r.json()["errorCode"] == "SOURCE_NOT_SCANNABLE"
+
+
+def _make_edgar_doc(ticker: str = "NVDA") -> EnrichmentDoc:
+    return EnrichmentDoc(
+        source="EDGAR",
+        title="10-Q — filed 2025-10-15",
+        url=(
+            "https://www.sec.gov/Archives/edgar/data/1045810/"
+            "000104581025000123/0001045810-25-000123-index.htm"
+        ),
+        snippet="Quarterly report.",
+        retrieved_at=datetime.now(UTC),
+        metadata={"ticker": ticker, "form": "10-Q", "filed_at": "2025-10-15"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_scan_metadata_only_with_detected_ticker_returns_edgar_enrichment(
+    client, monkeypatch
+):
+    """METADATA_ONLY source whose scan detects NVDA → enrichments[0].source == EDGAR."""
+
+    async def fake_fetch_with_policy(start_url: str, **kwargs):  # noqa: ANN003
+        return FetchResult(
+            final_url=start_url,
+            domain="example.com",
+            decision=FetchDecision.ALLOW,
+            reason="ok",
+            status_code=403,
+            headers={"content-type": "text/html"},
+            content=(
+                b"<html><head><title>Nvidia paywall</title>"
+                b"<meta name='description' content='Nvidia earnings preview' />"
+                b"</head><body><p>Subscribe to read.</p></body></html>"
+            ),
+            content_type="text/html",
+        )
+
+    monkeypatch.setattr(
+        "app.services.source_extraction_service.fetch_with_policy",
+        fake_fetch_with_policy,
+    )
+
+    docs_for_nvda = [_make_edgar_doc("NVDA")]
+
+    async def fake_lookup(ticker: str, **kwargs):  # noqa: ANN003
+        assert ticker == "NVDA"
+        return list(docs_for_nvda)
+
+    monkeypatch.setattr(edgar_client, "lookup_recent_filings", fake_lookup)
+
+    await _register(client, "scan-enrich-meta@example.com")
+    create = await client.post(
+        "/api/v1/sources",
+        json={"sourceType": "ARTICLE_URL", "input": "https://example.com/wall"},
+    )
+    assert create.status_code == 201
+    assert create.json()["sourceAccessStatus"] == "METADATA_ONLY"
+    sid = create.json()["sourceId"]
+
+    r = await client.post(f"/api/v1/sources/{sid}/scan", json=SCAN_REQUEST)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["enrichments"], "expected enrichments for METADATA_ONLY source"
+    assert body["enrichments"][0]["source"] == "EDGAR"
+    assert "10-Q" in body["enrichments"][0]["title"]
+    assert body["enrichments"][0]["metadata"]["ticker"] == "NVDA"
+
+
+@pytest.mark.asyncio
+async def test_scan_full_text_source_does_not_run_enrichment(client, monkeypatch):
+    """FULL_TEXT_EXTRACTED sources should have empty enrichments and never call EDGAR."""
+
+    html = _build_article_html(num_paragraphs=20, words_per_paragraph=100)
+    html = html.replace(
+        "<article>",
+        "<article><p>Nvidia results were strong this quarter.</p>",
+    )
+
+    calls = {"count": 0}
+
+    async def fake_lookup(ticker: str, **kwargs):  # noqa: ANN003
+        calls["count"] += 1
+        return [_make_edgar_doc(ticker)]
+
+    monkeypatch.setattr(edgar_client, "lookup_recent_filings", fake_lookup)
+
+    await _register(client, "scan-enrich-full@example.com")
+    sid = await _create_article_source(
+        client, monkeypatch, html=html, url="https://example.com/full"
+    )
+
+    r = await client.post(f"/api/v1/sources/{sid}/scan", json=SCAN_REQUEST)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["enrichments"] == []
+    assert calls["count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_scan_metadata_only_extracts_entities_from_url_slug(client, monkeypatch):
+    """Paywalled article whose title is just 'Subscribe ...' should still
+    surface AAPL because the URL slug contains 'apple-stock-...'."""
+
+    async def fake_fetch_with_policy(start_url: str, **kwargs):  # noqa: ANN003
+        # Schema.org isAccessibleForFree=False marks the page as paywalled,
+        # tripping the post-fetch policy gate to METADATA_ONLY.
+        body = (
+            "<html><head>"
+            "<title>Subscribe to Barron's</title>"
+            "<script type='application/ld+json'>"
+            '{"@type":"NewsArticle","isAccessibleForFree":false}'
+            "</script>"
+            "</head><body><p>Subscribers only.</p></body></html>"
+        )
+        return FetchResult(
+            final_url=start_url,
+            domain="www.barrons.com",
+            decision=FetchDecision.METADATA_ONLY,
+            reason="paywall_detected",
+            status_code=200,
+            headers={"content-type": "text/html"},
+            content=body.encode("utf-8"),
+            content_type="text/html",
+        )
+
+    monkeypatch.setattr(
+        "app.services.source_extraction_service.fetch_with_policy",
+        fake_fetch_with_policy,
+    )
+
+    captured: list[str] = []
+
+    async def fake_lookup(ticker: str, **kwargs):  # noqa: ANN003
+        captured.append(ticker)
+        return [_make_edgar_doc(ticker)]
+
+    monkeypatch.setattr(edgar_client, "lookup_recent_filings", fake_lookup)
+
+    await _register(client, "scan-slug-fallback@example.com")
+    create = await client.post(
+        "/api/v1/sources",
+        json={
+            "sourceType": "ARTICLE_URL",
+            "input": (
+                "https://www.barrons.com/articles/"
+                "apple-stock-record-track-june-5a777ea2"
+            ),
+        },
+    )
+    assert create.status_code == 201
+    assert create.json()["sourceAccessStatus"] == "METADATA_ONLY"
+    sid = create.json()["sourceId"]
+
+    r = await client.post(f"/api/v1/sources/{sid}/scan", json=SCAN_REQUEST)
+    assert r.status_code == 200, r.text
+    body = r.json()
+
+    entity_tickers = {e["ticker"] for e in body["detectedEntities"] if e.get("ticker")}
+    assert "AAPL" in entity_tickers
+    assert captured == ["AAPL"]
+    assert body["enrichments"], "expected EDGAR enrichment for AAPL"
+    assert body["enrichments"][0]["metadata"]["ticker"] == "AAPL"
+
+
+@pytest.mark.asyncio
+async def test_scan_metadata_only_without_detected_entities_returns_empty_enrichments(
+    client, monkeypatch
+):
+    """No detected tickers → EDGAR is never called and enrichments == []."""
+
+    async def fake_fetch_with_policy(start_url: str, **kwargs):  # noqa: ANN003
+        return FetchResult(
+            final_url=start_url,
+            domain="example.com",
+            decision=FetchDecision.ALLOW,
+            reason="ok",
+            status_code=403,
+            headers={"content-type": "text/html"},
+            content=(
+                b"<html><head><title>Generic news</title></head>"
+                b"<body><p>No tickers here.</p></body></html>"
+            ),
+            content_type="text/html",
+        )
+
+    monkeypatch.setattr(
+        "app.services.source_extraction_service.fetch_with_policy",
+        fake_fetch_with_policy,
+    )
+
+    calls = {"count": 0}
+
+    async def fake_lookup(ticker: str, **kwargs):  # noqa: ANN003
+        calls["count"] += 1
+        return [_make_edgar_doc(ticker)]
+
+    monkeypatch.setattr(edgar_client, "lookup_recent_filings", fake_lookup)
+
+    await _register(client, "scan-enrich-empty@example.com")
+    create = await client.post(
+        "/api/v1/sources",
+        json={"sourceType": "ARTICLE_URL", "input": "https://example.com/blank"},
+    )
+    assert create.status_code == 201
+    assert create.json()["sourceAccessStatus"] == "METADATA_ONLY"
+    sid = create.json()["sourceId"]
+
+    r = await client.post(f"/api/v1/sources/{sid}/scan", json=SCAN_REQUEST)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["enrichments"] == []
+    assert calls["count"] == 0
 
 
 @pytest.mark.asyncio

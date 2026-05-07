@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Literal
+from datetime import datetime
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -70,6 +71,19 @@ class SourceSegmentSummary(BaseModel):
     )
 
 
+class EnrichmentDocResponse(BaseModel):
+    """One primary-source enrichment doc surfaced alongside the scan."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    source: str
+    title: str
+    url: str
+    snippet: str | None = None
+    retrieved_at: datetime = Field(alias="retrievedAt")
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class RunSourceScanResponse(BaseModel):
     """POST /sources/{sourceId}/scan response (API_SPEC §17)."""
 
@@ -91,3 +105,4 @@ class RunSourceScanResponse(BaseModel):
     detected_topics: list[str] = Field(alias="detectedTopics")
     detected_entities: list[DetectedEntity] = Field(alias="detectedEntities")
     segments: list[SourceSegmentSummary]
+    enrichments: list[EnrichmentDocResponse] = Field(default_factory=list)

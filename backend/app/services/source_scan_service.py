@@ -18,9 +18,11 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+import httpx
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.clients.edgar_client import EnrichmentDoc
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.models.source import Source
@@ -31,10 +33,12 @@ from app.repositories.source_scan_repository import SourceScanRepository
 from app.repositories.source_segment_repository import SourceSegmentRepository
 from app.schemas.source_scan import (
     DetectedEntity as DetectedEntitySchema,
+    EnrichmentDocResponse,
     RunSourceScanRequest,
     RunSourceScanResponse,
     SourceSegmentSummary,
 )
+from app.services import enrichment_service
 from app.services.entity_detection_service import (
     DetectedEntity as DetectedEntityRecord,
     detect_entities,
@@ -75,6 +79,7 @@ async def run_source_scan(
     current_user: "User",
     source_id,
     request: RunSourceScanRequest,
+    http_client: httpx.AsyncClient | None = None,
 ) -> RunSourceScanResponse:
     """Run the cheap pre-scan and return the API response."""
 
@@ -140,6 +145,17 @@ async def run_source_scan(
         rec_mode = "QUICK"
     rec_strategy = recommend_completion_strategy(warning_level, complexity)
 
+    # Enrichment is only useful when we lack the body. FULL_TEXT_EXTRACTED
+    # sources already have content; running EDGAR adds latency without changing
+    # the legal posture (Prompt 5 / AI_PIPELINE §17.1).
+    if source.source_access_status == "METADATA_ONLY":
+        enrichment_docs = await enrichment_service.enrich(
+            _entities_to_dict(entities),
+            http_client=http_client,
+        )
+    else:
+        enrichment_docs = []
+
     scan, segments = await _persist_scan(
         db=db,
         user_id=current_user.id,
@@ -155,6 +171,7 @@ async def run_source_scan(
         topics=topics,
         entities=entities,
         drafts=seg_result.drafts,
+        enrichment_docs=enrichment_docs,
     )
 
     return _to_response(
@@ -162,16 +179,37 @@ async def run_source_scan(
         segments=segments,
         topics=topics,
         entities=entities,
+        enrichment_docs=enrichment_docs,
     )
+
+
+def _entities_to_dict(entities: list[DetectedEntityRecord]) -> dict[str, list[str]]:
+    """Project the detected-entity records into the dict shape enrich() wants."""
+
+    seen: set[str] = set()
+    tickers: list[str] = []
+    for e in entities:
+        if not e.ticker:
+            continue
+        if e.ticker in seen:
+            continue
+        seen.add(e.ticker)
+        tickers.append(e.ticker)
+    return {"tickers": tickers}
 
 
 def _segment_source(source: Source) -> _SegmentationResult:
     """Return drafts + a confidence floor (LOW for metadata-only)."""
 
     if source.source_access_status == "METADATA_ONLY":
+        meta = source.metadata_ or {}
         drafts = segment_metadata_only(
             title=source.title,
-            text_hint=(source.metadata_ or {}).get("description"),
+            description=meta.get("description"),
+            publisher=source.publisher,
+            author=source.author,
+            url=source.normalized_url or source.original_input,
+            canonical_url=source.canonical_url,
         )
         return _SegmentationResult(drafts=drafts, estimate_confidence_floor="LOW")
 
@@ -207,6 +245,7 @@ async def _persist_scan(
     topics: list[str],
     entities: list[DetectedEntityRecord],
     drafts: list[SegmentDraft],
+    enrichment_docs: list[EnrichmentDoc],
 ) -> tuple[SourceScan, list[SourceSegment]]:
     scan = SourceScan(
         user_id=user_id,
@@ -225,6 +264,7 @@ async def _persist_scan(
         recommended_completion_strategy=rec_strategy,
         detected_topics=list(topics),
         detected_entities=[e.to_dict() for e in entities],
+        enrichment_docs=[d.to_dict() for d in enrichment_docs],
     )
     scan_repo = SourceScanRepository(db)
     await scan_repo.add(scan)
@@ -273,6 +313,7 @@ def _to_response(
     segments: list[SourceSegment],
     topics: list[str],
     entities: list[DetectedEntityRecord],
+    enrichment_docs: list[EnrichmentDoc],
 ) -> RunSourceScanResponse:
     return RunSourceScanResponse(
         sourceId=scan.source_id,
@@ -303,5 +344,16 @@ def _to_response(
                 recommendedDepth=s.recommended_research_mode,  # type: ignore[arg-type]
             )
             for s in segments
+        ],
+        enrichments=[
+            EnrichmentDocResponse(
+                source=d.source,
+                title=d.title,
+                url=d.url,
+                snippet=d.snippet,
+                retrievedAt=d.retrieved_at,
+                metadata=dict(d.metadata),
+            )
+            for d in enrichment_docs
         ],
     )

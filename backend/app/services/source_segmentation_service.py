@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlparse
 
 
 # Roughly how many words fit in a 400-word paragraph window for ARTICLE_URL.
@@ -174,20 +175,104 @@ def captions_from_text_estimate(
     return captions
 
 
-def segment_metadata_only(*, title: str | None, text_hint: str | None = None) -> list[SegmentDraft]:
-    """Synthetic single segment for METADATA_ONLY sources."""
+def segment_metadata_only(
+    *,
+    title: str | None,
+    description: str | None = None,
+    publisher: str | None = None,
+    author: str | None = None,
+    url: str | None = None,
+    canonical_url: str | None = None,
+    text_hint: str | None = None,
+) -> list[SegmentDraft]:
+    """Synthetic single segment for METADATA_ONLY sources.
 
-    body = (title or text_hint or "Source metadata only").strip()
+    Concatenates every text-bearing signal we have so the cheap entity detector
+    can still surface tickers / companies / topics even when the page metadata
+    is sparse. The URL slug is included because for paywalled finance articles
+    it often carries the strongest topical keywords (e.g.
+    ``barrons.com/articles/apple-stock-record-track-june``).
+    """
+
+    parts: list[str] = []
+    if title:
+        parts.append(title.strip())
+    if description:
+        parts.append(description.strip())
+    elif text_hint:
+        parts.append(text_hint.strip())
+    if publisher:
+        parts.append(publisher.strip())
+    if author and author != publisher:
+        parts.append(author.strip())
+
+    slug_parts: list[str] = []
+    for raw_url in (url, canonical_url):
+        slug_text = url_slug_to_text(raw_url) if raw_url else ""
+        if slug_text and slug_text not in slug_parts:
+            slug_parts.append(slug_text)
+    if slug_parts:
+        parts.extend(slug_parts)
+
+    body = "\n\n".join(p for p in parts if p).strip() or "Source metadata only"
     return [
         SegmentDraft(
             segment_index=0,
             text=body,
             word_count=_word_count(body),
-            title=_short_title(body),
-            metadata={"metadataOnly": True},
+            title=_short_title(title or body),
+            metadata={
+                "metadataOnly": True,
+                "slugTextUsed": bool(slug_parts),
+            },
             has_text=False,
         )
     ]
+
+
+# Tokens that look like article IDs / hashes rather than real words.
+# We drop them from slug-derived text to keep the entity detector honest.
+_SLUG_HEX_RE = re.compile(r"^[0-9a-f]{6,}$")
+_SLUG_NUMERIC_RE = re.compile(r"^\d+$")
+
+
+def url_slug_to_text(url: str | None) -> str:
+    """Extract human-readable keywords from a URL path slug.
+
+    e.g. ``https://www.barrons.com/articles/apple-stock-record-track-june-5a777ea2``
+    →     ``apple stock record track june``.
+
+    Returns an empty string when the path has no informative slug.
+    """
+
+    if not url:
+        return ""
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return ""
+    path = parsed.path or ""
+    candidates = [seg for seg in path.split("/") if seg]
+    if not candidates:
+        return ""
+
+    # Skip obviously non-content path prefixes ("articles", "news", "story").
+    # The slug is almost always the longest remaining segment.
+    skip_segments = {"articles", "article", "news", "story", "stories", "watch", "video"}
+    informative = [c for c in candidates if c.lower() not in skip_segments] or candidates
+    slug = max(informative, key=len)
+
+    raw = re.sub(r"[-_]+", " ", slug).lower()
+    words: list[str] = []
+    for token in raw.split():
+        if len(token) < 2:
+            continue
+        if _SLUG_HEX_RE.match(token):
+            continue
+        if _SLUG_NUMERIC_RE.match(token):
+            continue
+        words.append(token)
+    return " ".join(words)
 
 
 @dataclass(frozen=True)

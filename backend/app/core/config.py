@@ -64,6 +64,14 @@ class Settings(BaseSettings):
     single_run_token_budget: int = Field(
         default=200_000, validation_alias="SINGLE_RUN_TOKEN_BUDGET"
     )
+    # Source-enrichment fallback (AI_PIPELINE §17.1). EDGAR is the only adapter
+    # in the v0.3 first slice; Wikipedia / FRED / IR-page adapters land later.
+    edgar_base_url: str = Field(
+        default="https://www.sec.gov", validation_alias="EDGAR_BASE_URL"
+    )
+    enrichment_timeout_seconds: float = Field(
+        default=8.0, validation_alias="ENRICHMENT_TIMEOUT_SECONDS"
+    )
 
     model_config = SettingsConfigDict(
         env_file=str(_BACKEND_ROOT / ".env"),
