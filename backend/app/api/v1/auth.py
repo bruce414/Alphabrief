@@ -7,8 +7,10 @@ from app.db.session import get_db
 from app.core.config import get_settings
 from app.core.security import create_session_token, session_expiry_from_now
 from app.repositories.user_repository import UserRepository
+from app.repositories.project_repository import ProjectRepository
 from app.schemas.auth import AuthResponse, LoginRequest, RegisterRequest
 from app.services.auth_service import AuthService
+from app.services.project_service import ProjectService
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -47,6 +49,12 @@ async def register(
     repo = UserRepository(db)
     svc = AuthService(repo)
     user = await svc.register(email=str(data.email), password=data.password, display_name=data.display_name)
+
+    # Ensure every user has a Catchall project (DATA_MODEL.md §4.2).
+    project_repo = ProjectRepository(db)
+    project_svc = ProjectService(project_repo)
+    await project_svc.ensure_catchall_for_user(user=user, db=db)
+
     expires_at = session_expiry_from_now()
     token = create_session_token(user_id=user.id, expires_at=expires_at)
     _set_session_cookie(response, token=token, expires_at=expires_at)

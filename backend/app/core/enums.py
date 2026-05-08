@@ -3,6 +3,15 @@ from __future__ import annotations
 from enum import Enum
 
 
+class ProjectKind(str, Enum):
+    CATCHALL = "CATCHALL"
+    COVERAGE = "COVERAGE"
+    THESIS = "THESIS"
+    EVENT = "EVENT"
+    THEME = "THEME"
+    DECISION = "DECISION"
+
+
 class ResearchScope(str, Enum):
     USER_PROVIDED_ONLY = "USER_PROVIDED_ONLY"
     RECOMMENDED_CONTEXT = "RECOMMENDED_CONTEXT"
