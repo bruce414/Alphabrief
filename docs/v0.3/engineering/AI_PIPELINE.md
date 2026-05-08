@@ -2,123 +2,142 @@
 
 ## Version
 
-`v0.3 First Milestone`
+`v0.3 First Milestone — Projects → Canvas → Versioned Briefs`
 
 ## Status
 
-This pipeline reflects AlphaBrief's positioning as:
+AlphaBrief v0.3 is a market learning and research workspace.
+
+The updated pipeline is no longer:
 
 ```text
-Market learning + research workspace
-Ask Mode + Brief Mode
-Daily research summary
-Journal/reflection assistant
-Learning goals
-Chrome Extension-ready source analysis
-Adaptive external-source research for URLs, YouTube, PDFs, earnings reports, articles, and browser pages
+Input → generate one research item / brief → save with tags
 ```
 
-The earlier pipeline focused on turning every input into a structured brief. v0.3 should be more flexible: not every answer needs to be a formal brief.
+It is now:
 
-This version also adds the Chrome extension as a source ingestion adapter. The extension is not a scraping loophole or a magical lawsuit umbrella. It is a user-initiated way to analyze the page the user is already viewing.
+```text
+Project
+→ focused chats and source analysis
+→ candidate insight extraction
+→ user-curated Canvas
+→ versioned briefs generated from Canvas snapshots
+```
 
-This version also adds the v0.3 adaptive research architecture. Every external source should go through a cheap scan, segmentation/chunking, source-complexity estimation, user intent selection, research-depth selection, allowance risk checks, and optional Optimize Research. This applies to YouTube videos, finance news/articles, earnings reports, PDFs, company pages, browser-extension captured pages, and pasted URLs.
+The Canvas is the key quality layer. Brief generation should use the Canvas because it contains selected, edited, ordered, source-linked research blocks. Raw chat history is too noisy to be the primary formal-brief input. Humanity invented editing for a reason, then immediately tried to automate around it. We will not repeat that tiny tragedy.
 
 ---
 
 # 1. Pipeline Modes
 
-AlphaBrief v0.3 supports four AI workflows.
+AlphaBrief v0.3 supports five AI workflows.
 
-## 1.1 Ask Mode Analysis
+## 1.1 Chat Research Mode
 
-Flexible finance/source analysis.
-
-Examples:
-
-```text
-Explain this Visa earnings report.
-What does this market news mean?
-Why did a stock fall after good earnings?
-```
-
-Output:
-
-```text
-ChatGPT-like structured response, but finance-aware and research-oriented.
-```
-
-## 1.2 Brief Mode Generation
-
-Formal structured artifact.
+Flexible market/finance exploration inside a project chat.
 
 Examples:
 
 ```text
-Generate a company brief for Visa.
-Create an earnings breakdown for this report.
-Create a market event explainer for this Fed decision.
+Why did Nvidia data center revenue growth decelerate?
+What does this article imply for AI chip demand?
+Explain Visa's cross-border volume trend.
 ```
 
 Output:
 
 ```text
-Formal saved brief with stable sections.
+Structured assistant reply inside a project chat.
 ```
 
-## 1.3 Daily Research Summary
+The reply may produce candidate Canvas blocks.
 
-AI-generated recap of what the user researched today.
+## 1.2 Source Analysis Mode
+
+Analysis of attached sources inside chat.
+
+Supported sources:
+
+```text
+ARTICLE_URL
+YOUTUBE_URL
+PDF_FILE
+BROWSER_PAGE
+```
 
 Output:
 
 ```text
-Topics researched
-Companies mentioned
-Sources analyzed
-Key insights
-Open questions
-Suggested follow-ups
+Chat reply grounded in source availability.
+If full text is available → source-aware answer.
+If only metadata is available → context answer with clear source-access note.
 ```
 
-## 1.4 Reflection Assistant
+## 1.3 Canvas Candidate Extraction
 
-AI-assisted, user-owned journal writing.
+After an assistant reply, AlphaBrief may extract candidate blocks:
+
+```text
+Claim
+Quote
+Note
+Summary
+Risk
+Question
+Metric
+Bull case
+Bear case
+```
+
+Candidates are suggestions, not truth. Users review, promote, edit, or dismiss them.
+
+## 1.4 Brief Version Generation
+
+Formal structured artifact generated from Canvas blocks.
+
+Examples:
+
+```text
+Generate Nvidia thesis brief v1.
+Update this brief from the latest Canvas.
+Generate an earnings reaction brief from selected Canvas blocks.
+```
 
 Output:
 
 ```text
-Small writing suggestions, prompts, and learning points.
+BriefVersion with content_markdown, structured sections, source/provenance summary, and optional what-changed summary.
 ```
 
-The AI should not fully replace the user reflection by default. Humanity has enough ghostwritten introspection already.
+## 1.5 Daily / Reflection Workflows
+
+Optional later in v0.3:
+
+```text
+Daily research summary
+Journal/reflection assistant
+Learning goal progress summary
+```
+
+These should summarize structured activity and Canvas updates, not raw endless chat history.
 
 ---
 
-# 2. Shared Intake Pipeline
-
-All AI workflows share the following early steps:
+# 2. Core Workflow
 
 ```text
-1. Validate request
-2. Identify workflow mode
-3. Create or reference Source if source input exists
-4. Determine source access method and extraction status
-5. Extract/normalize source text if applicable
-6. If full source unavailable, build metadata + API context fallback
-7. Run cheap source scan for all external sources
-8. Segment/chunk source content where applicable
-9. Estimate source complexity, entity density, topic density, and allowance impact
-10. Ask user for analysis intent, coverage, and research mode when needed
-11. If estimated impact is above the warning threshold, show a pre-analysis warning
-12. Create ResearchItem when output should be saved
-13. Create GenerationJob and AnalysisRun
-14. Build prompt context by segment or source chunk
-15. Generate output section-by-section when applicable
-16. Validate output
-17. Persist output, analysis depth by section, and activity
-18. Track usage/cost
-19. Return result or status
+1. User enters workspace.
+2. User is placed in Catchall or selected Project.
+3. User creates/opens a focused Chat.
+4. User asks a question and optionally attaches Sources.
+5. Backend creates user ChatTurn and queued assistant ChatTurn.
+6. AI generates assistant response.
+7. Response is validated and persisted.
+8. Candidate Canvas extraction runs after response generation.
+9. User promotes, edits, and reorders Canvas blocks.
+10. User generates BriefVersion from selected/current Canvas blocks.
+11. Later research updates Canvas.
+12. User generates newer BriefVersion and sees what changed.
 ```
 
 ---
@@ -139,8 +158,7 @@ MIXED
 Important rules:
 
 ```text
-Direct user questions are stored on ResearchItem.original_user_input.
-They are not stored as Source rows.
+Direct user questions are stored as ChatTurns, not Source rows.
 ```
 
 ```text
@@ -152,7 +170,7 @@ Do not make users paste entire articles as the normal fallback.
 
 # 4. Source Access Methods
 
-AlphaBrief should normalize source intake using `source_access_method`.
+Normalize source intake using `source_access_method`.
 
 ```text
 SERVER_FETCH         # Backend attempts safe public URL extraction
@@ -173,42 +191,104 @@ BLOCKED
 FAILED
 ```
 
-Analysis modes:
+Analysis framing:
 
 ```text
-SOURCE_BRIEF   # Source text/transcript is available
-CONTEXT_BRIEF  # Full source unavailable; use metadata + public context
+SOURCE_ANALYSIS   # Source text/transcript is available
+CONTEXT_ANALYSIS  # Full source unavailable; use metadata + public context
+CHAT_ONLY         # No external source used
 ```
-
-Research modes:
-
-```text
-QUICK      # Fast understanding, low depth, minimal context
-STANDARD   # Balanced default analysis with key implications and risks
-DEEP       # Richer segment-level analysis for complex or high-value sources
-```
-
-Completion strategies:
-
-```text
-STRICT_REQUESTED_MODE  # Keep the requested research mode unless the user intervenes
-OPTIMIZE_RESEARCH      # Adapt depth by section to finish the source efficiently
-```
-
-Coverage options for long or complex sources:
-
-```text
-FULL_SOURCE
-SELECTED_TOPICS
-SELECTED_ENTITIES
-CUSTOM_QUESTION
-```
-
-The selected research mode describes desired depth. The selected coverage describes how much of the source should be analyzed. These are different controls and should not be collapsed into one confused little dropdown.
 
 ---
 
-# 5. Article URL Pipeline
+# 5. Chat Turn Generation Pipeline
+
+```text
+User submits message
+→ owner check on chat/project
+→ reject archived chat
+→ validate attached source ownership/status
+→ create completed user ChatTurn
+→ create queued assistant ChatTurn
+→ attach sources to user turn
+→ schedule background assistant generation
+→ return assistantTurnId for polling
+```
+
+## 5.1 Assistant Generation Background Flow
+
+```text
+1. Open fresh DB session inside background task.
+2. Lock assistant turn; return if not QUEUED.
+3. Set status = RUNNING.
+4. Load chat, project, prior turns, attached sources, and optional Canvas context.
+5. Build prompt.
+6. Call AI provider.
+7. Validate output.
+8. Persist assistant turn.
+9. Attach viewed sources to assistant turn.
+10. Set assistant status = COMPLETED.
+11. Trigger candidate extraction asynchronously or as a non-blocking follow-up.
+```
+
+## 5.2 Important Candidate Timing Rule
+
+Candidate extraction should not delay visible assistant replies.
+
+Recommended behavior:
+
+```text
+Mark assistant turn COMPLETED as soon as the reply is validated and saved.
+Then run candidate extraction as a separate best-effort step.
+```
+
+If the implementation keeps extraction in the same background task, the UI should still treat candidates as optional and never show the assistant answer as failed just because candidate extraction failed.
+
+---
+
+# 6. Chat Prompt Context
+
+Prompt context should include:
+
+```text
+- System role: market research assistant, educational not advice
+- Current project metadata
+- Short project context summary if available later
+- Recent chat history, truncated from oldest first
+- Current user message
+- Attached source snippets and metadata
+- Canvas context only when explicitly useful and budget-safe
+```
+
+Do not blindly inject the whole Canvas into every chat. That will become expensive, noisy, and emotionally needy.
+
+## 6.1 Context Priority
+
+For normal chat replies:
+
+```text
+1. Current user message
+2. Attached sources
+3. Recent relevant turns
+4. Selected/high-signal Canvas blocks
+5. Project metadata
+```
+
+For brief generation:
+
+```text
+1. Selected Canvas blocks
+2. Canvas snapshot ordering
+3. Provenance/source metadata
+4. User brief instructions
+5. Prior brief version, only for what-changed comparison
+```
+
+---
+
+# 7. Source Pipeline
+
+## 7.1 Article URL Pipeline
 
 ```text
 User submits article URL
@@ -219,447 +299,79 @@ User submits article URL
 → extract metadata: title, publisher, author, date, canonical URL
 → if readable text is available:
      mark source_access_status = FULL_TEXT_EXTRACTED
-     select analysis_mode = SOURCE_BRIEF
-→ if readable text is unavailable/blocked:
+→ if readable text unavailable/blocked:
      mark source_access_status = METADATA_ONLY or BLOCKED
-     select analysis_mode = CONTEXT_BRIEF
-     retrieve related market/news/filing context if researchScope = RECOMMENDED_CONTEXT
-→ create ResearchItem + GenerationJob
-→ generate output
-→ save source metadata + generated analysis
+     retrieve related market/news/filing context if RECOMMENDED_CONTEXT
+→ source becomes attachable once status is FULL_TEXT_EXTRACTED or METADATA_ONLY
 ```
 
-## URL Extraction Guardrails
-
-Do not:
+Guardrails:
 
 ```text
-- bypass paywalls
-- bypass login walls
-- bypass CAPTCHAs
-- ignore clear technical access controls
-- store full copyrighted article text permanently by default
-- claim the article said something if only metadata was available
+Do not bypass paywalls, login walls, CAPTCHAs, or technical controls.
+Do not store full copyrighted article text permanently by default.
+Do not claim the article said something specific if only metadata was available.
 ```
 
----
-
-# 6. Chrome Extension Source Pipeline
-
-The Chrome extension allows AlphaBrief to analyze the current page from the user's browser after explicit user action.
+## 7.2 Chrome Extension Pipeline
 
 ```text
-User opens article page
-→ user clicks AlphaBrief Chrome extension
-→ extension reads page DOM after user action
-→ extension extracts readable article text if available
-→ extension extracts metadata: title, publisher, URL, publish date, OpenGraph/JSON-LD
-→ extension shows preview/status to user
-→ user clicks Generate AlphaBrief
-→ extension sends payload to POST /api/v1/sources/browser-extension
-→ backend creates Source(source_type = BROWSER_PAGE, source_access_method = BROWSER_EXTENSION)
-→ backend decides source_access_status
-→ backend creates ResearchItem + GenerationJob
-→ pipeline generates Source Brief or Context Brief
-→ output is saved in Research Log with tags/company links
+User opens page
+→ user clicks AlphaBrief extension
+→ extension extracts readable text/metadata after explicit user action
+→ user confirms submission
+→ POST /sources/browser-extension
+→ backend creates Source(source_type = BROWSER_PAGE)
+→ mark FULL_TEXT_EXTRACTED or METADATA_ONLY
+→ source appears in workspace and can be attached to chats
 ```
 
-## Extension Full-Text Case
+The extension is user-initiated page analysis, not a paywall bypasser, login-content scraper, or background crawler. An important sentence, because apparently entire legal risk profiles can fit inside one verb.
 
-```text
-BROWSER_EXTENSION payload includes extractedText
-→ mark source_access_status = FULL_TEXT_EXTRACTED
-→ select analysis_mode = SOURCE_BRIEF
-→ summarize exact source
-→ extract claims and key numbers
-→ enrich with market APIs/filings if researchScope = RECOMMENDED_CONTEXT
-→ validate that source-specific claims are grounded in extracted text
-```
-
-## Extension Metadata-Only Case
-
-```text
-BROWSER_EXTENSION payload has title/URL/metadata only
-→ mark source_access_status = METADATA_ONLY
-→ select analysis_mode = CONTEXT_BRIEF
-→ detect company/ticker/topic from metadata
-→ retrieve related news, market data, filings, or company context
-→ generate context brief
-→ clearly state that full page text was unavailable
-```
-
-## Extension Compliance Rule
-
-The extension should be positioned as:
-
-```text
-User-initiated page analysis of content the user chooses to process.
-```
-
-It should not be positioned as:
-
-```text
-A paywall bypasser, login-content scraper, or background crawler.
-```
-
-Annoyingly important difference. Tiny sentence, giant risk profile.
-
----
-
-# 7. YouTube URL Pipeline
+## 7.3 YouTube URL Pipeline
 
 ```text
 User submits YouTube URL
 → validate URL
 → create Source(source_type = YOUTUBE_URL)
-→ extract metadata: title, channel, description, publish date if available
-→ attempt transcript/caption access only through allowed paths
-→ if transcript is available:
+→ extract metadata
+→ attempt transcript/caption access through allowed paths
+→ if transcript available:
      source_access_method = YOUTUBE_TRANSCRIPT
      source_access_status = FULL_TEXT_EXTRACTED
-     analysis_mode = SOURCE_BRIEF
-→ if transcript is unavailable:
+→ else:
      source_access_method = YOUTUBE_METADATA
      source_access_status = METADATA_ONLY
-     analysis_mode = CONTEXT_BRIEF
-     retrieve related company/topic/market context if possible
-→ create ResearchItem + GenerationJob
-→ generate output
+     retrieve related context if enabled
 ```
 
-Do not make v0.3 depend on always having YouTube transcripts. That path is fragile, because naturally video platforms were not designed around your startup roadmap.
+Do not make v0.3 depend on always having YouTube transcripts.
 
----
-
-# 8. Ask Mode Pipeline
+## 7.4 PDF Pipeline
 
 ```text
-User submits question/source
-→ validate input
-→ create or reference Source if source exists
-→ determine SOURCE_BRIEF vs CONTEXT_BRIEF if source is involved
-→ create ResearchItem(item_type = ASK_ANALYSIS)
-→ create GenerationJob(job_type = ASK_ANALYSIS)
-→ extract/normalize source text if needed
-→ retrieve recommended context if enabled
-→ detect companies/topics
-→ generate structured analysis
-→ validate answer
-→ save output_markdown and output_json
-→ create ResearchActivity(ASKED_QUESTION or ANALYZED_SOURCE or ANALYZED_BROWSER_PAGE)
-→ create UsageEvent
-→ return ResearchItem
-```
-
-## Ask Mode output shape
-
-```json
-{
-  "title": "Visa earnings impact analysis",
-  "quick_answer": "...",
-  "analysis_mode": "SOURCE_BRIEF",
-  "source_access_status": "FULL_TEXT_EXTRACTED",
-  "what_happened": "...",
-  "why_it_matters": "...",
-  "market_implications": [],
-  "companies_or_topics_mentioned": [],
-  "risks_and_uncertainties": [],
-  "finance_concepts": [],
-  "follow_up_questions": [],
-  "confidence_label": "MEDIUM",
-  "confidence_explanation": "...",
-  "disclaimer": "For educational and informational purposes only."
-}
+User uploads PDF
+→ validate file type/size
+→ create Source(source_type = PDF_FILE, source_access_method = UPLOAD)
+→ extract text where possible
+→ scan and segment if long/complex
+→ mark FULL_TEXT_EXTRACTED or FAILED
+→ make source attachable when ready
 ```
 
 ---
 
-# 9. Brief Mode Pipeline
+# 8. Adaptive External Source Research Pipeline
 
-```text
-User selects Brief Mode
-→ user chooses or implies brief_type
-→ validate subject/source/question
-→ create or reference Source if source exists
-→ determine SOURCE_BRIEF vs CONTEXT_BRIEF if source is involved
-→ create ResearchItem(item_type = BRIEF)
-→ create Brief linked to ResearchItem
-→ create GenerationJob(job_type = BRIEF_GENERATION)
-→ extract/normalize source text if needed
-→ retrieve recommended context if enabled
-→ detect companies/topics/events
-→ select brief template
-→ generate formal structured brief
-→ validate required sections
-→ persist Brief.sections + ResearchItem.output_json
-→ create ResearchActivity(GENERATED_BRIEF)
-→ create UsageEvent
-→ return Brief
-```
+This applies to every external source type, not only YouTube videos.
 
-## v0.3 brief types
-
-```text
-COMPANY_RESEARCH
-EARNINGS_BREAKDOWN
-SOURCE_SUMMARY
-MARKET_EVENT_EXPLAINER
-```
-
-## Company Research Brief sections
-
-```text
-companyOverview
-businessModel
-recentContext
-growthDrivers
-risks
-competitorContext
-bullCase
-bearCase
-whatToWatchNext
-learningTakeaway
-disclaimer
-```
-
-## Earnings Breakdown sections
-
-```text
-headlineResult
-keyNumbers
-whatChanged
-managementCommentary
-guidanceAndOutlook
-positiveSignals
-negativeSignals
-whatToWatchNext
-learningTakeaway
-disclaimer
-```
-
-## Source Summary sections
-
-```text
-mainTakeaway
-keyClaims
-importantNumbers
-sourcePerspective
-missingContext
-whyItMatters
-sourceAccessNote
-followUpQuestions
-disclaimer
-```
-
-## Market Event Explainer sections
-
-```text
-eventSummary
-whyItMatters
-whoIsAffected
-shortTermImpact
-longTermImpact
-risksAndUncertainties
-whatToWatchNext
-learningTakeaway
-disclaimer
-```
-
----
-
-# 10. Context Brief Fallback Pipeline
-
-Use this when full source text is unavailable.
-
-```text
-Source has metadata only or extraction blocked
-→ extract title, URL, publisher, date, ticker/company/topic hints
-→ retrieve allowed context sources if researchScope = RECOMMENDED_CONTEXT
-     - financial news API
-     - market data API
-     - SEC/company filings where relevant
-     - company profile/fundamentals where relevant
-→ generate context brief
-→ include sourceAccessNote
-→ avoid claiming the original article/video said something specific
-```
-
-Recommended source access note:
-
-```text
-The full source text was unavailable, so this analysis uses source metadata plus related public market/news/filing context.
-```
-
-This makes failure useful instead of just shrugging in JSON.
-
----
-
-# 11. Daily Research Summary Pipeline
-
-```text
-User clicks Generate Today's Summary
-→ fetch today's ResearchActivity rows
-→ fetch today's completed ResearchItems
-→ fetch linked tags, companies, and sources
-→ create or update DailyResearchSummary
-→ optionally create ResearchItem(item_type = DAILY_SUMMARY)
-→ generate summary
-→ persist topics, companies, insights, open questions, follow-ups
-→ create ResearchActivity(GENERATED_DAILY_SUMMARY)
-→ return summary
-```
-
-## Daily summary output shape
-
-```json
-{
-  "summary_date": "2026-05-04",
-  "topics_covered": [],
-  "companies_mentioned": [],
-  "sources_analyzed": [],
-  "key_insights": [],
-  "open_questions": [],
-  "suggested_followups": [],
-  "summary_markdown": "..."
-}
-```
-
-### Important rule
-
-Daily summaries should summarize structured activity, not raw endless chat history. Otherwise, welcome back to the scroll swamp.
-
----
-
-# 12. Reflection Assistant Pipeline
-
-```text
-User opens Journal
-→ user links optional DailyResearchSummary
-→ user writes or starts draft
-→ user clicks reflection assist
-→ backend sends limited context and selected assist step
-→ AI returns one suggestion or prompt
-→ user edits and saves JournalEntry
-```
-
-## Reflection assist steps
-
-```text
-STARTER_SUMMARY
-SUGGEST_LEARNING_POINTS
-SUGGEST_OPEN_QUESTIONS
-DRAFT_NEXT_PARAGRAPH
-```
-
-## Guardrail
-
-The reflection assistant should encourage the user to write and revise. It can help, but it should not pretend the AI had the user's personal experience.
-
----
-
-# 13. Research Activity Creation
-
-Create a `ResearchActivity` row for meaningful actions:
-
-```text
-ASKED_QUESTION
-ANALYZED_SOURCE
-ANALYZED_BROWSER_PAGE
-GENERATED_BRIEF
-SAVED_RESEARCH
-CREATED_JOURNAL_ENTRY
-CREATED_GOAL
-GENERATED_DAILY_SUMMARY
-```
-
-These events power:
-
-- Daily summaries
-- Weekly summaries later
-- Research streaks later
-- Learning goal progress later
-
----
-
-# 14. Validation Rules
-
-Treat AI output as untrusted.
-
-Validation should check:
-
-- Required fields exist
-- Markdown is renderable/safe
-- JSON shape matches the workflow
-- Disclaimer exists where needed
-- No personalized financial advice
-- No fabricated source claims
-- No unsupported claim that a source said something it did not say
-- If analysis mode is CONTEXT_BRIEF, output must clearly state that full source text was unavailable
-- If source_access_status is METADATA_ONLY, output must not present the source as fully read
-- Confidence label is present for AI analysis
-
-If validation fails:
-
-```text
-1. Retry once with a repair prompt
-2. If still invalid, mark GenerationJob as FAILED
-3. Save a safe error message
-```
-
----
-
-# 15. v0.3 Research Scope
-
-Keep research scope simple in v0.3:
-
-```text
-USER_PROVIDED_ONLY
-RECOMMENDED_CONTEXT
-```
-
-Do not add broad social sentiment or source ranking in v0.3. That belongs to future deep research.
-
----
-
-# 16. Source Analysis Validation Flow Summary
-
-Before any external-source analysis is generated, AlphaBrief should validate:
-
-```text
-1. Source ownership and access status
-2. Whether source text/transcript is available or metadata-only
-3. Whether a source scan is required
-4. Whether estimated impact exceeds the 50% warning threshold
-5. Whether high-usage warning acknowledgement is required
-6. Whether selected coverage and research mode are valid
-7. Whether output must be SOURCE_BRIEF or CONTEXT_BRIEF
-```
-
-This section exists mostly so the numbering does not jump like a caffeinated spreadsheet.
-
----
-
-# 17. Adaptive External Source Research Pipeline
-
-This pipeline applies to every external source type, not only YouTube videos.
-
-Applicable `source_type` values:
+Applicable source types:
 
 ```text
 ARTICLE_URL
 YOUTUBE_URL
 PDF_FILE
 BROWSER_PAGE
-```
-
-Document subtypes are detected during scan and stored in metadata, not as `source_type` enum values:
-
-```text
-COMPANY_PAGE
-EARNINGS_REPORT
-FINANCE_NEWS_ARTICLE
-INVESTOR_RELATIONS_PAGE
-SEC_OR_COMPANY_FILING
 ```
 
 Core rule:
@@ -669,9 +381,7 @@ Never treat a large external source as one giant prompt blob.
 Always scan, segment, estimate, and analyze with source-aware depth control.
 ```
 
-## 17.1 Cheap Pre-Scan
-
-Before full analysis, AlphaBrief should run a cheap scan.
+## 8.1 Cheap Pre-Scan
 
 The scan should detect:
 
@@ -688,19 +398,17 @@ The scan should detect:
 - confidence in the estimate
 ```
 
-The cheap scan should not generate the final answer. It exists to protect cost, improve focus, and prevent a half-completed output. Tiny thing called planning, apparently still underrated.
+The scan should not generate the final answer.
 
-## 17.2 Segmentation / Chunk Mapping
-
-Every external source should be mapped into segments or chunks.
+## 8.2 Segmentation / Chunk Mapping
 
 Examples:
 
 ```text
 YouTube video      → timestamped transcript segments
 Article/news page  → article sections or paragraph groups
-Earnings report    → report sections: highlights, income statement, guidance, risks, management commentary
-PDF                → page/section chunks
+Earnings report    → report sections
+PDF                → page and section chunks
 Browser page       → extracted readable sections plus metadata
 ```
 
@@ -718,11 +426,9 @@ requested research mode
 actual research mode used
 ```
 
-## 17.3 Research Intent, Coverage, and Depth
+## 8.3 Research Intent, Coverage, and Depth
 
-For normal short sources, AlphaBrief can use defaults.
-
-For long or complex sources, AlphaBrief should ask the user to choose:
+For long/complex sources, ask for:
 
 ```text
 Analysis intent:
@@ -730,7 +436,7 @@ Analysis intent:
 - Market Impact
 - Company Analysis
 - Learning Mode
-- Structured Brief
+- Structured Brief Support
 
 Coverage:
 - Full source
@@ -744,67 +450,45 @@ Research mode:
 - Deep
 ```
 
-Research intent is also a cost-control tool. If a user only cares about Nvidia and AI chips, AlphaBrief should not Deep-analyze unrelated oil, banking, and crypto sections just because they appeared in the same 90-minute finance video.
+Research intent is a cost-control tool. If the user only cares about Nvidia and AI chips, do not Deep-analyze unrelated oil commentary just because it appeared in the same video. The database has suffered enough.
 
-## 17.4 Pre-Analysis Warning Threshold
+## 8.4 Pre-Analysis Warning Threshold
 
-After the cheap scan, AlphaBrief should estimate the allowance impact.
-
-Warning rule:
+Show warning when:
 
 ```text
-Show a pre-analysis warning when either condition is true:
 1. estimated_allowance_impact_percent > 50, or
-2. researchMode = DEEP and the scan marks estimate_confidence = LOW or source_complexity = VERY_HIGH.
+2. researchMode = DEEP and estimate_confidence = LOW, or
+3. source_complexity = VERY_HIGH.
 ```
-
-For the first Source Analysis MVP, `estimated_allowance_impact_percent` may be calculated against a config-based single-run budget threshold. Once persistent user allowance/cooldown exists, calculate it against the user's current available allowance.
-
-Do not warn for small or normal usage. A product that nags on every click becomes a tiny bureaucrat with a loading spinner.
 
 Warning levels:
 
 ```text
 < 30%    → no warning
-30–50%   → small inline usage estimate only
+30–50%   → inline estimate
 50–80%   → pre-analysis warning
 80%+     → strong warning; recommend Optimize Research or lower mode
 ```
 
-Also warn when:
-
-```text
-- Deep mode is selected
-- source is long or high complexity
-- estimate confidence is low
-- projected completion risk is high
-```
-
-Recommended pre-analysis prompt:
+Recommended prompt:
 
 ```text
 AlphaBrief has completed a quick scan of this source.
 
-This source appears long or complex, so the full content may not be fully analyzed in Deep mode with your current research allowance.
-
-If you continue in Deep mode, AlphaBrief may ask you later to lower the depth for remaining sections so the full analysis can still be completed.
+This source appears long or complex, so full Deep analysis may use a large part of your current research allowance.
 
 How would you like to continue?
 
 [Continue with Deep]
 [Switch to Standard]
 [Switch to Quick]
+[Optimize Research]
 ```
 
-## 17.5 Optimize Research
+## 8.5 Optimize Research
 
-`Optimize Research` is a user-facing feature that allows AlphaBrief to adapt analysis depth by section.
-
-User-facing description:
-
-```text
-Optimize Research lets AlphaBrief adjust analysis depth by section, so important parts get deeper analysis while lower-priority sections use lighter analysis.
-```
+`Optimize Research` lets AlphaBrief adjust analysis depth by section.
 
 Behavior:
 
@@ -812,46 +496,13 @@ Behavior:
 Deep + Optimize Research ON:
 - Deep for high-relevance/high-complexity sections
 - Standard for medium-relevance sections
-- Quick for low-relevance or background sections
-- Full source completion is prioritized
+- Quick for low-relevance/background sections
+- Full selected coverage is prioritized
 ```
 
-This should be recommended for long sources, dense earnings reports, and mixed-topic market videos.
+## 8.6 Analysis Depth by Section
 
-## 17.6 Mid-Analysis Downgrade Prompt
-
-During analysis, AlphaBrief should track actual usage against projected usage.
-
-If remaining allowance may not support the remaining source at the requested depth, pause and ask:
-
-```text
-AlphaBrief may not be able to complete the remaining sections in Deep mode with your current research allowance.
-
-To finish the full source, you can:
-
-1. Switch remaining sections to Standard
-2. Switch lower-priority sections to Quick
-3. Optimize automatically
-4. Stop here and save partial analysis
-5. Continue later after your allowance recovers
-```
-
-Buttons:
-
-```text
-[Optimize and finish]
-[Switch remaining to Standard]
-[Save partial result]
-[Continue later]
-```
-
-If the user enabled Optimize Research before generation, AlphaBrief can adapt automatically within the promised behavior, but it should still record what changed.
-
-## 17.7 Analysis Depth by Section
-
-Final outputs for segmented sources should include an `Analysis depth by section` block.
-
-Example:
+Final source-aware outputs should include:
 
 ```text
 Analysis depth by section
@@ -862,72 +513,367 @@ Reason: High relevance to selected market-impact intent
 
 12:30–28:00 · Nvidia and AI chip demand
 Depth used: Deep
-Reason: High relevance to selected companies and AI market theme
+Reason: High relevance to selected company/theme
 
 28:00–41:00 · Oil and geopolitical risk
 Depth used: Standard
 Reason: Medium relevance to selected intent
-
-41:00–60:00 · China trade and tariffs
-Depth used: Standard
-Reason: Important macro context, but secondary to selected focus
-
-60:00–75:00 · Banking sector commentary
-Depth used: Quick
-Reason: Lower relevance to selected focus
-```
-
-The output should make downgraded sections rerunnable later:
-
-```text
-Some sections were analyzed at lower depth to complete the full source within your current research allowance.
-You can rerun selected sections in Deep mode after your allowance recovers.
-```
-
-## 17.8 Completion Priority
-
-For long external sources, optimize around this priority order:
-
-```text
-1. Finish the full selected coverage
-2. Preserve the user's main research intent
-3. Use Deep mode where it matters most
-4. Downgrade lower-priority sections first
-5. Be transparent about actual depth used
-6. Let the user rerun downgraded sections later
 ```
 
 ---
 
-# 18. Updated v0.3 Pipeline Rule
+# 9. Candidate Canvas Extraction Pipeline
+
+After a validated assistant reply:
+
+```text
+assistant reply
+→ candidate extraction prompt
+→ return 0–N candidate blocks
+→ validate block types and markdown
+→ persist candidate_blocks as PENDING
+→ frontend shows promote/dismiss UX
+```
+
+## 9.1 Candidate Extraction Rules
+
+The model should extract only useful, durable research units:
+
+```text
+Good candidate:
+“Nvidia's near-term upside depends on whether Blackwell ramps without major supply delays.”
+
+Bad candidate:
+“Nvidia is a company.”
+```
+
+Candidates should be:
+
+```text
+- specific
+- editable
+- source-aware when applicable
+- useful for future brief generation
+- not framed as personalized advice
+```
+
+## 9.2 Candidate Output Shape
+
+```json
+{
+  "candidates": [
+    {
+      "block_type": "CLAIM",
+      "title": "Blackwell ramp is the key catalyst",
+      "content_markdown": "Nvidia's near-term thesis depends heavily on whether Blackwell ramps smoothly into hyperscaler deployments."
+    }
+  ]
+}
+```
+
+## 9.3 Failure Rule
+
+Candidate extraction failure should never fail the assistant reply.
+
+```text
+If extraction fails:
+- log the error
+- create no candidates
+- keep assistant turn COMPLETED
+```
+
+---
+
+# 10. Canvas Pipeline
+
+The Canvas is a curated project artifact.
+
+Canvas blocks can come from:
+
+```text
+- Manual user notes
+- Promoted assistant turns
+- Promoted AI candidates
+- Source quotes or source notes
+```
+
+## 10.1 Manual Block Flow
+
+```text
+User clicks Add block
+→ chooses block type
+→ writes content
+→ backend creates CanvasBlock(provenance_kind = MANUAL)
+→ Canvas reorders/refreshes
+```
+
+## 10.2 Promote From Turn Flow
+
+```text
+User clicks + Canvas on assistant turn
+→ frontend opens edit-before-promote form
+→ user selects block type and edits content
+→ backend creates CanvasBlock(provenance_kind = CHAT_TURN)
+```
+
+## 10.3 Promote Candidate Flow
+
+```text
+Assistant reply finishes
+→ candidates appear
+→ user promotes one or more
+→ backend creates CanvasBlock(provenance_kind = CHAT_TURN or CANDIDATE)
+→ candidate marked PROMOTED
+```
+
+## 10.4 Edit/Reorder Flow
+
+```text
+User edits content/title/type
+→ PATCH CanvasBlock
+→ updated block becomes new source material for future briefs
+```
+
+This is why Canvas must support customization. A non-editable Canvas is just a warehouse for extracted chat scraps, and warehouses are not research workflows.
+
+---
+
+# 11. Brief Version Generation Pipeline
+
+Formal briefs are generated from Canvas snapshots.
+
+```text
+User chooses project brief or creates a new brief series
+→ selects all or some active Canvas blocks
+→ optional brief instructions/style
+→ backend creates CanvasSnapshot
+→ backend creates queued BriefVersion
+→ AI generates structured brief from snapshot
+→ output validation
+→ persist BriefVersion
+→ update Brief.current_version_id
+→ create ResearchActivity
+→ create UsageEvent
+```
+
+## 11.1 Brief Generation Prompt Context
+
+Use:
+
+```text
+- selected Canvas blocks, in user-defined order
+- block types and titles
+- provenance summaries
+- source metadata, not necessarily raw source text
+- user instructions
+- previous brief version for comparison only when requested
+```
+
+Do not use:
+
+```text
+- entire raw chat history
+- all project sources by default
+- hidden unreviewed AI memory
+```
+
+## 11.2 Brief Output Shape
+
+```json
+{
+  "title": "Nvidia AI Infrastructure Thesis Brief v2",
+  "brief_type": "THESIS_MEMO",
+  "executive_summary": "...",
+  "core_thesis": "...",
+  "evidence_base": [],
+  "risks_and_uncertainties": [],
+  "bull_case": [],
+  "bear_case": [],
+  "open_questions": [],
+  "what_changed_since_previous": "...",
+  "learning_takeaway": "...",
+  "source_and_canvas_note": "Generated from 18 Canvas blocks and 7 linked sources.",
+  "confidence_label": "MEDIUM",
+  "disclaimer": "For educational and informational purposes only."
+}
+```
+
+## 11.3 Brief Types
+
+```text
+COMPANY_RESEARCH
+EARNINGS_BREAKDOWN
+SOURCE_SUMMARY
+MARKET_EVENT_EXPLAINER
+THESIS_MEMO
+```
+
+## 11.4 Versioning Rule
+
+Every generated brief is a snapshot.
+
+```text
+Brief = series
+BriefVersion = generated document at a point in time
+CanvasSnapshot = exact input used
+```
+
+When the Canvas changes materially after the latest brief version, the UI should show:
+
+```text
+Your Canvas has changed since this brief was generated.
+Generate an updated version?
+```
+
+## 11.5 What Changed Summary
+
+When generating v2+, compare against previous version and summarize:
+
+```text
+- New claims added
+- Removed/archived claims
+- New risks
+- Changed assumptions
+- Thesis direction change
+- Confidence change
+- New open questions
+```
+
+---
+
+# 12. Validation Rules
+
+Treat AI output as untrusted.
+
+Validate:
+
+```text
+- Markdown is renderable/safe
+- JSON shape matches workflow
+- Required fields exist
+- Disclaimer exists where needed
+- No personalized financial advice
+- No fabricated source claims
+- If source is METADATA_ONLY, output clearly states that full source text was unavailable
+- Candidate blocks use allowed block types
+- Brief version references Canvas snapshot, not raw chat transcript
+- Citations/source markers reference real attached or linked sources
+```
+
+If validation fails:
+
+```text
+1. Retry once with repair prompt
+2. If still invalid, mark target entity FAILED
+3. Save safe error message
+```
+
+---
+
+# 13. Project Memory Policy
+
+Project memory is deferred.
+
+v0.3 should use explicit context only:
+
+```text
+- project metadata
+- selected Canvas blocks
+- recent chat history
+- attached source metadata/text snippets
+```
+
+Do not add hidden long-term memory until:
+
+```text
+- Canvas workflow works
+- brief versioning works
+- users trust editable project state
+```
+
+Bad memory is not personalization. It is hallucination with a filing cabinet.
+
+---
+
+# 14. Research Activity Creation
+
+Create `ResearchActivity` for meaningful actions:
+
+```text
+CREATED_PROJECT
+ASKED_QUESTION
+ATTACHED_SOURCE
+GENERATED_CHAT_REPLY
+PROMOTED_TO_CANVAS
+CREATED_CANVAS_BLOCK
+UPDATED_CANVAS_BLOCK
+GENERATED_BRIEF_VERSION
+CREATED_JOURNAL_ENTRY
+GENERATED_DAILY_SUMMARY
+```
+
+These events power:
+
+```text
+Daily summaries
+Research streaks later
+Learning goal progress later
+Project timeline later
+```
+
+---
+
+# 15. Updated v0.3 Pipeline Rule
 
 The v0.3 pipeline should prove this loop:
 
 ```text
-Source/question
-→ cheap scan if external source
-→ intent + coverage + research mode selection
-→ allowance risk check
-→ analysis generation
-→ analysis depth by section if segmented
-→ saved ResearchItem
-→ follow-up, compare, tag, or rerun selected sections later
+Project
+→ chat/source exploration
+→ AI-assisted candidate extraction
+→ user-curated Canvas
+→ generated BriefVersion
+→ later Canvas updates
+→ updated BriefVersion + what changed
 ```
 
 ---
 
-# 19. Future Pipeline Additions
+# 16. Future Pipeline Additions
 
 Move these to later versions:
 
-- Watchlist event ingestion
-- Company timeline auto-refresh
-- Notification generation
-- Thesis support/weakening evaluation
-- Claim-level citation verification
-- Multi-agent research planner
-- Social sentiment extraction
-- Portfolio-aware implication layer
-- Browser research basket
-- Multi-source research project generation
-- Extension-based highlight-to-analyze
+```text
+ThreadSummary auto-promote
+ProjectMemory
+Proactive project suggestions
+Daily project briefs
+Monitoring and contradiction flagging
+Watchlist event ingestion
+Company timeline auto-refresh
+Claim-level citation verification
+Full multi-agent research planner
+Portfolio-aware implication layer
+Visual market map / mind map
+```
+
+---
+
+# 17. MVP Demo Target
+
+The first compelling AlphaBrief demo should show:
+
+```text
+1. Open Nvidia project.
+2. Ask a question and attach a source.
+3. Assistant replies.
+4. Candidate claims appear.
+5. User promotes and edits them.
+6. Canvas visibly fills up.
+7. User generates Brief v1.
+8. User adds more research.
+9. User generates Brief v2.
+10. AlphaBrief explains what changed.
+```
+
+That is the product. Not another chat history with a nicer suit.

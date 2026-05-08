@@ -4,7 +4,6 @@ import httpx
 from fastapi import Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.clients.ai_provider_client import AiProviderClient, MockAiProviderClient
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.security import verify_session_token
@@ -55,13 +54,8 @@ async def get_http_client():
         yield client
 
 
-def get_ai_provider() -> AiProviderClient:
-    return MockAiProviderClient()
-
-
 __all__ = [
     "DbSession",
-    "get_ai_provider",
     "get_db",
     "get_current_user",
     "get_http_client",

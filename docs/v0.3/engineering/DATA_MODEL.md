@@ -2,30 +2,30 @@
 
 ## Version
 
-`v0.3 First Milestone`
+`v0.3 First Milestone — Projects → Canvas → Versioned Briefs`
 
 ## Status
 
-This document defines the narrowed v0.3 data model for AlphaBrief as a **market learning and research workspace**.
-
-The earlier model treated **Brief** as the central artifact and included many advanced entities such as entitlement, promo-code, referral, export, citation, claim, and deep research infrastructure. That model remains useful as a long-term design sketch, but it is too broad for the first build.
-
-For v0.3, AlphaBrief has two primary output modes:
+This document replaces the earlier `ResearchItem`-first model with AlphaBrief's new workspace direction:
 
 ```text
-Ask Mode   → flexible finance/source analysis, similar to a ChatGPT-style answer but more market-aware
-Brief Mode → formal structured research artifact, such as a company brief or earnings breakdown
+Projects → Chats / Sources → Canvas → Versioned Briefs
 ```
 
-The central saved object is:
+AlphaBrief v0.3 is no longer only a saved research log with tags. It is a market research workspace where chats are exploratory tools inside projects, the Canvas is the curated research artifact, and Briefs are generated snapshots from the Canvas.
+
+The core product loop is:
 
 ```text
-ResearchItem
+Ask or submit source
+→ explore through a focused chat
+→ AI suggests useful claims/notes
+→ user promotes, edits, adds, and orders Canvas blocks
+→ generate a versioned research brief from selected Canvas content
+→ continue researching and generate updated versions later
 ```
 
-A `ResearchItem` can represent an Ask response, a formal Brief, a source analysis, a daily research summary, or a journal entry.
-
-This updated version also adds **Chrome Extension-ready source ingestion**. The extension is treated as a source access method, not as a separate product universe.
+The Canvas is the source of truth for brief generation. Raw chat transcripts are not the primary input for formal briefs.
 
 ---
 
@@ -36,88 +36,85 @@ This updated version also adds **Chrome Extension-ready source ingestion**. The 
 v0.3 should support:
 
 - User accounts
-- Ask Mode
-- Brief Mode
-- URL-based article source submission
-- YouTube URL source submission
-- PDF/file source upload
-- Chrome Extension-ready source ingestion architecture
+- Project workspaces
+- Auto-created Catchall project for low-friction asking
+- Focused chats inside projects
+- Chat turns with attached sources
+- URL, YouTube, PDF, and Chrome-extension-ready source ingestion
 - Source extraction status tracking
 - Metadata-only fallback for blocked/unavailable sources
-- Saved research log
-- Tags
-- Lightweight company references
-- Daily AI research summary
-- User-written market journal
-- Learning / research goals
-- Basic AI generation job tracking
-- Basic usage and cost tracking
+- Cheap source scan and segmentation for long/complex external sources
 - Quick / Standard / Deep research modes
-- Cheap pre-scan for all external sources
-- Source segmentation/chunk mapping for long or complex sources
 - Optimize Research adaptive section-depth control
-- Pre-analysis high-usage warning when estimated impact exceeds 50%
-- Analysis depth by section in final outputs
+- Canvas blocks as curated research units
+- Manual Canvas block creation
+- Promote chat turns to Canvas
+- Promote source-derived notes/quotes to Canvas
+- AI-suggested candidate Canvas blocks after assistant replies
+- User editing, archiving, deleting, and reordering Canvas blocks
+- Brief generation from Canvas, not raw chat history
+- Brief version history and “what changed since last version” summary
+- Tags and lightweight company references
+- Research activity tracking
+- Basic usage/cost tracking
+- Compliance-safe language: educational/informational, not personalized investment advice
 
 ## 1.2 Near-Roadmap / Extension-Ready Scope
 
-The Chrome browser extension should be represented in v0.3 architecture and data model, but the actual extension UI can be built as a near-roadmap feature if needed.
+The Chrome extension should remain represented in v0.3 architecture and data model, but the extension client can ship after the web workspace is stable.
 
 Recommended framing:
 
 ```text
 v0.3 backend should be extension-compatible.
-The Chrome extension client can be built after the core source ingestion pipeline works.
+The Chrome extension client can be built after source ingestion + chat attachment works.
 ```
 
 ## 1.3 Out of Scope for v0.3
 
-The following should be moved to future versions:
+Move these to later versions:
 
-- Full company library with live event tracking
+- Full autonomous multi-agent research planner
+- Project memory beyond explicit Canvas context
+- Proactive monitoring
 - Watchlist alerts
-- Auto-generated company event impact notes
 - Push/email notifications
-- Paid subscriptions and billing
-- Promo codes
-- Referral rewards
-- Public sharing
-- PDF/DOCX exports
 - Portfolio-aware analysis
 - Broker/trading integrations
-- Full thesis tracking system
+- Paid subscriptions and billing
+- Promo codes/referrals
+- Public sharing
+- PDF/DOCX exports
 - Full claim/citation verification tables
-- Full research channel registry
-- Social sentiment ingestion
-- Admin console
+- Cross-project Canvas block reuse
+- Full visual mind map / market graph
+- Collaboration / team workspaces
 - Broad web crawling
 - Paywall/login/CAPTCHA bypass
 - Permanent storage of full copyrighted article text by default
-
-These are good ideas. They are simply not v0.3. Shocking restraint, I know.
 
 ---
 
 # 2. Core Design Principles
 
-1. `ResearchItem` is the central saved artifact.
-2. `Brief` is a formal subtype of `ResearchItem`, not the only output type.
-3. `Source` represents user-submitted or user-authorized material such as URL, PDF, YouTube URL, or browser-extension page capture.
-4. Direct user questions should not be stored as sources.
-5. Do not expose a primary "paste entire article" workflow in v0.3. If source text is manually provided later, it should be an advanced fallback, not the main UX.
-6. Use JSONB for flexible AI output sections in v0.3.
-7. Normalize only the relationships that matter for retrieval and organization: sources, tags, companies.
-8. Keep the daily summary and journal separate.
-9. Track meaningful user activity so daily summaries can be generated from structured events, not from a giant cursed chat transcript.
-10. Keep compliance-safe language: educational and informational, not personalized financial advice.
-11. Store AI cost/usage data from the beginning, but keep billing out of v0.3.
-12. Track how each source was accessed: server fetch, browser extension, API context, upload, or YouTube metadata/transcript path.
-13. Store generated analysis and source metadata by default; avoid permanent raw full-text storage unless there is a clear retention policy.
-14. Every external source should support cheap pre-scan, segmentation/chunk mapping, source complexity estimation, and research-depth control.
-15. Research depth should be segment-aware: requested mode and actual mode may differ when Optimize Research is enabled or when allowance risk requires user-approved downgrade.
-16. Warn users before generation when a single run is estimated to consume more than 50% of the active single-run budget threshold, or more than 50% of the user's available allowance once persistent allowance is enabled.
-17. Final outputs for segmented sources should show analysis depth by section.
-18. For the first implementation slice, a config-based single-run budget threshold is acceptable. Persistent user allowance/cooldown can be introduced later when billing/plan rules are clearer.
+1. `Project` is the top-level organizing container.
+2. `Chat` is an exploration session inside a project, not the primary organizing unit.
+3. `Source` stores user-submitted or user-authorized source material and metadata.
+4. `CanvasBlock` is the atomic curated research unit.
+5. `CanvasBlock` must be editable by the user. If the Canvas is only an extraction bucket, it does not justify existing.
+6. `Brief` is a logical brief series inside a project.
+7. `BriefVersion` is a point-in-time snapshot generated from a Canvas snapshot.
+8. Formal briefs should be generated from selected/current Canvas blocks, not raw chat turns.
+9. Direct user questions belong in chat turns, not sources.
+10. Long/complex sources should be scanned, segmented, and analyzed with depth controls.
+11. The Catchall project exists to remove friction, but the product should nudge users toward real projects when research starts accumulating.
+12. The product should preserve provenance from Canvas blocks back to chat turns and/or sources.
+13. Use JSONB for flexible AI output sections in v0.3.
+14. Keep compliance-safe language: educational and informational, not personalized financial advice.
+15. Store AI usage/cost data from the beginning, but keep billing out of v0.3.
+16. Store generated analysis and source metadata by default; avoid permanent raw full-text storage without a retention policy.
+17. Final segmented-source outputs should show analysis depth by section.
+18. Project memory should be explicit and controlled. Bad hidden memory is worse than no memory.
 
 ---
 
@@ -125,38 +122,40 @@ These are good ideas. They are simply not v0.3. Shocking restraint, I know.
 
 ```text
 User
- ├── ResearchItem
- │    ├── Brief optional
- │    ├── ResearchItemSource
- │    │    └── Source
- │    ├── ResearchItemTag
- │    │    └── Tag
- │    └── ResearchItemCompany
- │         └── Company
+ ├── Project
+ │    ├── Chat
+ │    │    ├── ChatTurn
+ │    │    └── ChatTurnSource
+ │    │         └── Source
+ │    ├── CanvasBlock
+ │    │    ├── provenance_chat_turn optional
+ │    │    └── provenance_source optional
+ │    ├── CandidateBlock
+ │    ├── Brief
+ │    │    └── BriefVersion
+ │    │         └── CanvasSnapshot
+ │    ├── ProjectTag optional
+ │    └── ProjectCompany optional
  │
  ├── Source
- ├── ResearchActivity
- ├── DailyResearchSummary
- ├── JournalEntry
- ├── LearningGoal
- ├── Tag
- ├── Company optional lightweight reference
- ├── GenerationJob
  ├── SourceScan
  ├── SourceSegment
- ├── AnalysisRun
- ├── AnalysisSegment
- ├── UserResearchAllowance optional future layer
+ ├── Tag
+ ├── Company
+ ├── ResearchActivity
+ ├── DailyResearchSummary optional later in v0.3
+ ├── JournalEntry optional later in v0.3
+ ├── LearningGoal optional later in v0.3
  └── UsageEvent
 ```
+
+`ResearchItem` can be deprecated for the new build or kept only as a backward-compatibility/search-log wrapper. For a clean v0.3 workspace build, prefer explicit domain objects: `Project`, `Chat`, `CanvasBlock`, `Brief`, and `BriefVersion`.
 
 ---
 
 # 4. Tables
 
 ## 4.1 `users`
-
-Represents a registered user.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -165,116 +164,146 @@ Represents a registered user.
 | password_hash | VARCHAR(255) | Required unless OAuth-only later |
 | display_name | VARCHAR(120) | Optional |
 | role | VARCHAR(50) | USER, ADMIN |
-| default_output_mode | VARCHAR(50) | ASK or BRIEF, default ASK |
-| default_research_scope | VARCHAR(50) | USER_PROVIDED_ONLY or RECOMMENDED_CONTEXT |
+| default_research_scope | VARCHAR(50) | USER_PROVIDED_ONLY, RECOMMENDED_CONTEXT |
 | default_research_mode | VARCHAR(50) | QUICK, STANDARD, DEEP; default STANDARD |
 | optimize_research_default | BOOLEAN | Default true for long/complex sources |
-| created_at | TIMESTAMP | Required |
-| updated_at | TIMESTAMP | Required |
-
-### Values
-
-```text
-role: USER, ADMIN
-default_output_mode: ASK, BRIEF
-default_research_scope: USER_PROVIDED_ONLY, RECOMMENDED_CONTEXT
-default_research_mode: QUICK, STANDARD, DEEP
-```
+| created_at | TIMESTAMPTZ | Required |
+| updated_at | TIMESTAMPTZ | Required |
 
 ---
 
-## 4.2 `research_items`
+## 4.2 `projects`
 
-Central saved artifact for AlphaBrief.
+Top-level workspace container.
 
 | Field | Type | Notes |
 |---|---|---|
 | id | UUID | Primary key |
-| user_id | UUID | FK to users |
-| item_type | VARCHAR(50) | ASK_ANALYSIS, BRIEF, SOURCE_ANALYSIS, DAILY_SUMMARY, JOURNAL_ENTRY |
-| title | TEXT | Display title |
-| status | VARCHAR(50) | DRAFT, QUEUED, PROCESSING, COMPLETED, FAILED, ARCHIVED |
-| original_user_input | TEXT | User question or instruction |
-| output_markdown | TEXT | Renderable output |
-| output_json | JSONB | Structured AI output |
-| short_summary | TEXT | One-paragraph summary for list views |
-| confidence_label | VARCHAR(50) | HIGH, MEDIUM, LOW, UNKNOWN |
-| confidence_explanation | TEXT | Nullable |
-| analysis_mode | VARCHAR(50) | SOURCE_BRIEF, CONTEXT_BRIEF, NOT_APPLICABLE |
-| disclaimer | TEXT | Required for AI-generated research |
-| model_provider | VARCHAR(100) | Nullable |
-| model_name | VARCHAR(100) | Nullable |
-| prompt_version | VARCHAR(50) | Nullable |
-| requested_research_mode | VARCHAR(50) | QUICK, STANDARD, DEEP; nullable for non-AI journal rows |
-| completion_strategy | VARCHAR(50) | STRICT_REQUESTED_MODE, OPTIMIZE_RESEARCH; nullable |
-| coverage_mode | VARCHAR(50) | FULL_SOURCE, SELECTED_TOPICS, SELECTED_ENTITIES, CUSTOM_QUESTION; nullable |
-| analysis_depth_summary | JSONB | Section-level depth summary for segmented outputs |
-| generated_at | TIMESTAMP | Nullable |
-| created_at | TIMESTAMP | Required |
-| updated_at | TIMESTAMP | Required |
+| user_id | UUID | FK to users, indexed |
+| kind | VARCHAR(32) | CATCHALL, COVERAGE, THESIS, EVENT, THEME, DECISION |
+| title | TEXT | Required |
+| description | TEXT | Nullable |
+| archived_at | TIMESTAMPTZ | Nullable |
+| metadata | JSONB | Default `{}` |
+| created_at | TIMESTAMPTZ | Required |
+| updated_at | TIMESTAMPTZ | Required |
 
 ### Values
 
 ```text
-item_type:
-ASK_ANALYSIS
-BRIEF
-SOURCE_ANALYSIS
-DAILY_SUMMARY
-JOURNAL_ENTRY
-
-status:
-DRAFT
-QUEUED
-PROCESSING
-COMPLETED
-FAILED
-ARCHIVED
-
-analysis_mode:
-SOURCE_BRIEF       # Full source text/transcript was available
-CONTEXT_BRIEF      # Full source unavailable; analysis uses metadata + public/market context
-NOT_APPLICABLE     # No external source was used, such as a direct user question or journal row
+CATCHALL  # auto-created default workspace for unsorted chats
+COVERAGE  # tracking a company/sector
+THESIS    # building an investment view
+EVENT     # earnings season, Fed meeting, product launch, regulation
+THEME     # cross-cutting topic such as AI capex, GLP-1s, tariffs
+DECISION  # specific buy/sell/hold or compare decision research
 ```
 
-### Notes
+### Constraints
 
-Use `research_items` for the research log and saved history. Do not create separate list pages for every output type unless the frontend needs a specialized view.
+```sql
+CREATE UNIQUE INDEX uq_projects_one_catchall_per_user
+ON projects(user_id)
+WHERE kind = 'CATCHALL';
+```
+
+### Catchall behavior
+
+The Catchall keeps asking friction near zero. However, AlphaBrief should make real projects visibly more valuable.
+
+Recommended rule:
+
+```text
+Catchall supports chats and temporary capture.
+Real project Canvas + BriefVersion workflows should be strongly encouraged for ongoing research.
+```
+
+A strict version may block formal brief generation from Catchall. A softer version may allow it but show a prompt:
+
+```text
+This looks like ongoing research. Create a project so future chats, Canvas blocks, and brief versions stay together.
+```
 
 ---
 
-## 4.3 `briefs`
+## 4.3 `chats`
 
-Formal structured research artifact generated when the user chooses Brief Mode.
+Focused exploration sessions inside a project.
 
 | Field | Type | Notes |
 |---|---|---|
 | id | UUID | Primary key |
-| research_item_id | UUID | Unique FK to research_items |
-| brief_type | VARCHAR(50) | COMPANY_RESEARCH, EARNINGS_BREAKDOWN, SOURCE_SUMMARY, MARKET_EVENT_EXPLAINER |
-| subject | TEXT | Company/topic/event/source being analyzed |
-| ticker | VARCHAR(20) | Nullable |
-| structure_version | VARCHAR(50) | Example: company_brief_v1 |
-| sections | JSONB | Structured formal sections |
-| created_at | TIMESTAMP | Required |
-| updated_at | TIMESTAMP | Required |
+| project_id | UUID | FK to projects ON DELETE CASCADE, indexed |
+| user_id | UUID | FK to users, denormalized for fast owner checks |
+| title | TEXT | Default `New chat` |
+| status | VARCHAR(32) | ACTIVE, ARCHIVED |
+| last_turn_at | TIMESTAMPTZ | Nullable |
+| metadata | JSONB | Default `{}` |
+| created_at | TIMESTAMPTZ | Required |
+| updated_at | TIMESTAMPTZ | Required |
 
-### v0.3 brief types
+### Indexes
 
-```text
-COMPANY_RESEARCH
-EARNINGS_BREAKDOWN
-SOURCE_SUMMARY
-MARKET_EVENT_EXPLAINER
+```sql
+CREATE INDEX idx_chats_project_order
+ON chats(project_id, last_turn_at DESC NULLS LAST, created_at DESC);
 ```
-
-### Notes
-
-Only create a `briefs` row when the output is a formal structured brief. Ask Mode responses should usually stay as `research_items` without a `briefs` row.
 
 ---
 
-## 4.4 `sources`
+## 4.4 `chat_turns`
+
+Individual user/assistant turns.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| chat_id | UUID | FK to chats ON DELETE CASCADE, indexed |
+| user_id | UUID | FK to users, denormalized |
+| turn_index | INT | 0-based ordering within chat |
+| role | VARCHAR(16) | USER, ASSISTANT |
+| status | VARCHAR(16) | QUEUED, RUNNING, COMPLETED, FAILED |
+| content_markdown | TEXT | User text or assistant response |
+| content_json | JSONB | Structured assistant output |
+| error_code | VARCHAR(64) | Nullable |
+| error_message | TEXT | Nullable |
+| input_tokens | INT | Nullable |
+| output_tokens | INT | Nullable |
+| cache_read_tokens | INT | Nullable |
+| cache_write_tokens | INT | Nullable |
+| model_provider | VARCHAR(64) | mock, anthropic, openai, etc. |
+| model_name | VARCHAR(128) | Nullable |
+| created_at | TIMESTAMPTZ | Required |
+| updated_at | TIMESTAMPTZ | Required |
+
+### Constraints
+
+```sql
+UNIQUE (chat_id, turn_index)
+```
+
+---
+
+## 4.5 `chat_turn_sources`
+
+Many-to-many join between chat turns and sources.
+
+| Field | Type | Notes |
+|---|---|---|
+| chat_turn_id | UUID | FK to chat_turns ON DELETE CASCADE |
+| source_id | UUID | FK to sources ON DELETE CASCADE |
+
+Primary key:
+
+```sql
+PRIMARY KEY (chat_turn_id, source_id)
+```
+
+User turns reference attached sources. Assistant turns should reference the same viewed sources, plus any later retrieved context sources if implemented.
+
+---
+
+## 4.6 `sources`
 
 Represents source material provided or authorized by the user.
 
@@ -285,7 +314,7 @@ Represents source material provided or authorized by the user.
 | source_type | VARCHAR(50) | ARTICLE_URL, YOUTUBE_URL, PDF_FILE, BROWSER_PAGE |
 | source_access_method | VARCHAR(50) | SERVER_FETCH, BROWSER_EXTENSION, API_CONTEXT, UPLOAD, YOUTUBE_METADATA, YOUTUBE_TRANSCRIPT |
 | source_access_status | VARCHAR(50) | PENDING, FULL_TEXT_EXTRACTED, METADATA_ONLY, BLOCKED, FAILED |
-| original_input | TEXT | URL, file reference, or browser page URL |
+| original_input | TEXT | URL, file ref, or browser page URL |
 | normalized_url | TEXT | Nullable canonical URL |
 | file_key | TEXT | Nullable storage key |
 | file_name | TEXT | Nullable |
@@ -294,714 +323,434 @@ Represents source material provided or authorized by the user.
 | title | TEXT | Nullable |
 | publisher | TEXT | Nullable |
 | author | TEXT | Nullable |
-| published_at | TIMESTAMP | Nullable |
+| published_at | TIMESTAMPTZ | Nullable |
 | extracted_text | TEXT | Nullable; preferably temporary or limited retention |
 | extracted_text_word_count | INTEGER | Nullable |
 | extraction_confidence | VARCHAR(50) | HIGH, MEDIUM, LOW, UNKNOWN |
 | extraction_error | TEXT | Nullable |
 | raw_text_retention | VARCHAR(50) | EPHEMERAL, TEMPORARY_24H, NOT_STORED |
 | content_hash | VARCHAR(255) | Optional deduplication |
-| metadata | JSONB | OpenGraph, JSON-LD, YouTube metadata, DOM extraction metadata, etc. |
+| metadata | JSONB | OpenGraph, JSON-LD, YouTube metadata, extraction metadata |
 | source_complexity | VARCHAR(50) | LOW, MEDIUM, HIGH, VERY_HIGH; nullable until scanned |
 | segment_count | INTEGER | Nullable |
 | scan_status | VARCHAR(50) | NOT_SCANNED, SCANNED, SCAN_FAILED |
-| created_at | TIMESTAMP | Required |
-| updated_at | TIMESTAMP | Required |
+| created_at | TIMESTAMPTZ | Required |
+| updated_at | TIMESTAMPTZ | Required |
 
-### Values
-
-```text
-source_type:
-ARTICLE_URL
-YOUTUBE_URL
-PDF_FILE
-BROWSER_PAGE
-
-source_access_method:
-SERVER_FETCH         # Backend attempts safe public URL extraction
-BROWSER_EXTENSION    # User clicked extension on a page they were viewing
-API_CONTEXT          # Market/news/filing API fallback context
-UPLOAD               # User uploaded a file, usually PDF
-YOUTUBE_METADATA     # Title, description, channel, public metadata only
-YOUTUBE_TRANSCRIPT   # Transcript/captions available through an allowed path
-
-source_access_status:
-PENDING
-FULL_TEXT_EXTRACTED
-METADATA_ONLY
-BLOCKED
-FAILED
-
-raw_text_retention:
-EPHEMERAL       # Used in memory only during generation
-TEMPORARY_24H   # Kept briefly for debugging/retry, then deleted
-NOT_STORED      # Only metadata and generated output stored
-```
-
-### Retention Defaults
+### Retention defaults
 
 ```text
-ARTICLE_URL      → NOT_STORED by default after generation unless the user explicitly saves extracted text
-BROWSER_PAGE     → TEMPORARY_24H by default, then purge extracted_text
-PDF_FILE         → TEMPORARY_24H for extracted text; original file retention follows upload policy
-YOUTUBE_TRANSCRIPT → EPHEMERAL by default unless transcript retention is explicitly enabled later
+ARTICLE_URL          → NOT_STORED after generation unless user explicitly saves text
+BROWSER_PAGE         → TEMPORARY_24H by default, then purge extracted_text
+PDF_FILE             → TEMPORARY_24H for extracted text; original file follows upload policy
+YOUTUBE_TRANSCRIPT   → EPHEMERAL unless transcript retention is explicitly enabled later
 ```
 
-A scheduled purge job must remove expired `sources.extracted_text` for `TEMPORARY_24H` rows. Without the purge job, the retention enum is decorative, which is exactly as useful as a fire alarm sticker.
-
-### Notes
-
-Direct questions belong in `research_items.original_user_input`, not in `sources`.
-
-`BROWSER_PAGE` is for Chrome extension ingestion. It represents a page the user explicitly chose to analyze from their browser. It should not imply broad crawling, background browsing, or bypassing access controls.
-
-`PASTED_TEXT` is intentionally not a primary v0.3 source type. The user-facing product should avoid asking users to paste entire articles. If manual source text is added later, use a separate advanced flow and retention policy.
+A scheduled purge job must remove expired `sources.extracted_text` for `TEMPORARY_24H` rows. Otherwise the retention enum is decoration wearing a lab coat.
 
 ---
 
-## 4.5 `research_item_sources`
+## 4.7 `source_scans`
 
-Many-to-many join between saved research outputs and sources.
+Cheap pre-analysis scan result for external sources.
 
 | Field | Type | Notes |
 |---|---|---|
 | id | UUID | Primary key |
-| research_item_id | UUID | FK to research_items |
-| source_id | UUID | FK to sources |
-| role | VARCHAR(50) | PRIMARY_INPUT, SUPPORTING_CONTEXT, API_ENRICHMENT |
-| created_at | TIMESTAMP | Required |
+| source_id | UUID | FK to sources ON DELETE CASCADE |
+| user_id | UUID | FK to users |
+| status | VARCHAR(50) | COMPLETED, FAILED |
+| detected_document_subtype | VARCHAR(80) | COMPANY_PAGE, EARNINGS_REPORT, FINANCE_NEWS_ARTICLE, etc. |
+| detected_entities | JSONB | Companies, tickers, themes, macro factors |
+| estimated_source_complexity | VARCHAR(50) | LOW, MEDIUM, HIGH, VERY_HIGH |
+| estimated_allowance_impact_percent | INTEGER | Nullable |
+| estimate_confidence | VARCHAR(50) | HIGH, MEDIUM, LOW |
+| requires_pre_analysis_warning | BOOLEAN | Default false |
+| recommended_research_mode | VARCHAR(50) | QUICK, STANDARD, DEEP |
+| recommended_completion_strategy | VARCHAR(50) | STRICT_REQUESTED_MODE, OPTIMIZE_RESEARCH |
+| summary_json | JSONB | Scan-level summary |
+| created_at | TIMESTAMPTZ | Required |
 
 ---
 
-## 4.6 `tags`
+## 4.8 `source_segments`
 
-User-owned tags for organization.
+Chunk map for long or complex sources.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| source_id | UUID | FK to sources ON DELETE CASCADE |
+| source_scan_id | UUID | FK to source_scans nullable |
+| segment_index | INT | Required |
+| title | TEXT | Nullable |
+| text_excerpt | TEXT | Optional excerpt; avoid long raw storage |
+| start_offset | INT | Nullable |
+| end_offset | INT | Nullable |
+| start_timestamp_seconds | INT | Nullable for video |
+| end_timestamp_seconds | INT | Nullable for video |
+| detected_entities | JSONB | Nullable |
+| topic_tags | JSONB | Nullable |
+| estimated_complexity | VARCHAR(50) | LOW, MEDIUM, HIGH, VERY_HIGH |
+| relevance_score | NUMERIC | Nullable |
+| requested_research_mode | VARCHAR(50) | Nullable |
+| actual_research_mode | VARCHAR(50) | Nullable |
+| created_at | TIMESTAMPTZ | Required |
+
+---
+
+## 4.9 `canvas_blocks`
+
+Curated, ordered research blocks inside a project. This is the working research artifact.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| project_id | UUID | FK to projects ON DELETE CASCADE, indexed |
+| user_id | UUID | FK to users, denormalized |
+| block_type | VARCHAR(32) | CLAIM, QUOTE, NOTE, SUMMARY, RISK, QUESTION, METRIC, BULL_CASE, BEAR_CASE |
+| content_markdown | TEXT | Required, user-editable |
+| content_json | JSONB | Default `{}`; structured fields per block type |
+| position_index | NUMERIC(20,10) | Fractional ordering |
+| provenance_kind | VARCHAR(32) | CHAT_TURN, SOURCE, MANUAL, CANDIDATE |
+| provenance_chat_turn_id | UUID | FK to chat_turns ON DELETE SET NULL, nullable |
+| provenance_source_id | UUID | FK to sources ON DELETE SET NULL, nullable |
+| title | TEXT | Optional short label |
+| confidence_label | VARCHAR(50) | HIGH, MEDIUM, LOW, UNKNOWN; optional |
+| archived_at | TIMESTAMPTZ | Nullable |
+| created_at | TIMESTAMPTZ | Required |
+| updated_at | TIMESTAMPTZ | Required |
+
+### Values
+
+```text
+CLAIM      # assertion or interpretation
+QUOTE      # source quote; keep short and policy-safe
+NOTE       # user free-form note
+SUMMARY    # condensed summary block
+RISK       # risk/uncertainty
+QUESTION   # open research question
+METRIC     # financial/market metric note
+BULL_CASE  # positive thesis point
+BEAR_CASE  # negative thesis point
+```
+
+### Position model
+
+Use fractional indices:
+
+```text
+Append: max(position_index) + 1.0
+Insert between A and B: (A.position_index + B.position_index) / 2
+```
+
+If adjacent positions become too close, rebalance all active blocks to integer spacing. Keep rebalancing internal to the service.
+
+---
+
+## 4.10 `candidate_blocks`
+
+AI-suggested Canvas blocks generated from assistant turns. Users promote or dismiss them.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| chat_turn_id | UUID | FK to chat_turns ON DELETE CASCADE |
+| project_id | UUID | FK to projects ON DELETE CASCADE |
+| user_id | UUID | FK to users, denormalized |
+| block_type | VARCHAR(32) | CanvasBlockType |
+| title | TEXT | Nullable |
+| content_markdown | TEXT | Required |
+| status | VARCHAR(16) | PENDING, PROMOTED, DISMISSED |
+| promoted_block_id | UUID | FK to canvas_blocks ON DELETE SET NULL |
+| extraction_model_name | VARCHAR(128) | Nullable |
+| created_at | TIMESTAMPTZ | Required |
+| updated_at | TIMESTAMPTZ | Required |
+
+Candidate extraction should never block the main assistant answer.
+
+---
+
+## 4.11 `briefs`
+
+Logical brief series inside a project.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| project_id | UUID | FK to projects ON DELETE CASCADE |
+| user_id | UUID | FK to users |
+| title | TEXT | Required |
+| brief_type | VARCHAR(50) | COMPANY_RESEARCH, EARNINGS_BREAKDOWN, SOURCE_SUMMARY, MARKET_EVENT_EXPLAINER, THESIS_MEMO |
+| subject | TEXT | Company/topic/event |
+| ticker | VARCHAR(20) | Nullable |
+| current_version_id | UUID | Nullable FK to brief_versions |
+| status | VARCHAR(32) | ACTIVE, ARCHIVED |
+| metadata | JSONB | Default `{}` |
+| created_at | TIMESTAMPTZ | Required |
+| updated_at | TIMESTAMPTZ | Required |
+
+---
+
+## 4.12 `canvas_snapshots`
+
+Point-in-time record of Canvas blocks used for a brief version.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| project_id | UUID | FK to projects |
+| user_id | UUID | FK to users |
+| selected_block_ids | UUID[] | Blocks included in generation |
+| selected_source_ids | UUID[] | Optional source list inferred from blocks |
+| canvas_hash | VARCHAR(255) | For staleness detection |
+| snapshot_json | JSONB | Ordered block contents at generation time |
+| created_at | TIMESTAMPTZ | Required |
+
+---
+
+## 4.13 `brief_versions`
+
+Generated point-in-time document from a Canvas snapshot.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| brief_id | UUID | FK to briefs ON DELETE CASCADE |
+| project_id | UUID | FK to projects |
+| user_id | UUID | FK to users |
+| version_number | INT | Starts at 1 |
+| canvas_snapshot_id | UUID | FK to canvas_snapshots |
+| status | VARCHAR(32) | QUEUED, PROCESSING, COMPLETED, FAILED, ARCHIVED |
+| content_markdown | TEXT | Generated brief text |
+| sections | JSONB | Structured brief sections |
+| summary_of_changes | TEXT | Diff vs previous version when available |
+| generated_from_block_count | INT | Convenience field |
+| model_provider | VARCHAR(100) | Nullable |
+| model_name | VARCHAR(100) | Nullable |
+| prompt_version | VARCHAR(50) | Nullable |
+| disclaimer | TEXT | Required |
+| created_at | TIMESTAMPTZ | Required |
+| updated_at | TIMESTAMPTZ | Required |
+
+### Brief meaning
+
+A brief is not final truth. It is a generated snapshot from the state of the Canvas.
+
+```text
+Canvas = living research base
+BriefVersion = point-in-time output
+```
+
+---
+
+## 4.14 `tags` and project/block tagging
+
+Keep tags as secondary organization.
 
 | Field | Type | Notes |
 |---|---|---|
 | id | UUID | Primary key |
 | user_id | UUID | FK to users |
 | name | VARCHAR(80) | Required |
-| color | VARCHAR(30) | Nullable frontend hint |
-| created_at | TIMESTAMP | Required |
-| updated_at | TIMESTAMP | Required |
+| color | VARCHAR(30) | Optional frontend hint |
+| created_at | TIMESTAMPTZ | Required |
+| updated_at | TIMESTAMPTZ | Required |
 
-### Constraint
+Constraint:
 
 ```sql
 UNIQUE (user_id, name)
 ```
 
+Recommended joins:
+
+```text
+project_tags(project_id, tag_id)
+canvas_block_tags(canvas_block_id, tag_id) optional later
+brief_tags(brief_id, tag_id) optional later
+```
+
+For v0.3, project-level tags may be enough.
+
 ---
 
-## 4.7 `research_item_tags`
+## 4.15 `companies` and project/company references
 
-Many-to-many join between research items and tags.
+Lightweight company reference table.
 
 | Field | Type | Notes |
 |---|---|---|
 | id | UUID | Primary key |
-| research_item_id | UUID | FK to research_items |
-| tag_id | UUID | FK to tags |
-| created_at | TIMESTAMP | Required |
-
----
-
-## 4.8 `companies`
-
-Lightweight company reference table for v0.3.
-
-| Field | Type | Notes |
-|---|---|---|
-| id | UUID | Primary key |
-| ticker | VARCHAR(20) | Nullable but preferred for public companies |
+| ticker | VARCHAR(20) | Nullable but preferred |
 | name | VARCHAR(255) | Required |
 | exchange | VARCHAR(50) | Nullable |
 | sector | VARCHAR(120) | Nullable |
 | industry | VARCHAR(150) | Nullable |
-| country | VARCHAR(100) | Nullable |
-| description | TEXT | Nullable |
-| created_at | TIMESTAMP | Required |
-| updated_at | TIMESTAMP | Required |
+| country | VARCHAR(80) | Nullable |
+| metadata | JSONB | Optional |
+| created_at | TIMESTAMPTZ | Required |
+| updated_at | TIMESTAMPTZ | Required |
 
-### Notes
-
-This is not the full Company Library yet. For v0.3, it exists only to support filtering, tagging, and future expansion.
-
----
-
-## 4.9 `research_item_companies`
-
-Many-to-many join between research outputs and companies.
-
-| Field | Type | Notes |
-|---|---|---|
-| id | UUID | Primary key |
-| research_item_id | UUID | FK to research_items |
-| company_id | UUID | FK to companies |
-| relevance | VARCHAR(50) | PRIMARY, MENTIONED, AFFECTED |
-| created_at | TIMESTAMP | Required |
-
----
-
-## 4.10 `research_activities`
-
-Tracks meaningful user/product activity for daily summaries.
-
-| Field | Type | Notes |
-|---|---|---|
-| id | UUID | Primary key |
-| user_id | UUID | FK to users |
-| activity_type | VARCHAR(50) | ASKED_QUESTION, ANALYZED_SOURCE, GENERATED_BRIEF, SAVED_RESEARCH, CREATED_JOURNAL_ENTRY, CREATED_GOAL, GENERATED_DAILY_SUMMARY, ANALYZED_BROWSER_PAGE |
-| title | TEXT | Short human-readable title |
-| description | TEXT | Nullable |
-| related_research_item_id | UUID | Nullable FK |
-| related_source_id | UUID | Nullable FK |
-| activity_metadata | JSONB | Optional structured context |
-| created_at | TIMESTAMP | Required |
-
-### Notes
-
-Daily summaries should be generated from `research_activities`, `research_items`, tags, sources, and linked companies.
-
----
-
-## 4.11 `daily_research_summaries`
-
-AI-generated summary of what a user researched on a given day.
-
-| Field | Type | Notes |
-|---|---|---|
-| id | UUID | Primary key |
-| user_id | UUID | FK to users |
-| research_item_id | UUID | Nullable FK to research_items if saved as item |
-| summary_date | DATE | Required |
-| title | TEXT | Required |
-| topics_covered | JSONB | Array |
-| companies_mentioned | JSONB | Array |
-| sources_analyzed | JSONB | Array |
-| key_insights | JSONB | Array |
-| open_questions | JSONB | Array |
-| suggested_followups | JSONB | Array |
-| summary_markdown | TEXT | Renderable summary |
-| generated_at | TIMESTAMP | Required |
-| created_at | TIMESTAMP | Required |
-| updated_at | TIMESTAMP | Required |
-
-### Constraint
-
-```sql
-UNIQUE (user_id, summary_date)
-```
-
----
-
-## 4.12 `journal_entries`
-
-User-written market learning / reflection journal entries.
-
-| Field | Type | Notes |
-|---|---|---|
-| id | UUID | Primary key |
-| user_id | UUID | FK to users |
-| research_item_id | UUID | Nullable FK if saved in research log |
-| linked_daily_summary_id | UUID | Nullable FK to daily_research_summaries |
-| entry_date | DATE | Required |
-| entry_type | VARCHAR(50) | LEARNING_REFLECTION, MARKET_REFLECTION |
-| title | TEXT | Required |
-| body | TEXT | User-written body |
-| ai_assisted | BOOLEAN | Default false |
-| reflection_prompts | JSONB | Optional prompts shown to user |
-| created_at | TIMESTAMP | Required |
-| updated_at | TIMESTAMP | Required |
-
-### v0.3 entry types
+Joins:
 
 ```text
-LEARNING_REFLECTION
-MARKET_REFLECTION
+project_companies(project_id, company_id)
+source_companies(source_id, company_id) optional later
+canvas_block_companies(canvas_block_id, company_id) optional later
 ```
 
-### Future entry types
+---
+
+## 4.16 `research_activities`
+
+Structured activity events for daily summaries and future engagement loops.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| user_id | UUID | FK to users |
+| project_id | UUID | FK to projects nullable |
+| activity_type | VARCHAR(50) | See values below |
+| entity_id | UUID | Nullable |
+| entity_type | VARCHAR(50) | PROJECT, CHAT, CHAT_TURN, SOURCE, CANVAS_BLOCK, BRIEF_VERSION |
+| metadata | JSONB | Default `{}` |
+| created_at | TIMESTAMPTZ | Required |
+
+Values:
 
 ```text
-TRADE_REFLECTION
-THESIS_UPDATE
+CREATED_PROJECT
+ASKED_QUESTION
+ATTACHED_SOURCE
+ANALYZED_SOURCE
+GENERATED_CHAT_REPLY
+PROMOTED_TO_CANVAS
+CREATED_CANVAS_BLOCK
+UPDATED_CANVAS_BLOCK
+GENERATED_BRIEF_VERSION
+CREATED_JOURNAL_ENTRY
+GENERATED_DAILY_SUMMARY
 ```
 
 ---
 
-## 4.13 `learning_goals`
+## 4.17 `usage_events`
 
-User-defined research or learning goals.
-
-| Field | Type | Notes |
-|---|---|---|
-| id | UUID | Primary key |
-| user_id | UUID | FK to users |
-| title | TEXT | Required |
-| description | TEXT | Nullable |
-| goal_type | VARCHAR(50) | LEARN_TOPIC, RESEARCH_COMPANY, FOLLOW_MARKET, BUILD_THESIS |
-| status | VARCHAR(50) | ACTIVE, COMPLETED, PAUSED, ARCHIVED |
-| target_date | DATE | Nullable |
-| progress_notes | TEXT | Nullable |
-| created_at | TIMESTAMP | Required |
-| updated_at | TIMESTAMP | Required |
-
----
-
-## 4.14 `generation_jobs`
-
-Tracks AI generation for Ask Mode, Brief Mode, daily summaries, reflection assistance, and optional adaptive-research background jobs.
-
-Implementation note: the first Source Analysis MVP may use `analysis_runs` as the progress tracker and defer `generation_jobs`. If `generation_jobs` is implemented early, include adaptive job types so scans and segment analysis are not invisible.
+Basic AI usage/cost tracking.
 
 | Field | Type | Notes |
 |---|---|---|
 | id | UUID | Primary key |
 | user_id | UUID | FK to users |
-| research_item_id | UUID | Nullable FK |
-| job_type | VARCHAR(50) | ASK_ANALYSIS, BRIEF_GENERATION, DAILY_SUMMARY, REFLECTION_ASSIST, SOURCE_EXTRACTION, SOURCE_SCAN, SEGMENT_ANALYSIS, ANALYSIS_RERUN |
-| status | VARCHAR(50) | QUEUED, RUNNING, COMPLETED, FAILED, CANCELLED |
-| current_step | VARCHAR(80) | Nullable |
-| retry_count | INTEGER | Default 0 |
-| error_code | VARCHAR(100) | Nullable |
-| error_message | TEXT | Nullable |
-| started_at | TIMESTAMP | Nullable |
-| completed_at | TIMESTAMP | Nullable |
-| created_at | TIMESTAMP | Required |
-| updated_at | TIMESTAMP | Required |
-
----
-
-
-
-## 4.15 `source_scans`
-
-Stores cheap pre-analysis scan results for external sources.
-
-| Field | Type | Notes |
-|---|---|---|
-| id | UUID | Primary key |
-| user_id | UUID | FK to users |
-| source_id | UUID | FK to sources |
-| requested_output_mode | VARCHAR(50) | ASK, BRIEF |
-| analysis_intent | VARCHAR(50) | QUICK_SUMMARY, MARKET_IMPACT, COMPANY_ANALYSIS, LEARNING_MODE, STRUCTURED_BRIEF |
-| requested_research_mode | VARCHAR(50) | QUICK, STANDARD, DEEP |
-| coverage_mode | VARCHAR(50) | FULL_SOURCE, SELECTED_TOPICS, SELECTED_ENTITIES, CUSTOM_QUESTION |
-| focus_question | TEXT | Nullable |
-| source_complexity | VARCHAR(50) | LOW, MEDIUM, HIGH, VERY_HIGH |
-| estimate_confidence | VARCHAR(50) | HIGH, MEDIUM, LOW, UNKNOWN |
-| estimated_allowance_impact_percent | NUMERIC(5,2) | Estimated impact on current available allowance |
-| requires_warning | BOOLEAN | True when estimate exceeds warning threshold |
-| warning_level | VARCHAR(50) | NONE, INLINE, HIGH, VERY_HIGH |
-| recommended_research_mode | VARCHAR(50) | QUICK, STANDARD, DEEP |
-| recommended_completion_strategy | VARCHAR(50) | STRICT_REQUESTED_MODE, OPTIMIZE_RESEARCH |
-| detected_topics | JSONB | Array |
-| detected_entities | JSONB | Array of companies, tickers, commodities, events, macro terms |
-| created_at | TIMESTAMP | Required |
-
-### Warning Rule
-
-```text
-If estimated_allowance_impact_percent > 50, show a pre-analysis warning before generation begins.
-```
-
-Do not warn users for small jobs. The goal is cost transparency, not turning the product into a nervous hall monitor.
-
----
-
-## 4.16 `source_segments`
-
-Represents source sections/chunks discovered during cheap scan.
-
-| Field | Type | Notes |
-|---|---|---|
-| id | UUID | Primary key |
-| source_id | UUID | FK to sources |
-| source_scan_id | UUID | Nullable FK to source_scans |
-| segment_index | INTEGER | Required |
-| start_offset_seconds | INTEGER | Nullable; for video/audio transcript |
-| end_offset_seconds | INTEGER | Nullable; for video/audio transcript |
-| start_char_offset | INTEGER | Nullable; for text/PDF/article chunks |
-| end_char_offset | INTEGER | Nullable; for text/PDF/article chunks |
-| page_start | INTEGER | Nullable; for PDFs |
-| page_end | INTEGER | Nullable; for PDFs |
-| title | TEXT | Nullable |
-| topic_summary | TEXT | Nullable |
-| detected_entities | JSONB | Array |
-| detected_topics | JSONB | Array |
-| estimated_complexity | VARCHAR(50) | LOW, MEDIUM, HIGH, VERY_HIGH |
-| relevance_to_intent | VARCHAR(50) | HIGH, MEDIUM, LOW, UNKNOWN |
-| recommended_research_mode | VARCHAR(50) | QUICK, STANDARD, DEEP |
-| metadata | JSONB | Extra segment information |
-| created_at | TIMESTAMP | Required |
-| updated_at | TIMESTAMP | Required |
-
----
-
-## 4.17 `analysis_runs`
-
-Represents a generation run over a source or question, especially when segmented analysis is involved.
-
-| Field | Type | Notes |
-|---|---|---|
-| id | UUID | Primary key |
-| user_id | UUID | FK to users |
-| research_item_id | UUID | FK to research_items |
-| source_id | UUID | Nullable FK to sources |
-| source_scan_id | UUID | Nullable FK to source_scans |
-| requested_output_mode | VARCHAR(50) | ASK, BRIEF |
-| analysis_intent | VARCHAR(50) | QUICK_SUMMARY, MARKET_IMPACT, COMPANY_ANALYSIS, LEARNING_MODE, STRUCTURED_BRIEF |
-| requested_research_mode | VARCHAR(50) | QUICK, STANDARD, DEEP |
-| completion_strategy | VARCHAR(50) | STRICT_REQUESTED_MODE, OPTIMIZE_RESEARCH |
-| coverage_mode | VARCHAR(50) | FULL_SOURCE, SELECTED_TOPICS, SELECTED_ENTITIES, CUSTOM_QUESTION |
-| focus_question | TEXT | Nullable |
-| status | VARCHAR(50) | QUEUED, RUNNING, PAUSED, COMPLETED, FAILED, CANCELLED |
-| estimated_allowance_impact_percent | NUMERIC(5,2) | Nullable |
-| actual_allowance_impact_percent | NUMERIC(5,2) | Nullable |
-| warning_acknowledged | BOOLEAN | Required, default false |
-| allowance_before_percent | NUMERIC(5,2) | Nullable |
-| allowance_after_percent | NUMERIC(5,2) | Nullable |
-| started_at | TIMESTAMP | Nullable |
-| completed_at | TIMESTAMP | Nullable |
-| created_at | TIMESTAMP | Required |
-| updated_at | TIMESTAMP | Required |
-
-### Completion Strategy Values
-
-```text
-STRICT_REQUESTED_MODE
-OPTIMIZE_RESEARCH
-```
-
----
-
-## 4.18 `analysis_segments`
-
-Stores the actual analysis produced for each source segment and records whether the requested research depth was changed.
-
-| Field | Type | Notes |
-|---|---|---|
-| id | UUID | Primary key |
-| analysis_run_id | UUID | FK to analysis_runs |
-| source_segment_id | UUID | Nullable FK to source_segments |
-| segment_index | INTEGER | Required |
-| title | TEXT | Nullable |
-| start_offset_seconds | INTEGER | Nullable |
-| end_offset_seconds | INTEGER | Nullable |
-| requested_research_mode | VARCHAR(50) | QUICK, STANDARD, DEEP |
-| actual_research_mode | VARCHAR(50) | QUICK, STANDARD, DEEP |
-| status | VARCHAR(50) | QUEUED, RUNNING, COMPLETED, FAILED, SKIPPED |
-| downgrade_reason | VARCHAR(80) | Nullable |
-| analysis_markdown | TEXT | Nullable |
-| analysis_json | JSONB | Nullable |
-| key_entities | JSONB | Array |
-| key_topics | JSONB | Array |
-| can_rerun | BOOLEAN | True if lower-depth section can be rerun later |
-| rerun_of_segment_id | UUID | Nullable self-reference |
-| created_at | TIMESTAMP | Required |
-| updated_at | TIMESTAMP | Required |
-
-### Downgrade Reasons
-
-```text
-ALLOWANCE_LIMIT
-LOWER_RELEVANCE_TO_USER_INTENT
-SOURCE_COMPLEXITY_HIGH
-USER_SELECTED_OPTIMIZATION
-ESTIMATE_UNCERTAINTY
-```
-
----
-
-## 4.19 `user_research_allowances`
-
-Tracks the user-facing allowance percentage and cooldown/recovery state.
-
-Implementation note: this table is **not required for the first Source Analysis MVP**. Start with a config-based single-run threshold and introduce this table once persistent plan/cooldown behavior is needed.
-
-| Field | Type | Notes |
-|---|---|---|
-| id | UUID | Primary key |
-| user_id | UUID | Unique FK to users |
-| allowance_percent_remaining | NUMERIC(5,2) | 0–100 user-facing value |
-| cooldown_until | TIMESTAMP | Nullable |
-| last_recovered_at | TIMESTAMP | Nullable |
-| next_recovery_at | TIMESTAMP | Nullable |
-| quick_available | BOOLEAN | Required |
-| standard_available | BOOLEAN | Required |
-| deep_available | BOOLEAN | Required |
-| metadata | JSONB | Internal cost score, plan rules, recovery policy; do not expose directly |
-| created_at | TIMESTAMP | Required |
-| updated_at | TIMESTAMP | Required |
-
-### Notes
-
-The UI should show percentages or plain labels. Internal cost scoring can consider tokens, entity count, source complexity, retrieval calls, source length, and uncertainty. Do not rely on fixed public units as the real source of truth.
-
-
-## 4.20 `usage_events`
-
-Basic usage and cost tracking for v0.3.
-
-| Field | Type | Notes |
-|---|---|---|
-| id | UUID | Primary key |
-| user_id | UUID | FK to users |
-| research_item_id | UUID | Nullable FK |
-| source_id | UUID | Nullable FK to sources |
-| event_type | VARCHAR(50) | ASK, BRIEF, SUMMARY, REFLECTION_ASSIST, SOURCE_EXTRACTION, BROWSER_EXTENSION_INGESTION, API_CONTEXT_RETRIEVAL, SOURCE_SCAN, SEGMENT_ANALYSIS, ANALYSIS_RERUN |
-| model_provider | VARCHAR(100) | Nullable |
+| project_id | UUID | Nullable FK |
+| entity_type | VARCHAR(50) | CHAT_TURN, CANDIDATE_EXTRACTION, BRIEF_VERSION, SOURCE_SCAN |
+| entity_id | UUID | Nullable |
+| provider | VARCHAR(100) | Nullable |
 | model_name | VARCHAR(100) | Nullable |
-| input_tokens | INTEGER | Nullable |
-| output_tokens | INTEGER | Nullable |
-| estimated_allowance_impact_percent | NUMERIC(5,2) | Nullable |
-| actual_allowance_impact_percent | NUMERIC(5,2) | Nullable |
-| internal_cost_score | NUMERIC(12,4) | Nullable; not shown directly to users |
-| estimated_cost_usd | NUMERIC(10,4) | Nullable |
-| created_at | TIMESTAMP | Required |
-
-### Notes
-
-This gives cost visibility without implementing billing, subscriptions, credits, or plan limits yet.
+| input_tokens | INT | Nullable |
+| output_tokens | INT | Nullable |
+| cache_read_tokens | INT | Nullable |
+| cache_write_tokens | INT | Nullable |
+| estimated_cost_usd | NUMERIC | Nullable |
+| created_at | TIMESTAMPTZ | Required |
 
 ---
 
-# 5. Recommended v0.3 Implementation Slices
+# 5. Compatibility Notes
 
-These slices are intentionally ordered so Cursor can implement one runnable PR at a time instead of trying to birth the entire product in one heroic, doomed commit.
+## 5.1 What happens to `ResearchItem`?
 
-## Slice A: Foundation + Auth
+The previous docs used `ResearchItem` as the central saved artifact. In the new direction, it creates ambiguity because Projects, Canvas blocks, and Brief versions have clearer roles.
 
-Build:
+Recommended path:
 
 ```text
-FastAPI app shell
-PostgreSQL + Alembic
-users
-basic auth
-/me endpoints
-health check
-test setup
+New build: avoid adding new ResearchItem dependencies.
+If existing ResearchItem tables already exist, keep them as legacy/search-log wrappers.
+Do not make formal brief generation depend on ResearchItem.
 ```
 
-Supports:
+A future search page can index across chats, sources, Canvas blocks, and brief versions without needing one table to pretend to be all of them.
+
+## 5.2 What about the old Ask Mode and Brief Mode?
+
+Keep them conceptually, but route them through the workspace:
 
 ```text
-authenticated user ownership for all later source-analysis work
-```
-
-## Slice B: Source Analysis MVP Core
-
-Build:
-
-```text
-sources
-source_scans
-source_segments
-research_items
-analysis_runs
-analysis_segments
-usage_events
-ARTICLE_URL ingestion
-YOUTUBE_URL ingestion
-cheap scan
-research intent / coverage / mode fields
-50% warning gate
-Optimize Research flag
-analysis depth by section
-```
-
-Supports:
-
-```text
-user pastes external source
-→ AlphaBrief scans source
-→ user chooses intent/mode/coverage
-→ AlphaBrief warns if estimated impact exceeds threshold
-→ AlphaBrief analyzes segment-by-segment
-→ saved ResearchItem shows depth by section
-```
-
-Implementation shortcut:
-
-```text
-Use a config-based SINGLE_RUN_BUDGET_THRESHOLD for the first build.
-Do not require persistent user_research_allowances yet.
-```
-
-## Slice C: Real LLM + Output Validation
-
-Build:
-
-```text
-real AiProviderClient
-structured output validation
-retry-once repair prompt
-disclaimer enforcement
-usage token/cost logging
-CONTEXT_BRIEF source-access notes
-```
-
-Supports:
-
-```text
-mock LLM replacement with real source-aware analysis
-```
-
-## Slice D: Brief Mode + Additional Source Types
-
-Build:
-
-```text
-briefs
-brief templates
-PDF upload
-BROWSER_PAGE backend ingestion endpoint
-optional generation_jobs if needed for non-analysis async workflows
-```
-
-Supports:
-
-```text
-formal structured briefs
-extension-compatible backend ingestion
-PDF/report source analysis
-```
-
-## Slice E: Organization Layer
-
-Build:
-
-```text
-tags
-research_item_tags
-companies
-research_item_companies
-research log filters
-```
-
-Supports:
-
-```text
-saved research organization
-company/topic filtering
-future company library foundation
-```
-
-## Slice F: Learning Layer
-
-Build:
-
-```text
-research_activities
-daily_research_summaries
-journal_entries
-learning_goals
-```
-
-Supports:
-
-```text
-daily research summary
-market journal
-learning/reflection goals
-engagement loop
-```
-
-## Slice G: Chrome Extension Client
-
-Build:
-
-```text
-Manifest V3 extension
-popup UI
-content script extraction
-extension auth token flow
-POST /sources/browser-extension
-open generated ResearchItem in web app
-```
-
-Supports:
-
-```text
-preferred browser-based source capture once the web-paste source pipeline already works
-```
-
-## Slice H: Persistent Allowance + Cooldown
-
-Build later:
-
-```text
-user_research_allowances
-cooldown/recovery policy
-plan-aware thresholds
-allowance locking for concurrent runs
-```
-
-Supports:
-
-```text
-real plan/billing-aware usage control after product behavior is validated
+Ask Mode → Chat turn inside a project
+Brief Mode → Generate BriefVersion from Canvas
+Source Mode → Create Source, attach to chat, analyze, promote outputs to Canvas
 ```
 
 ---
 
-# 6. Critical Scope Decision
+# 6. Implementation Slices
 
-Do not implement the old full v0.3 model all at once.
+## Slice A: Projects
 
-The previous model included many serious future-facing concepts: entitlements, promo codes, referrals, shares, exports, claim tables, citation tables, and deep research channels. Those are useful, but they are not necessary to prove the first product loop.
+- `projects`
+- auto-created Catchall
+- project CRUD/read endpoints
 
-For v0.3, the product loop is:
+## Slice B: Chats
 
-```text
-Ask or submit source
-→ receive market-aware analysis or formal brief
-→ save research
-→ organize by tags/company
-→ generate daily research summary
-→ reflect in journal
-→ progress toward learning goal
-```
+- `chats`
+- chat CRUD/read endpoints
 
-The Chrome extension should support the same loop by making source capture easier:
+## Slice C: Chat Turns + Source Attachment
 
-```text
-Read article/video page
-→ click AlphaBrief extension
-→ generate source/context brief
-→ save to research log
-```
+- `chat_turns`
+- `chat_turn_sources`
+- mock AI provider
+- send endpoint and polling
 
-That is enough. The database is not supposed to be a museum of every thought you had at 2 a.m.
+## Slice D: Canvas
+
+- `canvas_blocks`
+- manual creation
+- promote from chat turn/source
+- edit/reorder/archive/delete
+
+## Slice E: Candidate Blocks
+
+- `candidate_blocks`
+- AI extraction after assistant replies
+- promote/dismiss
+
+## Slice F: Brief Versions
+
+- `briefs`
+- `canvas_snapshots`
+- `brief_versions`
+- generate from selected Canvas blocks
+- compare with previous version
+
+## Slice G: Real LLM + Validation
+
+- real AI provider
+- output validation
+- repair prompt
+- source grounding rules
+- usage tracking
+
+## Slice H: Daily Summary / Journal / Learning Goals
+
+- structured activities
+- daily summaries
+- journal/reflection assistant
+- learning goals
 
 ---
 
-# 7. Future Migration Path
+# 7. Critical Scope Decision
 
-Later versions can add:
+Do not build the full future research platform now.
 
-- `watchlists`
-- `company_events`
-- `event_impact_notes`
-- `notifications`
-- `theses`
-- `thesis_updates`
-- `plans`
-- `user_entitlements`
-- `plan_limits`
-- `credit_transactions`
-- `brief_shares`
-- `brief_exports`
-- `referrals`
-- `research_channels`
-- `claims`
-- `citations`
-- `extension_sessions`
-- `extension_devices`
-- `research_baskets`
-- `multi_source_research_projects`
+The v0.3 proof is:
 
-Do not add these until the workflow demands them.
+```text
+Can a user explore a market topic, capture useful insights to a Canvas, refine them, and generate an updated brief from that Canvas later?
+```
+
+That is the non-wrapper product loop. Everything else is dessert. Expensive dessert, naturally.

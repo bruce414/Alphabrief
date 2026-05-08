@@ -2,7 +2,7 @@
 
 ## Version
 
-`v0.3 First Milestone`
+`v0.3 First Milestone — Projects → Canvas → Versioned Briefs`
 
 ## Base Path
 
@@ -12,46 +12,69 @@
 
 ## Status
 
-This API spec reflects AlphaBrief's v0.3 direction:
+This API spec reflects AlphaBrief's updated direction:
 
 ```text
-Market learning + research workspace
-Ask Mode + Brief Mode
-Saved research log
-Daily research summary
-Journal
-Learning goals
-Chrome Extension-ready source ingestion
+Projects → Chats / Sources → Canvas → Brief Versions
 ```
 
-The API uses `ResearchItem` as the central saved object, with `Brief` reserved for formal structured outputs.
-
-The Chrome extension is represented as an additional source ingestion path. It should reuse the same source, research item, and generation job pipeline rather than creating a separate parallel system, because one haunted code path is enough.
+Chats are exploratory. The Canvas is the curated research artifact. Formal briefs are versioned snapshots generated from the Canvas.
 
 ---
 
 # 1. API Principles
 
 - Authenticated by default
-- Frontend-friendly
+- Frontend-workspace friendly
 - Async-ready for AI generation
 - Consistent error shape
-- Supports both flexible Ask Mode and formal Brief Mode
-- Saves outputs into a research log
-- Tracks daily activity for summaries
-- Keeps trading/investment advice language compliance-safe
-- Supports URL, YouTube, PDF, and browser-extension source ingestion
-- Clearly distinguishes full source analysis from metadata/API context fallback
-- Does not expose a primary paste-entire-article workflow
-- Supports Quick, Standard, and Deep research modes
+- Supports low-friction asking through Catchall project
+- Supports explicit project workspaces for ongoing research
+- Treats Canvas as the source of truth for formal briefs
+- Tracks source provenance from Canvas blocks back to chat turns and sources
+- Distinguishes full source analysis from metadata/API context fallback
+- Avoids primary paste-entire-article workflow
+- Supports Quick, Standard, and Deep research modes for source analysis
 - Supports cheap source scanning before expensive generation
 - Supports Optimize Research for adaptive section-level depth control
-- Warns users before generation when estimated allowance impact exceeds 50%
-- Tracks analysis depth by section for segmented external sources
+- Tracks usage/cost from the beginning
+- Keeps finance output educational/informational, not personalized investment advice
 
 ---
 
-# 2. Auth Endpoints
+# 2. Error Shape
+
+```json
+{
+  "error": {
+    "code": "INVALID_SOURCE_REF",
+    "message": "One or more sources are unavailable.",
+    "details": {}
+  }
+}
+```
+
+Common error codes:
+
+```text
+UNAUTHORIZED
+FORBIDDEN
+NOT_FOUND
+VALIDATION_ERROR
+INVALID_PROJECT_KIND
+IMMUTABLE_CATCHALL
+CHAT_ARCHIVED
+INVALID_SOURCE_REF
+SOURCE_NOT_READY
+CANDIDATE_DISMISSED
+CANVAS_BLOCK_NOT_FOUND
+BRIEF_GENERATION_FAILED
+HIGH_USAGE_WARNING_REQUIRED
+```
+
+---
+
+# 3. Auth Endpoints
 
 ## Register
 
@@ -79,6 +102,8 @@ Response:
 }
 ```
 
+Registration should ensure a Catchall project exists for the user. For legacy users, Catchall creation is also handled lazily by `GET /projects`.
+
 ## Login
 
 ```http
@@ -93,7 +118,7 @@ POST /api/v1/auth/logout
 
 ---
 
-# 3. Current User Endpoints
+# 4. Current User Endpoints
 
 ## Get Current User
 
@@ -108,7 +133,6 @@ Response:
   "id": "uuid",
   "email": "user@example.com",
   "displayName": "Alex",
-  "defaultOutputMode": "ASK",
   "defaultResearchScope": "RECOMMENDED_CONTEXT",
   "defaultResearchMode": "STANDARD",
   "optimizeResearchDefault": true,
@@ -128,7 +152,6 @@ Request:
 ```json
 {
   "displayName": "Alex",
-  "defaultOutputMode": "ASK",
   "defaultResearchScope": "RECOMMENDED_CONTEXT",
   "defaultResearchMode": "STANDARD",
   "optimizeResearchDefault": true
@@ -137,7 +160,221 @@ Request:
 
 ---
 
-# 4. Source Endpoints
+# 5. Project Endpoints
+
+## Create Project
+
+```http
+POST /api/v1/projects
+```
+
+Request:
+
+```json
+{
+  "title": "Nvidia AI Infrastructure Thesis",
+  "kind": "THESIS",
+  "description": "Research workspace for tracking Nvidia, hyperscaler capex, and AI infrastructure demand."
+}
+```
+
+`kind` defaults to `COVERAGE` if omitted. `CATCHALL` is rejected; only the system creates Catchall projects.
+
+Response:
+
+```json
+{
+  "id": "uuid",
+  "kind": "THESIS",
+  "title": "Nvidia AI Infrastructure Thesis",
+  "description": "Research workspace for tracking Nvidia, hyperscaler capex, and AI infrastructure demand.",
+  "archivedAt": null,
+  "createdAt": "2026-05-08T00:00:00Z",
+  "updatedAt": "2026-05-08T00:00:00Z"
+}
+```
+
+## List Projects
+
+```http
+GET /api/v1/projects
+```
+
+Behavior:
+
+```text
+Returns Catchall first, then active user projects by updated_at desc.
+If a legacy user has no Catchall, create it lazily before returning.
+```
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "kind": "CATCHALL",
+      "title": "My Research",
+      "description": "Default workspace for unsorted chats.",
+      "archivedAt": null,
+      "updatedAt": "2026-05-08T00:00:00Z"
+    }
+  ]
+}
+```
+
+## Get Project
+
+```http
+GET /api/v1/projects/{projectId}
+```
+
+Owner check required.
+
+## Update Project
+
+```http
+PATCH /api/v1/projects/{projectId}
+```
+
+Request:
+
+```json
+{
+  "title": "Updated title",
+  "description": "Updated description",
+  "archived": false
+}
+```
+
+Catchall cannot be renamed or archived.
+
+## Delete Project
+
+```http
+DELETE /api/v1/projects/{projectId}
+```
+
+Reject Catchall. Deleting a project cascades to chats, Canvas blocks, candidates, and brief versions.
+
+---
+
+# 6. Chat Endpoints
+
+## Create Chat
+
+```http
+POST /api/v1/projects/{projectId}/chats
+```
+
+Request:
+
+```json
+{
+  "title": "Why did Nvidia data center revenue growth decelerate?"
+}
+```
+
+Response:
+
+```json
+{
+  "id": "uuid",
+  "projectId": "uuid",
+  "title": "Why did Nvidia data center revenue growth decelerate?",
+  "status": "ACTIVE",
+  "lastTurnAt": null,
+  "createdAt": "2026-05-08T00:00:00Z"
+}
+```
+
+## List Chats in Project
+
+```http
+GET /api/v1/projects/{projectId}/chats?cursor=<cursor>&limit=30&includeArchived=0
+```
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "projectId": "uuid",
+      "title": "New chat",
+      "status": "ACTIVE",
+      "lastTurnAt": "2026-05-08T00:00:00Z"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+## Get Chat
+
+```http
+GET /api/v1/chats/{chatId}
+```
+
+Returns chat plus parent project summary.
+
+## Update Chat
+
+```http
+PATCH /api/v1/chats/{chatId}
+```
+
+Request:
+
+```json
+{
+  "title": "Updated chat title",
+  "status": "ARCHIVED"
+}
+```
+
+## Delete Chat
+
+```http
+DELETE /api/v1/chats/{chatId}
+```
+
+Hard delete. Future versions may switch to soft delete.
+
+---
+
+# 7. Source Endpoints
+
+## Create Source From URL
+
+```http
+POST /api/v1/sources
+```
+
+Use for article URLs and YouTube URLs submitted from the web app.
+
+Request:
+
+```json
+{
+  "sourceType": "ARTICLE_URL",
+  "input": "https://example.com/market-news"
+}
+```
+
+Response:
+
+```json
+{
+  "sourceId": "uuid",
+  "sourceType": "ARTICLE_URL",
+  "sourceAccessMethod": "SERVER_FETCH",
+  "sourceAccessStatus": "PENDING",
+  "normalizedUrl": "https://example.com/market-news"
+}
+```
 
 ## Upload Source File
 
@@ -168,53 +405,30 @@ Response:
 }
 ```
 
-## Create Source From URL
+## List Sources
 
 ```http
-POST /api/v1/sources
+GET /api/v1/sources?limit=20&status=FULL_TEXT_EXTRACTED,METADATA_ONLY
 ```
 
-Use for article URLs and YouTube URLs submitted from the web app.
-
-Request:
-
-```json
-{
-  "sourceType": "ARTICLE_URL",
-  "input": "https://example.com/market-news"
-}
-```
-
-Supported v0.3 source types:
-
-```text
-ARTICLE_URL
-YOUTUBE_URL
-PDF_FILE
-BROWSER_PAGE
-```
-
-Document subtypes such as `EARNINGS_REPORT`, `COMPANY_PAGE`, and `FINANCE_NEWS_ARTICLE` are detected during scan from metadata/content and stored in `sources.metadata.detected_document_subtype`. They are not separate `sourceType` enum values in v0.3.
+Used by the chat SourcePicker.
 
 Response:
 
 ```json
 {
-  "sourceId": "uuid",
-  "sourceType": "ARTICLE_URL",
-  "sourceAccessMethod": "SERVER_FETCH",
-  "sourceAccessStatus": "PENDING",
-  "normalizedUrl": "https://example.com/market-news"
+  "items": [
+    {
+      "id": "uuid",
+      "title": "Nvidia shares rise after earnings beat",
+      "publisher": "Yahoo Finance",
+      "sourceType": "ARTICLE_URL",
+      "sourceAccessStatus": "FULL_TEXT_EXTRACTED",
+      "normalizedUrl": "https://example.com/news"
+    }
+  ]
 }
 ```
-
-### Important UX Rule
-
-`PASTED_TEXT` is intentionally not a primary v0.3 source type. The main product should avoid asking users to paste full articles. If manual text support is added later, treat it as an advanced fallback, not the core workflow.
-
----
-
-# 5. Browser Extension Source Endpoint
 
 ## Create Source From Browser Extension
 
@@ -222,9 +436,7 @@ Response:
 POST /api/v1/sources/browser-extension
 ```
 
-Use when the user clicks the AlphaBrief Chrome extension on a page they are viewing.
-
-The extension should send page metadata and, when available, extracted readable content from the currently active page. This endpoint should not be used for background crawling.
+Use when the user clicks the AlphaBrief extension on a page they are viewing.
 
 Request:
 
@@ -241,7 +453,6 @@ Request:
   "extractionConfidence": "HIGH",
   "metadata": {
     "siteName": "Yahoo Finance",
-    "ogTitle": "Nvidia shares rise after earnings beat",
     "domExtractionVersion": "readability_v1",
     "extensionVersion": "0.1.0"
   }
@@ -256,85 +467,358 @@ Response:
   "sourceType": "BROWSER_PAGE",
   "sourceAccessMethod": "BROWSER_EXTENSION",
   "sourceAccessStatus": "FULL_TEXT_EXTRACTED",
-  "rawTextRetention": "EPHEMERAL",
+  "rawTextRetention": "TEMPORARY_24H",
   "title": "Nvidia shares rise after earnings beat"
 }
 ```
 
-## Browser Extension Auth for v0.3
+---
 
-For the first extension-capable backend, use one simple auth approach:
+# 8. Source Scan Endpoints
 
-```text
-The web app issues a user-owned extension token from a settings screen.
-The extension stores it in chrome.storage and sends Authorization: Bearer <token> to /sources/browser-extension.
-The backend validates the token and maps it to the owning user.
+## Run Source Scan
+
+```http
+POST /api/v1/sources/{sourceId}/scan
 ```
-
-If the extension client is deferred, still keep `/sources/browser-extension` payload validation in the backend so the source pipeline remains extension-ready.
-
-## Browser Extension Metadata-Only Source
-
-If the extension cannot reliably extract readable article text, it should still submit metadata.
 
 Request:
 
 ```json
 {
-  "url": "https://finance.yahoo.com/news/example-article",
-  "title": "Nvidia shares rise after earnings beat",
-  "publisher": "Yahoo Finance",
-  "extractedText": null,
-  "extractionConfidence": "LOW",
-  "metadata": {
-    "reason": "NO_READABLE_ARTICLE_DETECTED",
-    "extensionVersion": "0.1.0"
-  }
+  "analysisIntent": "MARKET_IMPACT",
+  "researchMode": "DEEP",
+  "coverageMode": "FULL_SOURCE"
 }
 ```
 
 Response:
+
+```json
+{
+  "sourceScanId": "uuid",
+  "sourceId": "uuid",
+  "status": "COMPLETED",
+  "detectedDocumentSubtype": "FINANCE_NEWS_ARTICLE",
+  "estimatedSourceComplexity": "MEDIUM",
+  "estimatedAllowanceImpactPercent": 34,
+  "estimateConfidence": "HIGH",
+  "requiresPreAnalysisWarning": false,
+  "recommendedResearchMode": "STANDARD",
+  "recommendedCompletionStrategy": "OPTIMIZE_RESEARCH",
+  "segmentCount": 6
+}
+```
+
+## List Source Segments
+
+```http
+GET /api/v1/sources/{sourceId}/segments
+```
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "segmentIndex": 0,
+      "title": "Earnings highlights",
+      "estimatedComplexity": "MEDIUM",
+      "detectedEntities": ["NVDA", "MSFT"],
+      "topicTags": ["AI capex", "data center demand"]
+    }
+  ]
+}
+```
+
+---
+
+# 9. Chat Turn Endpoints
+
+## Send Chat Message
+
+```http
+POST /api/v1/chats/{chatId}/turns
+```
+
+Request:
+
+```json
+{
+  "content": "What does this article imply for Nvidia and AI chip demand?",
+  "sourceIds": ["uuid"]
+}
+```
+
+Flow:
+
+```text
+1. Owner check on chat.
+2. Reject archived chats.
+3. Validate sources belong to user and are FULL_TEXT_EXTRACTED or METADATA_ONLY.
+4. Create completed user turn.
+5. Create queued assistant turn.
+6. Attach sources to user turn.
+7. Schedule assistant generation in background.
+8. Return turn IDs for polling.
+```
+
+Response:
+
+```json
+{
+  "userTurnId": "uuid",
+  "assistantTurnId": "uuid",
+  "assistantStatus": "QUEUED"
+}
+```
+
+## List Chat Turns
+
+```http
+GET /api/v1/chats/{chatId}/turns
+```
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "role": "USER",
+      "status": "COMPLETED",
+      "contentMarkdown": "What does this article imply for Nvidia?",
+      "createdAt": "2026-05-08T00:00:00Z"
+    },
+    {
+      "id": "uuid",
+      "role": "ASSISTANT",
+      "status": "COMPLETED",
+      "contentMarkdown": "### Quick answer\n...",
+      "contentJson": {
+        "summary": "...",
+        "key_points": []
+      }
+    }
+  ]
+}
+```
+
+## Get Chat Turn
+
+```http
+GET /api/v1/chat-turns/{turnId}
+```
+
+Used for polling assistant turns.
+
+---
+
+# 10. Candidate Canvas Block Endpoints
+
+## List Candidates for Chat Turn
+
+```http
+GET /api/v1/chat-turns/{chatTurnId}/candidates?includeAll=0
+```
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "chatTurnId": "uuid",
+      "projectId": "uuid",
+      "blockType": "CLAIM",
+      "title": "AI capex remains the core driver",
+      "contentMarkdown": "Nvidia's near-term demand depends heavily on hyperscaler AI infrastructure spending.",
+      "status": "PENDING"
+    }
+  ]
+}
+```
+
+## Promote Candidate
+
+```http
+POST /api/v1/candidates/{candidateId}/promote
+```
+
+Request:
+
+```json
+{
+  "positionAfter": "uuid-or-null"
+}
+```
+
+Response:
+
+```json
+{
+  "id": "uuid",
+  "projectId": "uuid",
+  "blockType": "CLAIM",
+  "title": "AI capex remains the core driver",
+  "contentMarkdown": "Nvidia's near-term demand depends heavily on hyperscaler AI infrastructure spending.",
+  "provenanceKind": "CHAT_TURN",
+  "provenanceChatTurnId": "uuid",
+  "positionIndex": "4.0000000000"
+}
+```
+
+Promotion is idempotent. If already promoted, return the existing block.
+
+## Dismiss Candidate
+
+```http
+POST /api/v1/candidates/{candidateId}/dismiss
+```
+
+No-op if already dismissed.
+
+---
+
+# 11. Canvas Block Endpoints
+
+## Create Manual Canvas Block
+
+```http
+POST /api/v1/projects/{projectId}/canvas-blocks
+```
+
+Request:
+
+```json
+{
+  "blockType": "NOTE",
+  "title": "My thesis note",
+  "contentMarkdown": "The market may already price in near-perfect Blackwell execution.",
+  "contentJson": {},
+  "positionAfter": null,
+  "provenanceKind": "MANUAL"
+}
+```
+
+Only `MANUAL` provenance is allowed through this endpoint.
+
+## Promote Chat Turn to Canvas
+
+```http
+POST /api/v1/projects/{projectId}/canvas-blocks/from-turn
+```
+
+Request:
+
+```json
+{
+  "chatTurnId": "uuid",
+  "blockType": "SUMMARY",
+  "title": "Nvidia demand summary",
+  "contentMarkdown": "Edited summary text selected by the user.",
+  "positionAfter": null
+}
+```
+
+If `contentMarkdown` is omitted, default to the turn markdown. The frontend should allow edit-before-promote.
+
+## Create Canvas Block From Source
+
+```http
+POST /api/v1/projects/{projectId}/canvas-blocks/from-source
+```
+
+Request:
 
 ```json
 {
   "sourceId": "uuid",
-  "sourceType": "BROWSER_PAGE",
-  "sourceAccessMethod": "BROWSER_EXTENSION",
-  "sourceAccessStatus": "METADATA_ONLY",
-  "recommendedAnalysisMode": "CONTEXT_BRIEF"
+  "blockType": "QUOTE",
+  "title": "Management quote on demand",
+  "contentMarkdown": "Short source quote or user-written source note.",
+  "positionAfter": null
 }
 ```
 
----
+For quote blocks, keep quotes short and source-linked. Do not encourage storing full copyrighted article text as Canvas content.
 
-# 6. Ask Mode Endpoints
-
-## Create Ask Analysis
+## List Canvas Blocks
 
 ```http
-POST /api/v1/ask
+GET /api/v1/projects/{projectId}/canvas-blocks?includeArchived=0
 ```
 
-Use this for flexible finance/source analysis that does not need to become a formal brief.
+Response:
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "projectId": "uuid",
+      "blockType": "CLAIM",
+      "title": "Blackwell ramp is the key catalyst",
+      "contentMarkdown": "The core near-term thesis depends on whether Blackwell revenue contribution ramps cleanly.",
+      "positionIndex": "1.0000000000",
+      "provenanceKind": "CHAT_TURN",
+      "provenanceChatTurnId": "uuid",
+      "provenanceSourceId": null,
+      "archivedAt": null
+    }
+  ]
+}
+```
+
+## Update Canvas Block
+
+```http
+PATCH /api/v1/canvas-blocks/{blockId}
+```
 
 Request:
 
 ```json
 {
-  "question": "Explain why Visa's earnings matter for payment networks.",
-  "sourceIds": ["uuid"],
-  "analysisIntent": "MARKET_IMPACT",
-  "researchScope": "RECOMMENDED_CONTEXT",
-  "researchMode": "STANDARD",
-  "coverageMode": "FULL_SOURCE",
-  "focusQuestion": null,
-  "selectedSegmentIds": [],
-  "selectedEntityIds": [],
-  "completionStrategy": "OPTIMIZE_RESEARCH",
-  "optimizeResearch": true,
-  "sourceScanId": "uuid-or-null",
-  "acknowledgedHighUsageWarning": false,
-  "saveToResearchLog": true
+  "title": "Updated title",
+  "contentMarkdown": "Updated user-edited block content.",
+  "contentJson": {},
+  "blockType": "CLAIM",
+  "archived": false,
+  "positionAfter": "uuid-or-null"
+}
+```
+
+## Delete Canvas Block
+
+```http
+DELETE /api/v1/canvas-blocks/{blockId}
+```
+
+Hard delete. Future versions may prefer soft delete by default.
+
+---
+
+# 12. Brief Endpoints
+
+## Create Brief Series
+
+```http
+POST /api/v1/projects/{projectId}/briefs
+```
+
+Request:
+
+```json
+{
+  "title": "Nvidia AI Infrastructure Thesis Brief",
+  "briefType": "THESIS_MEMO",
+  "subject": "Nvidia AI infrastructure demand",
+  "ticker": "NVDA"
 }
 ```
 
@@ -342,66 +826,53 @@ Response:
 
 ```json
 {
-  "researchItemId": "uuid",
-  "jobId": "uuid-or-null",
-  "analysisRunId": "uuid-or-null",
-  "status": "QUEUED",
-  "itemType": "ASK_ANALYSIS"
+  "id": "uuid",
+  "projectId": "uuid",
+  "title": "Nvidia AI Infrastructure Thesis Brief",
+  "briefType": "THESIS_MEMO",
+  "subject": "Nvidia AI infrastructure demand",
+  "ticker": "NVDA",
+  "currentVersionId": null,
+  "status": "ACTIVE"
 }
 ```
 
-Adaptive-source rule:
-
-```text
-If Ask Mode includes a sourceId for a long/complex source, it reuses the same adaptive source-analysis pipeline as POST /research-items/from-source.
-Run POST /sources/{sourceId}/scan first when researchMode = DEEP or when the source exceeds the long-source threshold.
-If the scan requires a warning, acknowledgedHighUsageWarning must be true before generation starts.
-```
-
----
-
-# 7. Brief Mode Endpoints
-
-## Create Brief
+## Generate Brief Version From Canvas
 
 ```http
-POST /api/v1/briefs
+POST /api/v1/briefs/{briefId}/versions
 ```
-
-Use this when the user explicitly wants a formal structured artifact.
 
 Request:
 
 ```json
 {
-  "briefType": "COMPANY_RESEARCH",
-  "subject": "Visa",
-  "ticker": "V",
-  "userQuery": "Generate a company brief for Visa.",
-  "sourceIds": [],
-  "researchScope": "RECOMMENDED_CONTEXT"
+  "selectedCanvasBlockIds": ["uuid", "uuid"],
+  "briefStyle": "INVESTOR_STYLE_LEARNING",
+  "includeWhatChanged": true,
+  "compareToVersionId": "uuid-or-null",
+  "userInstructions": "Keep it beginner-friendly but still structured."
 }
 ```
 
-Supported v0.3 brief types:
-
-```text
-COMPANY_RESEARCH
-EARNINGS_BREAKDOWN
-SOURCE_SUMMARY
-MARKET_EVENT_EXPLAINER
-```
+If `selectedCanvasBlockIds` is omitted, default to all active project Canvas blocks.
 
 Response:
 
 ```json
 {
-  "researchItemId": "uuid",
+  "briefVersionId": "uuid",
   "briefId": "uuid",
-  "jobId": "uuid",
-  "status": "QUEUED",
-  "briefType": "COMPANY_RESEARCH"
+  "versionNumber": 2,
+  "canvasSnapshotId": "uuid",
+  "status": "QUEUED"
 }
+```
+
+Important rule:
+
+```text
+Brief versions must be generated from Canvas snapshots, not from raw chat transcripts.
 ```
 
 ## Get Brief
@@ -415,90 +886,106 @@ Response:
 ```json
 {
   "id": "uuid",
-  "researchItemId": "uuid",
-  "briefType": "COMPANY_RESEARCH",
-  "subject": "Visa",
-  "ticker": "V",
+  "projectId": "uuid",
+  "title": "Nvidia AI Infrastructure Thesis Brief",
+  "briefType": "THESIS_MEMO",
+  "subject": "Nvidia AI infrastructure demand",
+  "ticker": "NVDA",
+  "currentVersionId": "uuid",
+  "versionCount": 2,
+  "createdAt": "2026-05-08T00:00:00Z"
+}
+```
+
+## List Project Briefs
+
+```http
+GET /api/v1/projects/{projectId}/briefs
+```
+
+## List Brief Versions
+
+```http
+GET /api/v1/briefs/{briefId}/versions
+```
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "versionNumber": 2,
+      "status": "COMPLETED",
+      "generatedFromBlockCount": 18,
+      "summaryOfChanges": "Added valuation risk and Blackwell ramp dependency.",
+      "createdAt": "2026-06-20T00:00:00Z"
+    }
+  ]
+}
+```
+
+## Get Brief Version
+
+```http
+GET /api/v1/brief-versions/{briefVersionId}
+```
+
+Response:
+
+```json
+{
+  "id": "uuid",
+  "briefId": "uuid",
+  "versionNumber": 2,
+  "status": "COMPLETED",
+  "contentMarkdown": "# Nvidia AI Infrastructure Thesis Brief v2\n...",
   "sections": {
-    "companyOverview": "...",
-    "businessModel": "...",
-    "growthDrivers": [],
+    "executiveSummary": "...",
+    "coreThesis": "...",
+    "evidenceBase": [],
     "risks": [],
-    "bullCase": [],
-    "bearCase": [],
-    "whatToWatchNext": []
+    "openQuestions": [],
+    "whatChanged": "...",
+    "learningTakeaway": "...",
+    "disclaimer": "For educational and informational purposes only."
   },
-  "createdAt": "2026-05-04T00:00:00Z"
+  "summaryOfChanges": "Added export restriction risk and valuation concern.",
+  "generatedFromBlockCount": 18,
+  "createdAt": "2026-06-20T00:00:00Z"
 }
 ```
 
----
-
-# 8. Research Item Endpoints
-
-## Create Research Item From Source
+## Compare Brief Versions
 
 ```http
-POST /api/v1/research-items/from-source
-```
-
-Use this endpoint when a source already exists and the user wants AlphaBrief to generate either a source brief or context brief.
-
-Request:
-
-```json
-{
-  "sourceId": "uuid",
-  "requestedOutputMode": "ASK",
-  "analysisIntent": "MARKET_IMPACT",
-  "researchScope": "RECOMMENDED_CONTEXT",
-  "researchMode": "DEEP",
-  "coverageMode": "FULL_SOURCE",
-  "focusQuestion": "What does this source imply for Nvidia and AI chip demand?",
-  "selectedSegmentIds": [],
-  "selectedEntityIds": [],
-  "optimizeResearch": true,
-  "saveToResearchLog": true
-}
+GET /api/v1/briefs/{briefId}/versions/compare?fromVersionId=uuid&toVersionId=uuid
 ```
 
 Response:
 
 ```json
 {
-  "researchItemId": "uuid",
-  "analysisRunId": "uuid",
-  "jobId": "uuid",
-  "status": "QUEUED",
-  "analysisMode": "SOURCE_BRIEF",
-  "researchMode": "DEEP",
-  "completionStrategy": "OPTIMIZE_RESEARCH",
-  "estimatedAllowanceImpactPercent": 62,
-  "requiresPreAnalysisWarning": true
+  "fromVersionId": "uuid",
+  "toVersionId": "uuid",
+  "summary": "The thesis moved from broadly bullish to conditional bullish.",
+  "addedClaims": [],
+  "removedClaims": [],
+  "changedAssumptions": [],
+  "newRisks": [],
+  "confidenceChange": "MEDIUM_TO_LOW"
 }
 ```
 
-If the source is metadata-only, the backend should select `CONTEXT_BRIEF` unless the user specifically requests otherwise.
+---
 
-## List Research Items
+# 13. Research Activity Endpoints
+
+## List Project Activity
 
 ```http
-GET /api/v1/research-items
-```
-
-Query params:
-
-```text
-page
-size
-itemType
-status
-companyId
-tag
-fromDate
-toDate
-analysisMode
-sourceAccessMethod
+GET /api/v1/projects/{projectId}/activity
 ```
 
 Response:
@@ -508,541 +995,18 @@ Response:
   "items": [
     {
       "id": "uuid",
-      "itemType": "ASK_ANALYSIS",
-      "title": "Visa earnings impact analysis",
-      "shortSummary": "Explains why cross-border volume matters for Visa.",
-      "status": "COMPLETED",
-      "analysisMode": "SOURCE_BRIEF",
-      "tags": ["visa", "earnings"],
-      "companies": [{ "ticker": "V", "name": "Visa Inc." }],
-      "createdAt": "2026-05-04T00:00:00Z"
-    }
-  ],
-  "page": 0,
-  "size": 20,
-  "totalItems": 1
-}
-```
-
-## Get Research Item
-
-```http
-GET /api/v1/research-items/{researchItemId}
-```
-
-## Delete Research Item
-
-```http
-DELETE /api/v1/research-items/{researchItemId}
-```
-
----
-
-# 9. Job Endpoints
-
-## Get Generation Job
-
-```http
-GET /api/v1/jobs/{jobId}
-```
-
-Response:
-
-```json
-{
-  "jobId": "uuid",
-  "researchItemId": "uuid",
-  "jobType": "ASK_ANALYSIS",
-  "status": "RUNNING",
-  "currentStep": "GENERATING_OUTPUT",
-  "errorCode": null,
-  "errorMessage": null
-}
-```
-
----
-
-# 10. Tag Endpoints
-
-## List Tags
-
-```http
-GET /api/v1/tags
-```
-
-## Create Tag
-
-```http
-POST /api/v1/tags
-```
-
-Request:
-
-```json
-{
-  "name": "payments",
-  "color": "blue"
-}
-```
-
-## Add Tags to Research Item
-
-```http
-POST /api/v1/research-items/{researchItemId}/tags
-```
-
-Request:
-
-```json
-{
-  "tagNames": ["visa", "payments", "earnings"]
-}
-```
-
----
-
-# 11. Company Endpoints
-
-## Search Companies
-
-```http
-GET /api/v1/companies/search?q=visa
-```
-
-Response:
-
-```json
-{
-  "items": [
-    {
-      "id": "uuid",
-      "ticker": "V",
-      "name": "Visa Inc.",
-      "exchange": "NYSE",
-      "sector": "Financial Services"
+      "activityType": "PROMOTED_TO_CANVAS",
+      "entityType": "CANVAS_BLOCK",
+      "entityId": "uuid",
+      "createdAt": "2026-05-08T00:00:00Z"
     }
   ]
 }
 ```
 
-## Get Company
-
-```http
-GET /api/v1/companies/{companyId}
-```
-
-For v0.3, this is a lightweight reference endpoint only. Full company library pages belong to a future version.
-
 ---
 
-# 12. Daily Research Summary Endpoints
-
-## Generate Today's Research Summary
-
-```http
-POST /api/v1/daily-summaries/today/generate
-```
-
-Response:
-
-```json
-{
-  "summaryId": "uuid",
-  "researchItemId": "uuid",
-  "jobId": "uuid",
-  "status": "QUEUED"
-}
-```
-
-## Get Summary By Date
-
-```http
-GET /api/v1/daily-summaries/{date}
-```
-
-Example:
-
-```http
-GET /api/v1/daily-summaries/2026-05-04
-```
-
-Response:
-
-```json
-{
-  "id": "uuid",
-  "summaryDate": "2026-05-04",
-  "topicsCovered": ["Visa earnings", "payment networks"],
-  "companiesMentioned": ["Visa", "Mastercard"],
-  "keyInsights": [],
-  "openQuestions": [],
-  "suggestedFollowups": [],
-  "summaryMarkdown": "..."
-}
-```
-
----
-
-# 13. Journal Endpoints
-
-## Create Journal Entry
-
-```http
-POST /api/v1/journal-entries
-```
-
-Request:
-
-```json
-{
-  "entryDate": "2026-05-04",
-  "entryType": "LEARNING_REFLECTION",
-  "title": "What I learned about Visa today",
-  "body": "Today I learned that cross-border volume is important because...",
-  "linkedDailySummaryId": "uuid",
-  "aiAssisted": false
-}
-```
-
-## Reflection Assistant
-
-```http
-POST /api/v1/journal-entries/reflection-assist
-```
-
-Request:
-
-```json
-{
-  "summaryDate": "2026-05-04",
-  "currentDraft": "Today I researched Visa earnings...",
-  "step": "SUGGEST_LEARNING_POINTS"
-}
-```
-
-Supported steps:
-
-```text
-STARTER_SUMMARY
-SUGGEST_LEARNING_POINTS
-SUGGEST_OPEN_QUESTIONS
-DRAFT_NEXT_PARAGRAPH
-```
-
-Response:
-
-```json
-{
-  "suggestion": "One important lesson from today's research is that strong earnings can still disappoint if expectations were higher.",
-  "nextPrompt": "What changed your view today?"
-}
-```
-
-## List Journal Entries
-
-```http
-GET /api/v1/journal-entries
-```
-
----
-
-# 14. Learning Goal Endpoints
-
-## Create Learning Goal
-
-```http
-POST /api/v1/learning-goals
-```
-
-Request:
-
-```json
-{
-  "title": "Understand how earnings reports affect stock prices",
-  "description": "Focus on revenue, EPS, guidance, and market expectations.",
-  "goalType": "LEARN_TOPIC",
-  "targetDate": "2026-06-01"
-}
-```
-
-## List Learning Goals
-
-```http
-GET /api/v1/learning-goals
-```
-
-## Update Learning Goal
-
-```http
-PATCH /api/v1/learning-goals/{goalId}
-```
-
----
-
-# 15. Research Scopes
-
-## List Research Scopes
-
-```http
-GET /api/v1/research-scopes
-```
-
-v0.3 scopes:
-
-```text
-USER_PROVIDED_ONLY
-RECOMMENDED_CONTEXT
-```
-
-Advanced scopes such as social sentiment or expanded market context can wait until the retrieval layer is more mature.
-
----
-
-# 16. Common Error Shape
-
-```json
-{
-  "errorCode": "SOURCE_EXTRACTION_FAILED",
-  "message": "We could not extract readable content from this source.",
-  "details": null,
-  "timestamp": "2026-05-04T00:00:00Z"
-}
-```
-
-## Error Codes
-
-```text
-INVALID_INPUT
-INVALID_SOURCE_TYPE
-INVALID_URL
-UNSUPPORTED_FILE_TYPE
-FILE_TOO_LARGE
-SOURCE_EXTRACTION_FAILED
-SOURCE_METADATA_ONLY
-SOURCE_BLOCKED
-BROWSER_EXTENSION_PAYLOAD_INVALID
-QUESTION_TOO_VAGUE
-GENERATION_FAILED
-AI_OUTPUT_INVALID
-SOURCE_SCAN_FAILED
-SCAN_REQUIRED_FIRST
-ANALYSIS_ALLOWANCE_TOO_LOW
-ALLOWANCE_DEPLETED
-HIGH_USAGE_WARNING_REQUIRED
-WARNING_NOT_ACKNOWLEDGED
-EXTENSION_AUTH_INVALID
-ANALYSIS_SEGMENT_NOT_FOUND
-ANALYSIS_RUN_NOT_FOUND
-JOB_NOT_FOUND
-RESEARCH_ITEM_NOT_FOUND
-BRIEF_NOT_FOUND
-DAILY_SUMMARY_NOT_FOUND
-UNAUTHORIZED
-FORBIDDEN
-NOT_FOUND
-INTERNAL_ERROR
-```
-
-
----
-
-# 17. Adaptive Research / Source Scan Endpoints
-
-These endpoints support the v0.3 external-source architecture for all external source types: article URLs, browser pages, YouTube videos, earnings reports, PDFs, and company pages.
-
-Ordering rule:
-
-```text
-Run source scan before generation when:
-- researchMode = DEEP, or
-- the source exceeds the long-source threshold, or
-- estimated complexity is HIGH / VERY_HIGH, or
-- the frontend needs the 50% warning decision.
-
-For short sources in Quick or Standard mode, scan is optional but still recommended when the source text is already available.
-```
-
-## Run Source Scan
-
-```http
-POST /api/v1/sources/{sourceId}/scan
-```
-
-Runs a cheap pre-analysis scan before expensive generation.
-
-Request:
-
-```json
-{
-  "requestedOutputMode": "ASK",
-  "analysisIntent": "MARKET_IMPACT",
-  "researchMode": "DEEP",
-  "coverageMode": "FULL_SOURCE",
-  "focusQuestion": "What does this source imply for Nvidia and AI chips?"
-}
-```
-
-Response:
-
-```json
-{
-  "sourceId": "uuid",
-  "scanId": "uuid",
-  "sourceComplexity": "HIGH",
-  "estimateConfidence": "MEDIUM",
-  "estimatedAllowanceImpactPercent": 64,
-  "requiresWarning": true,
-  "warningLevel": "HIGH",
-  "recommendedResearchMode": "STANDARD",
-  "recommendedCompletionStrategy": "OPTIMIZE_RESEARCH",
-  "detectedTopics": ["AI chips", "earnings", "margin pressure"],
-  "detectedEntities": [
-    { "name": "Nvidia", "ticker": "NVDA", "type": "COMPANY" },
-    { "name": "AMD", "ticker": "AMD", "type": "COMPANY" }
-  ],
-  "segments": [
-    {
-      "segmentId": "uuid",
-      "segmentIndex": 0,
-      "startOffsetSeconds": 0,
-      "endOffsetSeconds": 720,
-      "title": "Opening market context",
-      "topicSummary": "Fed policy, bond yields, and tech market setup",
-      "estimatedComplexity": "MEDIUM",
-      "recommendedDepth": "STANDARD"
-    }
-  ]
-}
-```
-
-## Create Analysis Run From Source
-
-```http
-POST /api/v1/research-items/from-source
-```
-
-This existing endpoint now accepts adaptive research options.
-
-Important request fields:
-
-```json
-{
-  "sourceId": "uuid",
-  "requestedOutputMode": "ASK",
-  "analysisIntent": "MARKET_IMPACT",
-  "researchScope": "RECOMMENDED_CONTEXT",
-  "researchMode": "DEEP",
-  "coverageMode": "FULL_SOURCE",
-  "focusQuestion": "What does this source imply for Nvidia and AI chips?",
-  "selectedSegmentIds": [],
-  "selectedEntityIds": [],
-  "completionStrategy": "OPTIMIZE_RESEARCH",
-  "acknowledgedHighUsageWarning": true,
-  "saveToResearchLog": true
-}
-```
-
-Rules:
-
-```text
-- If estimatedAllowanceImpactPercent > 50, require warning acknowledgement before starting.
-- If estimatedAllowanceImpactPercent > 80, recommend Optimize Research or lower research mode.
-- If the source is long/complex and Deep mode is selected, run source scan before generation.
-- If completionStrategy = OPTIMIZE_RESEARCH, section depth may be adapted, but actual depth must be stored and shown in the final result.
-```
-
-## Get Analysis Run
-
-```http
-GET /api/v1/analysis-runs/{analysisRunId}
-```
-
-Response:
-
-```json
-{
-  "id": "uuid",
-  "researchItemId": "uuid",
-  "sourceId": "uuid",
-  "requestedResearchMode": "DEEP",
-  "completionStrategy": "OPTIMIZE_RESEARCH",
-  "coverageMode": "FULL_SOURCE",
-  "status": "RUNNING",
-  "estimatedAllowanceImpactPercent": 64,
-  "actualAllowanceImpactPercent": 38,
-  "warningAcknowledged": true,
-  "currentSegmentIndex": 3,
-  "segmentsTotal": 8
-}
-```
-
-## List Analysis Segments
-
-```http
-GET /api/v1/analysis-runs/{analysisRunId}/segments
-```
-
-Response:
-
-```json
-{
-  "items": [
-    {
-      "id": "uuid",
-      "segmentIndex": 0,
-      "title": "AI chip demand and Nvidia guidance",
-      "startOffsetSeconds": 720,
-      "endOffsetSeconds": 1680,
-      "requestedResearchMode": "DEEP",
-      "actualResearchMode": "DEEP",
-      "status": "COMPLETED",
-      "downgradeReason": null,
-      "canRerun": false
-    },
-    {
-      "id": "uuid",
-      "segmentIndex": 1,
-      "title": "Oil and geopolitical risk",
-      "requestedResearchMode": "DEEP",
-      "actualResearchMode": "STANDARD",
-      "status": "COMPLETED",
-      "downgradeReason": "LOWER_RELEVANCE_TO_USER_INTENT",
-      "canRerun": true
-    }
-  ]
-}
-```
-
-## Rerun Analysis Segment
-
-```http
-POST /api/v1/analysis-segments/{segmentId}/rerun
-```
-
-Use this later when a user wants a downgraded section rerun at a higher research mode after allowance recovers.
-
-Request:
-
-```json
-{
-  "researchMode": "DEEP"
-}
-```
-
-Response:
-
-```json
-{
-  "analysisRunId": "uuid",
-  "segmentId": "uuid",
-  "jobId": "uuid",
-  "status": "QUEUED"
-}
-```
-
----
-
-# 18. Research Allowance Endpoints
+# 14. Research Allowance Endpoints
 
 ## Get Current Allowance
 
@@ -1063,41 +1027,87 @@ Response:
 }
 ```
 
-User-facing UI should prefer percentage/labels over exact internal cost numbers.
+User-facing UI should prefer percentages and labels over exact internal cost numbers.
 
 ---
 
-# 19. Adaptive Research Values
+# 15. Enum Values
 
 ```text
-researchMode:
+ProjectKind:
+CATCHALL
+COVERAGE
+THESIS
+EVENT
+THEME
+DECISION
+
+ChatStatus:
+ACTIVE
+ARCHIVED
+
+ChatTurnRole:
+USER
+ASSISTANT
+
+ChatTurnStatus:
+QUEUED
+RUNNING
+COMPLETED
+FAILED
+
+CanvasBlockType:
+CLAIM
+QUOTE
+NOTE
+SUMMARY
+RISK
+QUESTION
+METRIC
+BULL_CASE
+BEAR_CASE
+
+ProvenanceKind:
+CHAT_TURN
+SOURCE
+MANUAL
+CANDIDATE
+
+CandidateStatus:
+PENDING
+PROMOTED
+DISMISSED
+
+BriefType:
+COMPANY_RESEARCH
+EARNINGS_BREAKDOWN
+SOURCE_SUMMARY
+MARKET_EVENT_EXPLAINER
+THESIS_MEMO
+
+BriefVersionStatus:
+QUEUED
+PROCESSING
+COMPLETED
+FAILED
+ARCHIVED
+
+ResearchMode:
 QUICK
 STANDARD
 DEEP
 
-completionStrategy:
+CompletionStrategy:
 STRICT_REQUESTED_MODE
 OPTIMIZE_RESEARCH
 
-coverageMode:
+CoverageMode:
 FULL_SOURCE
 SELECTED_TOPICS
 SELECTED_ENTITIES
 CUSTOM_QUESTION
 
-sourceComplexity:
-LOW
-MEDIUM
-HIGH
-VERY_HIGH
-
-warningLevel:
-NONE
-INLINE
-HIGH
-VERY_HIGH
-
-analysisIntent:
+AnalysisIntent:
 QUICK_SUMMARY
 MARKET_IMPACT
 COMPANY_ANALYSIS
@@ -1107,17 +1117,20 @@ STRUCTURED_BRIEF
 
 ---
 
-# 20. Future API Endpoints Not in v0.3
+# 16. Future API Endpoints Not in v0.3
 
 Move these to future versions:
 
 ```text
+/project-memory
+/project-summaries
+/thread-summaries
 /watchlists
 /watchlist-items
 /company-events
 /event-impact-notes
 /notifications
-/theses
+/theses/formal-tracking
 /thesis-updates
 /subscription
 /promo-codes
@@ -1127,7 +1140,28 @@ Move these to future versions:
 /extension/connect
 /extension/devices
 /research-baskets
-/multi-source-projects
+/market-map
+/multi-agent-research
+/collaboration
 ```
 
-`/extension/connect` and `/extension/devices` are only needed if the Chrome extension requires a separate device/session token model. For early builds, authenticated web sessions or a simple extension token flow may be enough.
+---
+
+# 17. MVP Demo Flow
+
+The smallest compelling demo should be:
+
+```text
+Create/open project
+→ create chat
+→ attach source or ask question
+→ assistant replies
+→ candidate Canvas blocks appear
+→ user promotes/edits blocks
+→ Canvas fills up
+→ user generates Brief v1 from Canvas
+→ user adds more research later
+→ user generates Brief v2 and sees what changed
+```
+
+This is the product wedge. Everything else is scaffolding with opinions.
