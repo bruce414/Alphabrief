@@ -17,6 +17,7 @@ from app.models.source_segment import SourceSegment
 from app.models.usage_event import UsageEvent
 from app.models.chat_turn import ChatTurn
 from app.models.chat_turn_source import ChatTurnSource
+from app.models.canvas_block import CanvasBlock
 
 __all__ = [
     "Brief",
@@ -24,6 +25,7 @@ __all__ = [
     "Chat",
     "ChatTurn",
     "ChatTurnSource",
+    "CanvasBlock",
     "Project",
     "Source",
     "SourceFetchLog",
