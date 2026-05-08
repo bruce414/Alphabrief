@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol, TypedDict
 
+from app.models.source import Source
+
 
 @dataclass(frozen=True, slots=True)
 class ChatPrompt:
@@ -19,8 +21,21 @@ class ChatReply(TypedDict):
     output_tokens: int
 
 
+class CandidateExtraction(TypedDict):
+    block_type: str
+    title: str | None
+    content_markdown: str
+
+
 class AiProviderClient(Protocol):
     async def generate_chat_reply(self, prompt: ChatPrompt) -> ChatReply: ...
+    async def extract_candidates(
+        self,
+        *,
+        user_message: str,
+        assistant_reply: str,
+        attached_sources: list[Source],
+    ) -> list[CandidateExtraction]: ...
 
 
 class MockAiProviderClient:
@@ -53,4 +68,49 @@ class MockAiProviderClient:
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
         }
+
+    async def extract_candidates(
+        self,
+        *,
+        user_message: str,
+        assistant_reply: str,
+        attached_sources: list[Source],
+    ) -> list[CandidateExtraction]:
+        # Deterministic test heuristic:
+        # - one CLAIM per "### " header in assistant_reply (max 2)
+        # - else: if assistant_reply > 200 chars, return 1 CLAIM titled by first 60 chars; otherwise empty
+        reply = (assistant_reply or "").strip()
+        if not reply:
+            return []
+
+        headers: list[str] = []
+        for line in reply.splitlines():
+            if line.startswith("### "):
+                h = line[4:].strip()
+                if h:
+                    headers.append(h)
+
+        candidates: list[CandidateExtraction] = []
+        if headers:
+            for h in headers[:2]:
+                candidates.append(
+                    {
+                        "block_type": "CLAIM",
+                        "title": h[:120],
+                        "content_markdown": f"{h}",
+                    }
+                )
+            return candidates
+
+        if len(reply) > 200:
+            title = reply.replace("\n", " ")[:60].strip() or None
+            return [
+                {
+                    "block_type": "CLAIM",
+                    "title": title,
+                    "content_markdown": reply[:400].strip() or reply,
+                }
+            ]
+
+        return []
 

@@ -18,6 +18,7 @@ from app.models.usage_event import UsageEvent
 from app.models.chat_turn import ChatTurn
 from app.models.chat_turn_source import ChatTurnSource
 from app.models.canvas_block import CanvasBlock
+from app.models.candidate_block import CandidateBlock
 from app.models.canvas_snapshot import CanvasSnapshot
 from app.models.brief_version import BriefVersion
 
@@ -29,6 +30,7 @@ __all__ = [
     "ChatTurn",
     "ChatTurnSource",
     "CanvasBlock",
+    "CandidateBlock",
     "CanvasSnapshot",
     "Project",
     "Source",

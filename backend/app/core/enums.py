@@ -114,6 +114,12 @@ class ProvenanceKind(str, Enum):
     CANDIDATE = "CANDIDATE"
 
 
+class CandidateStatus(str, Enum):
+    PENDING = "PENDING"
+    PROMOTED = "PROMOTED"
+    DISMISSED = "DISMISSED"
+
+
 class BriefType(str, Enum):
     COMPANY_RESEARCH = "COMPANY_RESEARCH"
     EARNINGS_BREAKDOWN = "EARNINGS_BREAKDOWN"

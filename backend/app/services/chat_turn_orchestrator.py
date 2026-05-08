@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Callable
 from uuid import UUID
 
 from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clients.ai_provider_client import MockAiProviderClient
@@ -16,6 +18,10 @@ from app.models.chat_turn import ChatTurn
 from app.models.project import Project
 from app.models.source import Source
 from app.models.chat_turn_source import ChatTurnSource
+from app.services.candidate_extraction_service import (
+    extract_candidates_for_turn_in_session_safe,
+    extract_candidates_for_turn_safe,
+)
 from app.services.chat_prompt_builder import build_chat_prompt
 from app.services.chat_validation_service import validate_chat_reply
 
@@ -31,14 +37,14 @@ async def generate_assistant_turn(
 ) -> None:
     async with session_factory() as db:
         try:
-            await _execute(asst_turn_id=asst_turn_id, db=db)
+            await _execute(asst_turn_id=asst_turn_id, db=db, session_factory=session_factory)
         except Exception:
             logger.exception("Assistant generation failed; marking FAILED (best effort)")
             async with session_factory() as db2:
                 await _mark_failed(asst_turn_id=asst_turn_id, db=db2, error_code="INTERNAL")
 
 
-async def _execute(*, asst_turn_id: UUID, db: AsyncSession) -> None:
+async def _execute(*, asst_turn_id: UUID, db: AsyncSession, session_factory: SessionFactory) -> None:
     result = await db.execute(
         select(ChatTurn).where(ChatTurn.id == asst_turn_id).with_for_update()
     )
@@ -122,7 +128,16 @@ async def _execute(*, asst_turn_id: UUID, db: AsyncSession) -> None:
     asst.status = ChatTurnStatus.COMPLETED.value
     await db.commit()
 
-    # TODO(PR #11): Phase-2 hook — fire-and-forget candidate extraction after assistant turn is COMPLETED.
+    # PHASE 2 — candidate extraction. Best-effort. Failure must NOT change the assistant turn.
+    try:
+        # In tests, background jobs run on a connection-bound session; avoid concurrent sessions on the same connection.
+        if isinstance(db.bind, AsyncConnection):
+            await extract_candidates_for_turn_in_session_safe(asst.id, db=db)
+        else:
+            asyncio.create_task(extract_candidates_for_turn_safe(asst.id, session_factory=session_factory))
+    except Exception:
+        logger.exception("Failed to schedule candidate extraction for %s", asst.id)
+        # swallow — assistant reply is already saved.
 
 
 async def _mark_failed(*, asst_turn_id: UUID, db: AsyncSession, error_code: str) -> None:

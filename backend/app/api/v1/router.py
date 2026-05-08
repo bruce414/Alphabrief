@@ -9,6 +9,7 @@ from app.api.v1.projects import router as projects_router
 from app.api.v1.chats import router as chats_router
 from app.api.v1.chat_turns import router as chat_turns_router
 from app.api.v1.canvas_blocks import router as canvas_blocks_router
+from app.api.v1.candidates import router as candidates_router
 
 router = APIRouter()
 
@@ -21,3 +22,4 @@ router.include_router(projects_router)
 router.include_router(chats_router)
 router.include_router(chat_turns_router)
 router.include_router(canvas_blocks_router)
+router.include_router(candidates_router)
