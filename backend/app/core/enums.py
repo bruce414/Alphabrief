@@ -113,3 +113,24 @@ class ProvenanceKind(str, Enum):
     MANUAL = "MANUAL"
     CANDIDATE = "CANDIDATE"
 
+
+class BriefType(str, Enum):
+    COMPANY_RESEARCH = "COMPANY_RESEARCH"
+    EARNINGS_BREAKDOWN = "EARNINGS_BREAKDOWN"
+    SOURCE_SUMMARY = "SOURCE_SUMMARY"
+    MARKET_EVENT_EXPLAINER = "MARKET_EVENT_EXPLAINER"
+    THESIS_MEMO = "THESIS_MEMO"
+
+
+class BriefStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"
+
+
+class BriefVersionStatus(str, Enum):
+    QUEUED = "QUEUED"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    ARCHIVED = "ARCHIVED"
+

@@ -10,6 +10,7 @@ os.environ.setdefault("ENVIRONMENT", "test")
 import app.models  # noqa: F401 - register models on Base.metadata
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+import sqlalchemy as sa
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -25,7 +26,9 @@ async def prepare_schema() -> None:
     """Drop and recreate tables once for the test session."""
     engine = get_engine()
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        # Use schema-level reset to avoid FK name/cycle issues when models evolve.
+        await conn.execute(sa.text("DROP SCHEMA IF EXISTS public CASCADE"))
+        await conn.execute(sa.text("CREATE SCHEMA public"))
         await conn.run_sync(Base.metadata.create_all)
 
 
