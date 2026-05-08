@@ -82,3 +82,15 @@ class ChatStatus(str, Enum):
     ACTIVE = "ACTIVE"
     ARCHIVED = "ARCHIVED"
 
+
+class ChatTurnRole(str, Enum):
+    USER = "USER"
+    ASSISTANT = "ASSISTANT"
+
+
+class ChatTurnStatus(str, Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+

@@ -15,11 +15,15 @@ from app.models.source_fetch_policy import SourceFetchPolicy
 from app.models.source_scan import SourceScan
 from app.models.source_segment import SourceSegment
 from app.models.usage_event import UsageEvent
+from app.models.chat_turn import ChatTurn
+from app.models.chat_turn_source import ChatTurnSource
 
 __all__ = [
     "Brief",
     "BriefSource",
     "Chat",
+    "ChatTurn",
+    "ChatTurnSource",
     "Project",
     "Source",
     "SourceFetchLog",

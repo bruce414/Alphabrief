@@ -1,0 +1,38 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.core.enums import ChatTurnRole, ChatTurnStatus
+
+
+class ChatTurnResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
+
+    id: UUID
+    chat_id: UUID = Field(alias="chatId")
+    turn_index: int = Field(alias="turnIndex")
+    role: ChatTurnRole
+    status: ChatTurnStatus
+
+    content_markdown: str | None = Field(default=None, alias="contentMarkdown")
+    content_json: dict[str, Any] | None = Field(default=None, alias="contentJson")
+
+    error_code: str | None = Field(default=None, alias="errorCode")
+    error_message: str | None = Field(default=None, alias="errorMessage")
+
+    model_provider: str | None = Field(default=None, alias="modelProvider")
+    model_name: str | None = Field(default=None, alias="modelName")
+
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: datetime = Field(alias="updatedAt")
+
+
+class ChatTurnListResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    items: list[ChatTurnResponse]
+
