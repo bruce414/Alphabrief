@@ -12,6 +12,8 @@ from fastapi.exceptions import RequestValidationError
 
 from app.core.logging import configure_logging
 
+from app.services.chat_turn_orchestrator import sweep_orphaned_turns
+
 configure_logging()
 
 
@@ -35,3 +37,8 @@ def root_health() -> dict[str, str]:
 
 
 app.include_router(api_router)
+
+
+@app.on_event("startup")
+async def _sweep_orphaned_turns() -> None:
+    await sweep_orphaned_turns()

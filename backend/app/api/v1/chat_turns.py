@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -12,7 +12,13 @@ from app.db.session import get_db
 from app.models.user import User
 from app.repositories.chat_repository import ChatRepository
 from app.repositories.chat_turn_repository import ChatTurnRepository
-from app.schemas.chat_turn import ChatTurnListResponse, ChatTurnResponse
+from app.schemas.chat_turn import (
+    ChatTurnListResponse,
+    ChatTurnResponse,
+    SendChatMessageRequest,
+    SendChatMessageResponse,
+)
+from app.services.chat_turn_service import send_chat_message
 
 
 router = APIRouter(tags=["chat_turns"])
@@ -60,6 +66,29 @@ async def list_chat_turns(
     repo = ChatTurnRepository(db)
     turns = await repo.list_for_chat(chat_id=chat.id)
     return ChatTurnListResponse(items=[_to_turn_response(t) for t in turns])
+
+
+@router.post("/chats/{chat_id}/turns", response_model=SendChatMessageResponse, status_code=status.HTTP_200_OK)
+async def post_chat_turn(
+    chat_id: UUID,
+    data: SendChatMessageRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SendChatMessageResponse:
+    user_turn_id, assistant_turn_id, assistant_status = await send_chat_message(
+        db=db,
+        current_user=current_user,
+        chat_id=chat_id,
+        content=data.content,
+        source_ids=data.source_ids,
+        background_tasks=background_tasks,
+    )
+    return SendChatMessageResponse(
+        userTurnId=user_turn_id,
+        assistantTurnId=assistant_turn_id,
+        assistantStatus=ChatTurnStatus(assistant_status),
+    )
 
 
 @router.get("/chat-turns/{turn_id}", response_model=ChatTurnResponse)

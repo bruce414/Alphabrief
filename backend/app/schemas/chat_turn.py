@@ -36,3 +36,18 @@ class ChatTurnListResponse(BaseModel):
 
     items: list[ChatTurnResponse]
 
+
+class SendChatMessageRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    content: str
+    source_ids: list[UUID] | None = Field(default=None, alias="sourceIds")
+
+
+class SendChatMessageResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    user_turn_id: UUID = Field(alias="userTurnId")
+    assistant_turn_id: UUID = Field(alias="assistantTurnId")
+    assistant_status: ChatTurnStatus = Field(alias="assistantStatus")
+
