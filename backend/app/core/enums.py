@@ -77,3 +77,8 @@ class AnalysisMode(str, Enum):
     CONTEXT_BRIEF = "CONTEXT_BRIEF"
     NOT_APPLICABLE = "NOT_APPLICABLE"
 
+
+class ChatStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"
+
