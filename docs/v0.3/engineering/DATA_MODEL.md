@@ -2,30 +2,33 @@
 
 ## Version
 
-`v0.3 First Milestone — Projects → Canvas → Versioned Briefs`
+`v0.3 First Milestone — Projects → Agent Chat → Freeform Canvas → Sources / Memory → On-demand Briefs`
 
 ## Status
 
-This document replaces the earlier `ResearchItem`-first model with AlphaBrief's new workspace direction:
+This document updates the previous Canvas-first brief-generation model.
+
+AlphaBrief v0.3 is a **market learning and research workspace**. The latest direction is:
 
 ```text
-Projects → Chats / Sources → Canvas → Versioned Briefs
+Project
+→ focused Agent chat and source analysis
+→ AI suggests useful research blocks
+→ user builds understanding in a freeform Canvas
+→ Sources preserve evidence
+→ Memory preserves project-level understanding
+→ Briefs are generated on request from selected context
 ```
 
-AlphaBrief v0.3 is no longer only a saved research log with tags. It is a market research workspace where chats are exploratory tools inside projects, the Canvas is the curated research artifact, and Briefs are generated snapshots from the Canvas.
-
-The core product loop is:
+Important change:
 
 ```text
-Ask or submit source
-→ explore through a focused chat
-→ AI suggests useful claims/notes
-→ user promotes, edits, adds, and orders Canvas blocks
-→ generate a versioned research brief from selected Canvas content
-→ continue researching and generate updated versions later
+The Canvas is no longer the required source of truth for brief generation.
+The Canvas is the user's evolving understanding space.
+Briefs are generated on demand from chat, selected sources, project memory, and optionally selected Canvas elements or clusters.
 ```
 
-The Canvas is the source of truth for brief generation. Raw chat transcripts are not the primary input for formal briefs.
+This avoids turning Canvas into a rigid report-prep form. The Canvas should feel like a research desk: editable, spatial, visual, and useful for building understanding over time. Apparently users like thinking, not filling out tax forms disguised as software.
 
 ---
 
@@ -38,7 +41,9 @@ v0.3 should support:
 - User accounts
 - Project workspaces
 - Auto-created Catchall project for low-friction asking
-- Focused chats inside projects
+- Threads / chats inside projects
+- One universal Ask box / Agent composer
+- Smart input detection for URLs, YouTube links, PDFs, filings, browser-extension captures, and general questions
 - Chat turns with attached sources
 - URL, YouTube, PDF, and Chrome-extension-ready source ingestion
 - Source extraction status tracking
@@ -46,20 +51,22 @@ v0.3 should support:
 - Cheap source scan and segmentation for long/complex external sources
 - Quick / Standard / Deep research modes
 - Optimize Research adaptive section-depth control
-- Canvas blocks as curated research units
-- Manual Canvas block creation
-- Promote chat turns to Canvas
-- Promote source-derived notes/quotes to Canvas
-- AI-suggested candidate Canvas blocks after assistant replies
-- User editing, archiving, deleting, and reordering Canvas blocks
-- Brief generation from Canvas, not raw chat history
-- Brief version history and “what changed since last version” summary
+- Freeform Canvas as the center thinking workspace
+- Canvas elements with absolute position, size, type, and provenance
+- AI-generated blocks added from chat to Canvas
+- User-created text notes and images on Canvas
+- Simple mind-map elements: nodes, connectors, groups/frames, labels
+- User editing, moving, resizing, archiving, deleting, duplicating Canvas elements
+- Optional source references on Canvas elements
+- Project Memory as explicit accumulated understanding
+- On-demand brief generation from selected context, not necessarily Canvas
+- Saved brief versions and “what changed” comparison when relevant
 - Tags and lightweight company references
 - Research activity tracking
 - Basic usage/cost tracking
 - Compliance-safe language: educational/informational, not personalized investment advice
 
-## 1.2 Near-Roadmap / Extension-Ready Scope
+## 1.2 Extension-Ready Scope
 
 The Chrome extension should remain represented in v0.3 architecture and data model, but the extension client can ship after the web workspace is stable.
 
@@ -75,7 +82,7 @@ The Chrome extension client can be built after source ingestion + chat attachmen
 Move these to later versions:
 
 - Full autonomous multi-agent research planner
-- Project memory beyond explicit Canvas context
+- Fully AI-generated market graph across all projects
 - Proactive monitoring
 - Watchlist alerts
 - Push/email notifications
@@ -86,9 +93,9 @@ Move these to later versions:
 - Public sharing
 - PDF/DOCX exports
 - Full claim/citation verification tables
-- Cross-project Canvas block reuse
-- Full visual mind map / market graph
-- Collaboration / team workspaces
+- Cross-project Canvas element reuse
+- Complex collaborative whiteboarding
+- Real-time multiplayer Canvas
 - Broad web crawling
 - Paywall/login/CAPTCHA bypass
 - Permanent storage of full copyrighted article text by default
@@ -98,23 +105,28 @@ Move these to later versions:
 # 2. Core Design Principles
 
 1. `Project` is the top-level organizing container.
-2. `Chat` is an exploration session inside a project, not the primary organizing unit.
-3. `Source` stores user-submitted or user-authorized source material and metadata.
-4. `CanvasBlock` is the atomic curated research unit.
-5. `CanvasBlock` must be editable by the user. If the Canvas is only an extraction bucket, it does not justify existing.
-6. `Brief` is a logical brief series inside a project.
-7. `BriefVersion` is a point-in-time snapshot generated from a Canvas snapshot.
-8. Formal briefs should be generated from selected/current Canvas blocks, not raw chat turns.
-9. Direct user questions belong in chat turns, not sources.
-10. Long/complex sources should be scanned, segmented, and analyzed with depth controls.
-11. The Catchall project exists to remove friction, but the product should nudge users toward real projects when research starts accumulating.
-12. The product should preserve provenance from Canvas blocks back to chat turns and/or sources.
-13. Use JSONB for flexible AI output sections in v0.3.
-14. Keep compliance-safe language: educational and informational, not personalized financial advice.
-15. Store AI usage/cost data from the beginning, but keep billing out of v0.3.
-16. Store generated analysis and source metadata by default; avoid permanent raw full-text storage without a retention policy.
-17. Final segmented-source outputs should show analysis depth by section.
-18. Project memory should be explicit and controlled. Bad hidden memory is worse than no memory.
+2. `Chat` / `Thread` is an exploration session inside a project.
+3. The visible product should use one main Ask box, not separate hard modes for news/video/PDF.
+4. Input type detection happens internally after the user asks or pastes a source.
+5. `Source` stores user-submitted or user-authorized source material and metadata.
+6. `Canvas` is the freeform visual workspace in the middle of the UI.
+7. `CanvasElement` is the atomic visual object on the Canvas.
+8. Canvas elements must be editable, movable, resizable, and optionally source-linked.
+9. Canvas is for understanding-building, not a mandatory brief-generation input form.
+10. `ProjectMemory` stores explicit project-level understanding, summaries, entities, themes, and open questions.
+11. `Brief` is a logical brief series inside a project.
+12. `BriefVersion` is a point-in-time generated output from a selected `BriefContextSnapshot`.
+13. Brief generation can use current chat, selected sources, project memory, selected Canvas elements, or full project context.
+14. Direct user questions belong in chat turns, not sources.
+15. Long/complex sources should be scanned, segmented, and analyzed with depth controls.
+16. The Catchall project exists to remove friction, but the product should nudge users toward real projects when research starts accumulating.
+17. Preserve provenance from Canvas elements back to chat turns and/or sources when applicable.
+18. Use JSONB for flexible AI output and Canvas content in v0.3.
+19. Keep compliance-safe language: educational and informational, not personalized financial advice.
+20. Store AI usage/cost data from the beginning, but keep billing out of v0.3.
+21. Store generated analysis and source metadata by default; avoid permanent raw full-text storage without a retention policy.
+22. Final segmented-source outputs should show analysis depth by section.
+23. Project memory should be explicit and controlled. Bad hidden memory is worse than no memory.
 
 ---
 
@@ -127,13 +139,14 @@ User
  │    │    ├── ChatTurn
  │    │    └── ChatTurnSource
  │    │         └── Source
- │    ├── CanvasBlock
- │    │    ├── provenance_chat_turn optional
- │    │    └── provenance_source optional
- │    ├── CandidateBlock
+ │    ├── Canvas
+ │    │    ├── CanvasElement
+ │    │    └── CanvasConnection
+ │    ├── CandidateElement
+ │    ├── ProjectMemory
  │    ├── Brief
  │    │    └── BriefVersion
- │    │         └── CanvasSnapshot
+ │    │         └── BriefContextSnapshot
  │    ├── ProjectTag optional
  │    └── ProjectCompany optional
  │
@@ -149,7 +162,7 @@ User
  └── UsageEvent
 ```
 
-`ResearchItem` can be deprecated for the new build or kept only as a backward-compatibility/search-log wrapper. For a clean v0.3 workspace build, prefer explicit domain objects: `Project`, `Chat`, `CanvasBlock`, `Brief`, and `BriefVersion`.
+`ResearchItem` should remain deprecated for the new build or kept only as a backward-compatibility/search-log wrapper. The clearer v0.3 nouns are: `Project`, `Chat`, `Source`, `Canvas`, `CanvasElement`, `ProjectMemory`, `Brief`, and `BriefVersion`.
 
 ---
 
@@ -196,7 +209,7 @@ COVERAGE  # tracking a company/sector
 THESIS    # building an investment view
 EVENT     # earnings season, Fed meeting, product launch, regulation
 THEME     # cross-cutting topic such as AI capex, GLP-1s, tariffs
-DECISION  # specific buy/sell/hold or compare decision research
+DECISION  # specific compare/decision research; not personalized advice
 ```
 
 ### Constraints
@@ -205,23 +218,6 @@ DECISION  # specific buy/sell/hold or compare decision research
 CREATE UNIQUE INDEX uq_projects_one_catchall_per_user
 ON projects(user_id)
 WHERE kind = 'CATCHALL';
-```
-
-### Catchall behavior
-
-The Catchall keeps asking friction near zero. However, AlphaBrief should make real projects visibly more valuable.
-
-Recommended rule:
-
-```text
-Catchall supports chats and temporary capture.
-Real project Canvas + BriefVersion workflows should be strongly encouraged for ongoing research.
-```
-
-A strict version may block formal brief generation from Catchall. A softer version may allow it but show a prompt:
-
-```text
-This looks like ongoing research. Create a project so future chats, Canvas blocks, and brief versions stay together.
 ```
 
 ---
@@ -234,7 +230,7 @@ Focused exploration sessions inside a project.
 |---|---|---|
 | id | UUID | Primary key |
 | project_id | UUID | FK to projects ON DELETE CASCADE, indexed |
-| user_id | UUID | FK to users, denormalized for fast owner checks |
+| user_id | UUID | FK to users, denormalized |
 | title | TEXT | Default `New chat` |
 | status | VARCHAR(32) | ACTIVE, ARCHIVED |
 | last_turn_at | TIMESTAMPTZ | Nullable |
@@ -263,6 +259,8 @@ Individual user/assistant turns.
 | turn_index | INT | 0-based ordering within chat |
 | role | VARCHAR(16) | USER, ASSISTANT |
 | status | VARCHAR(16) | QUEUED, RUNNING, COMPLETED, FAILED |
+| intent_type | VARCHAR(50) | GENERAL_ASK, SOURCE_ANALYSIS, BRIEF_GENERATION, CANVAS_ACTION, COMPARISON |
+| detected_input_type | VARCHAR(50) | QUESTION, ARTICLE_URL, YOUTUBE_URL, PDF_FILE, BROWSER_PAGE, MIXED |
 | content_markdown | TEXT | User text or assistant response |
 | content_json | JSONB | Structured assistant output |
 | error_code | VARCHAR(64) | Nullable |
@@ -299,8 +297,6 @@ Primary key:
 PRIMARY KEY (chat_turn_id, source_id)
 ```
 
-User turns reference attached sources. Assistant turns should reference the same viewed sources, plus any later retrieved context sources if implemented.
-
 ---
 
 ## 4.6 `sources`
@@ -311,7 +307,8 @@ Represents source material provided or authorized by the user.
 |---|---|---|
 | id | UUID | Primary key |
 | user_id | UUID | FK to users |
-| source_type | VARCHAR(50) | ARTICLE_URL, YOUTUBE_URL, PDF_FILE, BROWSER_PAGE |
+| project_id | UUID | Nullable FK to projects; can be attached later |
+| source_type | VARCHAR(50) | ARTICLE_URL, YOUTUBE_URL, PDF_FILE, BROWSER_PAGE, FILING_URL, IMAGE_FILE |
 | source_access_method | VARCHAR(50) | SERVER_FETCH, BROWSER_EXTENSION, API_CONTEXT, UPLOAD, YOUTUBE_METADATA, YOUTUBE_TRANSCRIPT |
 | source_access_status | VARCHAR(50) | PENDING, FULL_TEXT_EXTRACTED, METADATA_ONLY, BLOCKED, FAILED |
 | original_input | TEXT | URL, file ref, or browser page URL |
@@ -345,8 +342,6 @@ BROWSER_PAGE         → TEMPORARY_24H by default, then purge extracted_text
 PDF_FILE             → TEMPORARY_24H for extracted text; original file follows upload policy
 YOUTUBE_TRANSCRIPT   → EPHEMERAL unless transcript retention is explicitly enabled later
 ```
-
-A scheduled purge job must remove expired `sources.extracted_text` for `TEMPORARY_24H` rows. Otherwise the retention enum is decoration wearing a lab coat.
 
 ---
 
@@ -399,58 +394,95 @@ Chunk map for long or complex sources.
 
 ---
 
-## 4.9 `canvas_blocks`
+## 4.9 `canvases`
 
-Curated, ordered research blocks inside a project. This is the working research artifact.
+One freeform workspace per project for v0.3.
 
 | Field | Type | Notes |
 |---|---|---|
 | id | UUID | Primary key |
+| project_id | UUID | FK to projects ON DELETE CASCADE, unique |
+| user_id | UUID | FK to users, denormalized |
+| title | TEXT | Default `Working canvas` |
+| viewport_json | JSONB | Optional last viewport/zoom state |
+| metadata | JSONB | Default `{}` |
+| created_at | TIMESTAMPTZ | Required |
+| updated_at | TIMESTAMPTZ | Required |
+
+---
+
+## 4.10 `canvas_elements`
+
+Freeform visual elements inside a Canvas. This replaces strict ordered `CanvasBlock` as the main v0.3 Canvas model.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| canvas_id | UUID | FK to canvases ON DELETE CASCADE |
 | project_id | UUID | FK to projects ON DELETE CASCADE, indexed |
 | user_id | UUID | FK to users, denormalized |
-| block_type | VARCHAR(32) | CLAIM, QUOTE, NOTE, SUMMARY, RISK, QUESTION, METRIC, BULL_CASE, BEAR_CASE |
-| content_markdown | TEXT | Required, user-editable |
-| content_json | JSONB | Default `{}`; structured fields per block type |
-| position_index | NUMERIC(20,10) | Fractional ordering |
-| provenance_kind | VARCHAR(32) | CHAT_TURN, SOURCE, MANUAL, CANDIDATE |
+| element_type | VARCHAR(40) | TEXT, AI_BLOCK, CLAIM, EVIDENCE, QUOTE, DATA, IMAGE, QUESTION, RISK, CATALYST, MINDMAP_NODE, GROUP, STICKY_NOTE |
+| title | TEXT | Optional |
+| content_markdown | TEXT | Nullable for text-like elements |
+| content_json | JSONB | Default `{}`; structured fields per type |
+| x | NUMERIC | Required |
+| y | NUMERIC | Required |
+| width | NUMERIC | Nullable |
+| height | NUMERIC | Nullable |
+| z_index | INT | Default 0 |
+| style_json | JSONB | Optional color/tag/shape/font info |
+| provenance_kind | VARCHAR(32) | CHAT_TURN, SOURCE, MANUAL, CANDIDATE, GENERATED |
 | provenance_chat_turn_id | UUID | FK to chat_turns ON DELETE SET NULL, nullable |
 | provenance_source_id | UUID | FK to sources ON DELETE SET NULL, nullable |
-| title | TEXT | Optional short label |
 | confidence_label | VARCHAR(50) | HIGH, MEDIUM, LOW, UNKNOWN; optional |
+| edited_by_user | BOOLEAN | Default false |
 | archived_at | TIMESTAMPTZ | Nullable |
 | created_at | TIMESTAMPTZ | Required |
 | updated_at | TIMESTAMPTZ | Required |
 
-### Values
+### Element values
 
 ```text
-CLAIM      # assertion or interpretation
-QUOTE      # source quote; keep short and policy-safe
-NOTE       # user free-form note
-SUMMARY    # condensed summary block
-RISK       # risk/uncertainty
-QUESTION   # open research question
-METRIC     # financial/market metric note
-BULL_CASE  # positive thesis point
-BEAR_CASE  # negative thesis point
+TEXT          # user freeform writing
+AI_BLOCK      # imported assistant answer or selected excerpt
+CLAIM         # assertion or interpretation
+EVIDENCE      # supporting fact/source point
+QUOTE         # short source quote; policy-safe
+DATA          # financial/market metric note
+IMAGE         # screenshot/chart/image
+QUESTION      # open research question
+RISK          # risk/uncertainty
+CATALYST      # event/change driver
+MINDMAP_NODE  # simple graph/mind-map node
+GROUP         # visual frame/group
+STICKY_NOTE   # lightweight note card
 ```
-
-### Position model
-
-Use fractional indices:
-
-```text
-Append: max(position_index) + 1.0
-Insert between A and B: (A.position_index + B.position_index) / 2
-```
-
-If adjacent positions become too close, rebalance all active blocks to integer spacing. Keep rebalancing internal to the service.
 
 ---
 
-## 4.10 `candidate_blocks`
+## 4.11 `canvas_connections`
 
-AI-suggested Canvas blocks generated from assistant turns. Users promote or dismiss them.
+Edges between Canvas elements for simple mind maps and relationship mapping.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| canvas_id | UUID | FK to canvases ON DELETE CASCADE |
+| project_id | UUID | FK to projects ON DELETE CASCADE |
+| user_id | UUID | FK to users, denormalized |
+| from_element_id | UUID | FK to canvas_elements ON DELETE CASCADE |
+| to_element_id | UUID | FK to canvas_elements ON DELETE CASCADE |
+| label | TEXT | Optional |
+| connection_type | VARCHAR(40) | SUPPORTS, CONTRADICTS, CAUSES, DEPENDS_ON, RELATED_TO, CUSTOM |
+| style_json | JSONB | Optional line style/arrow style |
+| created_at | TIMESTAMPTZ | Required |
+| updated_at | TIMESTAMPTZ | Required |
+
+---
+
+## 4.12 `candidate_elements`
+
+AI-suggested Canvas elements generated from assistant turns. Users promote or dismiss them.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -458,11 +490,12 @@ AI-suggested Canvas blocks generated from assistant turns. Users promote or dism
 | chat_turn_id | UUID | FK to chat_turns ON DELETE CASCADE |
 | project_id | UUID | FK to projects ON DELETE CASCADE |
 | user_id | UUID | FK to users, denormalized |
-| block_type | VARCHAR(32) | CanvasBlockType |
+| suggested_element_type | VARCHAR(40) | CanvasElementType |
 | title | TEXT | Nullable |
 | content_markdown | TEXT | Required |
+| content_json | JSONB | Default `{}` |
 | status | VARCHAR(16) | PENDING, PROMOTED, DISMISSED |
-| promoted_block_id | UUID | FK to canvas_blocks ON DELETE SET NULL |
+| promoted_element_id | UUID | FK to canvas_elements ON DELETE SET NULL |
 | extraction_model_name | VARCHAR(128) | Nullable |
 | created_at | TIMESTAMPTZ | Required |
 | updated_at | TIMESTAMPTZ | Required |
@@ -471,7 +504,30 @@ Candidate extraction should never block the main assistant answer.
 
 ---
 
-## 4.11 `briefs`
+## 4.13 `project_memories`
+
+Explicit project-level accumulated understanding.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| project_id | UUID | FK to projects ON DELETE CASCADE, unique |
+| user_id | UUID | FK to users |
+| summary_markdown | TEXT | Nullable project summary |
+| entities_json | JSONB | Companies/tickers/themes/macros |
+| themes_json | JSONB | Recurring themes |
+| open_questions_json | JSONB | Durable research questions |
+| conclusions_json | JSONB | Current project-level conclusions |
+| last_compiled_from_activity_id | UUID | Nullable |
+| updated_by | VARCHAR(20) | USER, AI, SYSTEM |
+| created_at | TIMESTAMPTZ | Required |
+| updated_at | TIMESTAMPTZ | Required |
+
+Memory should be visible and editable later. Do not build spooky invisible memory and then act surprised when users distrust it.
+
+---
+
+## 4.14 `briefs`
 
 Logical brief series inside a project.
 
@@ -481,7 +537,7 @@ Logical brief series inside a project.
 | project_id | UUID | FK to projects ON DELETE CASCADE |
 | user_id | UUID | FK to users |
 | title | TEXT | Required |
-| brief_type | VARCHAR(50) | COMPANY_RESEARCH, EARNINGS_BREAKDOWN, SOURCE_SUMMARY, MARKET_EVENT_EXPLAINER, THESIS_MEMO |
+| brief_type | VARCHAR(50) | COMPANY_RESEARCH, EARNINGS_BREAKDOWN, SOURCE_SUMMARY, MARKET_EVENT_EXPLAINER, THESIS_MEMO, BULL_BEAR_MEMO |
 | subject | TEXT | Company/topic/event |
 | ticker | VARCHAR(20) | Nullable |
 | current_version_id | UUID | Nullable FK to brief_versions |
@@ -492,26 +548,31 @@ Logical brief series inside a project.
 
 ---
 
-## 4.12 `canvas_snapshots`
+## 4.15 `brief_context_snapshots`
 
-Point-in-time record of Canvas blocks used for a brief version.
+Point-in-time record of the context used for brief generation.
+
+This replaces the earlier Canvas-only snapshot model.
 
 | Field | Type | Notes |
 |---|---|---|
 | id | UUID | Primary key |
 | project_id | UUID | FK to projects |
 | user_id | UUID | FK to users |
-| selected_block_ids | UUID[] | Blocks included in generation |
-| selected_source_ids | UUID[] | Optional source list inferred from blocks |
-| canvas_hash | VARCHAR(255) | For staleness detection |
-| snapshot_json | JSONB | Ordered block contents at generation time |
+| context_scope | VARCHAR(50) | CURRENT_THREAD, SELECTED_SOURCES, SELECTED_CANVAS, CANVAS_CLUSTER, PROJECT_MEMORY, FULL_PROJECT, CUSTOM |
+| selected_chat_turn_ids | UUID[] | Optional |
+| selected_source_ids | UUID[] | Optional |
+| selected_canvas_element_ids | UUID[] | Optional |
+| selected_memory_keys | TEXT[] | Optional |
+| snapshot_json | JSONB | Exact material passed to brief generation |
+| context_hash | VARCHAR(255) | For staleness/dedup detection |
 | created_at | TIMESTAMPTZ | Required |
 
 ---
 
-## 4.13 `brief_versions`
+## 4.16 `brief_versions`
 
-Generated point-in-time document from a Canvas snapshot.
+Generated point-in-time document from a selected context snapshot.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -520,12 +581,12 @@ Generated point-in-time document from a Canvas snapshot.
 | project_id | UUID | FK to projects |
 | user_id | UUID | FK to users |
 | version_number | INT | Starts at 1 |
-| canvas_snapshot_id | UUID | FK to canvas_snapshots |
+| brief_context_snapshot_id | UUID | FK to brief_context_snapshots |
 | status | VARCHAR(32) | QUEUED, PROCESSING, COMPLETED, FAILED, ARCHIVED |
 | content_markdown | TEXT | Generated brief text |
 | sections | JSONB | Structured brief sections |
 | summary_of_changes | TEXT | Diff vs previous version when available |
-| generated_from_block_count | INT | Convenience field |
+| generated_from_summary | TEXT | e.g. `current thread + 3 sources + 5 Canvas elements` |
 | model_provider | VARCHAR(100) | Nullable |
 | model_name | VARCHAR(100) | Nullable |
 | prompt_version | VARCHAR(50) | Nullable |
@@ -535,16 +596,18 @@ Generated point-in-time document from a Canvas snapshot.
 
 ### Brief meaning
 
-A brief is not final truth. It is a generated snapshot from the state of the Canvas.
+A brief is not final truth. It is a generated snapshot from selected project context.
 
 ```text
-Canvas = living research base
-BriefVersion = point-in-time output
+Canvas = living thinking space
+Sources = evidence library
+Memory = accumulated understanding
+BriefVersion = point-in-time packaged output
 ```
 
 ---
 
-## 4.14 `tags` and project/block tagging
+## 4.17 `tags` and tagging
 
 Keep tags as secondary organization.
 
@@ -567,15 +630,13 @@ Recommended joins:
 
 ```text
 project_tags(project_id, tag_id)
-canvas_block_tags(canvas_block_id, tag_id) optional later
+canvas_element_tags(canvas_element_id, tag_id) optional later
 brief_tags(brief_id, tag_id) optional later
 ```
 
-For v0.3, project-level tags may be enough.
-
 ---
 
-## 4.15 `companies` and project/company references
+## 4.18 `companies` and project/company references
 
 Lightweight company reference table.
 
@@ -597,12 +658,12 @@ Joins:
 ```text
 project_companies(project_id, company_id)
 source_companies(source_id, company_id) optional later
-canvas_block_companies(canvas_block_id, company_id) optional later
+canvas_element_companies(canvas_element_id, company_id) optional later
 ```
 
 ---
 
-## 4.16 `research_activities`
+## 4.19 `research_activities`
 
 Structured activity events for daily summaries and future engagement loops.
 
@@ -613,7 +674,7 @@ Structured activity events for daily summaries and future engagement loops.
 | project_id | UUID | FK to projects nullable |
 | activity_type | VARCHAR(50) | See values below |
 | entity_id | UUID | Nullable |
-| entity_type | VARCHAR(50) | PROJECT, CHAT, CHAT_TURN, SOURCE, CANVAS_BLOCK, BRIEF_VERSION |
+| entity_type | VARCHAR(50) | PROJECT, CHAT, CHAT_TURN, SOURCE, CANVAS_ELEMENT, BRIEF_VERSION, PROJECT_MEMORY |
 | metadata | JSONB | Default `{}` |
 | created_at | TIMESTAMPTZ | Required |
 
@@ -622,12 +683,15 @@ Values:
 ```text
 CREATED_PROJECT
 ASKED_QUESTION
+DETECTED_SOURCE_INPUT
 ATTACHED_SOURCE
 ANALYZED_SOURCE
 GENERATED_CHAT_REPLY
 PROMOTED_TO_CANVAS
-CREATED_CANVAS_BLOCK
-UPDATED_CANVAS_BLOCK
+CREATED_CANVAS_ELEMENT
+UPDATED_CANVAS_ELEMENT
+CONNECTED_CANVAS_ELEMENTS
+UPDATED_PROJECT_MEMORY
 GENERATED_BRIEF_VERSION
 CREATED_JOURNAL_ENTRY
 GENERATED_DAILY_SUMMARY
@@ -635,7 +699,7 @@ GENERATED_DAILY_SUMMARY
 
 ---
 
-## 4.17 `usage_events`
+## 4.20 `usage_events`
 
 Basic AI usage/cost tracking.
 
@@ -644,7 +708,7 @@ Basic AI usage/cost tracking.
 | id | UUID | Primary key |
 | user_id | UUID | FK to users |
 | project_id | UUID | Nullable FK |
-| entity_type | VARCHAR(50) | CHAT_TURN, CANDIDATE_EXTRACTION, BRIEF_VERSION, SOURCE_SCAN |
+| entity_type | VARCHAR(50) | CHAT_TURN, CANDIDATE_EXTRACTION, BRIEF_VERSION, SOURCE_SCAN, MEMORY_UPDATE |
 | entity_id | UUID | Nullable |
 | provider | VARCHAR(100) | Nullable |
 | model_name | VARCHAR(100) | Nullable |
@@ -661,7 +725,7 @@ Basic AI usage/cost tracking.
 
 ## 5.1 What happens to `ResearchItem`?
 
-The previous docs used `ResearchItem` as the central saved artifact. In the new direction, it creates ambiguity because Projects, Canvas blocks, and Brief versions have clearer roles.
+The previous docs used `ResearchItem` as the central saved artifact. In the new direction, it creates ambiguity because Projects, Sources, Canvas elements, Memory, and Brief versions have clearer roles.
 
 Recommended path:
 
@@ -671,75 +735,79 @@ If existing ResearchItem tables already exist, keep them as legacy/search-log wr
 Do not make formal brief generation depend on ResearchItem.
 ```
 
-A future search page can index across chats, sources, Canvas blocks, and brief versions without needing one table to pretend to be all of them.
+## 5.2 What about the old Ask Mode, URL Mode, and YouTube Mode?
 
-## 5.2 What about the old Ask Mode and Brief Mode?
-
-Keep them conceptually, but route them through the workspace:
+Keep them internally, not as hard user-facing modes.
 
 ```text
-Ask Mode → Chat turn inside a project
-Brief Mode → Generate BriefVersion from Canvas
-Source Mode → Create Source, attach to chat, analyze, promote outputs to Canvas
+Visible UX: one Ask box.
+Internal routing: GENERAL_ASK, ARTICLE_ANALYSIS, YOUTUBE_ANALYSIS, PDF_ANALYSIS, FILING_ANALYSIS, BRIEF_GENERATION, CANVAS_ACTION.
 ```
+
+A user should be able to paste a link and type “analyze this for me.” AlphaBrief should detect the source type and route the request. Making the user pick five modes first is UX bureaucracy with a fancy border.
 
 ---
 
 # 6. Implementation Slices
 
-## Slice A: Projects
+## Slice A: Projects + Catchall
 
 - `projects`
 - auto-created Catchall
 - project CRUD/read endpoints
 
-## Slice B: Chats
+## Slice B: Chats + One Ask Composer
 
 - `chats`
-- chat CRUD/read endpoints
-
-## Slice C: Chat Turns + Source Attachment
-
 - `chat_turns`
-- `chat_turn_sources`
+- smart input detection
+- source auto-detection from message text
 - mock AI provider
 - send endpoint and polling
 
-## Slice D: Canvas
+## Slice C: Sources + Source Attachment
 
-- `canvas_blocks`
-- manual creation
-- promote from chat turn/source
-- edit/reorder/archive/delete
+- `sources`
+- `chat_turn_sources`
+- article / YouTube / PDF / browser extension ingestion
+- extraction statuses and metadata-only fallback
 
-## Slice E: Candidate Blocks
+## Slice D: Freeform Canvas
 
-- `candidate_blocks`
+- `canvases`
+- `canvas_elements`
+- `canvas_connections`
+- manual text/image/node creation
+- move/resize/edit/delete/archive
+- source/chat provenance
+
+## Slice E: Candidate Elements
+
+- `candidate_elements`
 - AI extraction after assistant replies
-- promote/dismiss
+- promote/dismiss to Canvas
 
-## Slice F: Brief Versions
+## Slice F: Project Memory
+
+- `project_memories`
+- visible project summary/entities/themes/open questions
+- manual or AI-assisted refresh
+
+## Slice G: Brief Versions
 
 - `briefs`
-- `canvas_snapshots`
+- `brief_context_snapshots`
 - `brief_versions`
-- generate from selected Canvas blocks
+- generate from current thread, selected sources, project memory, selected Canvas elements, or full project context
 - compare with previous version
 
-## Slice G: Real LLM + Validation
+## Slice H: Real LLM + Validation
 
 - real AI provider
 - output validation
 - repair prompt
 - source grounding rules
 - usage tracking
-
-## Slice H: Daily Summary / Journal / Learning Goals
-
-- structured activities
-- daily summaries
-- journal/reflection assistant
-- learning goals
 
 ---
 
@@ -750,7 +818,7 @@ Do not build the full future research platform now.
 The v0.3 proof is:
 
 ```text
-Can a user explore a market topic, capture useful insights to a Canvas, refine them, and generate an updated brief from that Canvas later?
+Can a user ask naturally, analyze sources, save useful ideas to a freeform Canvas, build visual understanding over time, and generate useful briefs on demand from the context they choose?
 ```
 
-That is the non-wrapper product loop. Everything else is dessert. Expensive dessert, naturally.
+That is the non-wrapper product loop. Everything else is dessert, and dessert has killed more MVPs than competitors have.

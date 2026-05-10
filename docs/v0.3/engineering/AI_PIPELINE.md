@@ -2,46 +2,57 @@
 
 ## Version
 
-`v0.3 First Milestone — Projects → Canvas → Versioned Briefs`
+`v0.3 First Milestone — One Ask Box → Smart Source Detection → Freeform Canvas → On-demand Briefs`
 
 ## Status
 
 AlphaBrief v0.3 is a market learning and research workspace.
 
-The updated pipeline is no longer:
+The pipeline is no longer:
 
 ```text
 Input → generate one research item / brief → save with tags
 ```
 
-It is now:
+It is also no longer:
+
+```text
+Project → chat → curated Canvas → brief must be generated from Canvas
+```
+
+The latest direction is:
 
 ```text
 Project
-→ focused chats and source analysis
-→ candidate insight extraction
-→ user-curated Canvas
-→ versioned briefs generated from Canvas snapshots
+→ one Ask box / Agent chat
+→ smart input and source detection
+→ source-aware analysis when relevant
+→ AI suggests Canvas candidates
+→ user builds understanding in a freeform Canvas
+→ project Memory accumulates explicit understanding
+→ briefs are generated on request from selected context
 ```
 
-The Canvas is the key quality layer. Brief generation should use the Canvas because it contains selected, edited, ordered, source-linked research blocks. Raw chat history is too noisy to be the primary formal-brief input. Humanity invented editing for a reason, then immediately tried to automate around it. We will not repeat that tiny tragedy.
+The Canvas is the user's living thinking space. Brief generation can use Canvas context, especially selected elements or clusters, but it should not require the Canvas. This avoids punishing users who simply paste a link and ask for a brief, which would be a silly hill for software to die on.
 
 ---
 
 # 1. Pipeline Modes
 
-AlphaBrief v0.3 supports five AI workflows.
+AlphaBrief v0.3 supports these AI workflows internally.
 
-## 1.1 Chat Research Mode
+## 1.1 Unified Ask / Agent Mode
 
-Flexible market/finance exploration inside a project chat.
+The visible user experience should be one main Ask box.
 
 Examples:
 
 ```text
 Why did Nvidia data center revenue growth decelerate?
-What does this article imply for AI chip demand?
-Explain Visa's cross-border volume trend.
+https://www.reuters.com/... Analyze this for market implications.
+https://youtube.com/... Summarize the bull and bear case.
+Generate a brief from this thread and the two linked sources.
+Add the key risks from this answer to Canvas.
 ```
 
 Output:
@@ -50,11 +61,53 @@ Output:
 Structured assistant reply inside a project chat.
 ```
 
-The reply may produce candidate Canvas blocks.
+The reply may produce candidate Canvas elements.
 
-## 1.2 Source Analysis Mode
+## 1.2 Smart Input Detection
 
-Analysis of attached sources inside chat.
+After the user sends a message, AlphaBrief should detect:
+
+```text
+- user intent
+- source type, if any
+- source URLs or uploaded files
+- whether the request needs source ingestion
+- whether the request is a Canvas action
+- whether the request is a brief-generation request
+```
+
+Detected input types:
+
+```text
+QUESTION
+ARTICLE_URL
+YOUTUBE_URL
+PDF_FILE
+BROWSER_PAGE
+FILING_URL
+IMAGE_FILE
+MIXED
+```
+
+Detected internal intent types:
+
+```text
+GENERAL_ASK
+SOURCE_ANALYSIS
+ARTICLE_ANALYSIS
+YOUTUBE_ANALYSIS
+PDF_ANALYSIS
+FILING_ANALYSIS
+BRIEF_GENERATION
+CANVAS_ACTION
+COMPARISON
+```
+
+These are internal routes, not separate required user modes. Humans should not need to label their own request before the system understands it. That is what the machine is for.
+
+## 1.3 Source Analysis Mode
+
+Analysis of attached or detected sources inside chat.
 
 Supported sources:
 
@@ -63,53 +116,73 @@ ARTICLE_URL
 YOUTUBE_URL
 PDF_FILE
 BROWSER_PAGE
+FILING_URL
+IMAGE_FILE
 ```
 
 Output:
 
 ```text
 Chat reply grounded in source availability.
-If full text is available → source-aware answer.
+If full text/transcript is available → source-aware answer.
 If only metadata is available → context answer with clear source-access note.
 ```
 
-## 1.3 Canvas Candidate Extraction
+## 1.4 Canvas Candidate Extraction
 
-After an assistant reply, AlphaBrief may extract candidate blocks:
+After an assistant reply, AlphaBrief may extract candidate Canvas elements:
 
 ```text
 Claim
+Evidence
 Quote
+Data point
 Note
 Summary
 Risk
 Question
-Metric
+Catalyst
 Bull case
 Bear case
+Mind-map node suggestion
 ```
 
 Candidates are suggestions, not truth. Users review, promote, edit, or dismiss them.
 
-## 1.4 Brief Version Generation
+## 1.5 Canvas AI Helper Mode
 
-Formal structured artifact generated from Canvas blocks.
+AI can help with selected Canvas areas:
+
+```text
+Summarize this area
+Find contradictions in this area
+Turn this cluster into open questions
+Create a simple mind map from this answer
+Generate a brief from this selected cluster
+```
+
+Outputs should be draft elements or assistant replies, not irreversible Canvas mutations.
+
+## 1.6 Brief Version Generation
+
+Formal structured artifact generated from selected context.
 
 Examples:
 
 ```text
-Generate Nvidia thesis brief v1.
-Update this brief from the latest Canvas.
-Generate an earnings reaction brief from selected Canvas blocks.
+Generate a Nvidia thesis brief from this thread.
+Generate a source summary from these two articles.
+Generate a bear-case memo from this Canvas cluster.
+Generate a market research brief from full project context.
 ```
 
 Output:
 
 ```text
-BriefVersion with content_markdown, structured sections, source/provenance summary, and optional what-changed summary.
+BriefVersion with content_markdown, structured sections, source/provenance summary, generated-from summary, and optional what-changed summary.
 ```
 
-## 1.5 Daily / Reflection Workflows
+## 1.7 Daily / Reflection Workflows
 
 Optional later in v0.3:
 
@@ -119,7 +192,7 @@ Journal/reflection assistant
 Learning goal progress summary
 ```
 
-These should summarize structured activity and Canvas updates, not raw endless chat history.
+These should summarize structured activity, Canvas updates, and Memory changes, not raw endless chat history.
 
 ---
 
@@ -128,21 +201,24 @@ These should summarize structured activity and Canvas updates, not raw endless c
 ```text
 1. User enters workspace.
 2. User is placed in Catchall or selected Project.
-3. User creates/opens a focused Chat.
-4. User asks a question and optionally attaches Sources.
-5. Backend creates user ChatTurn and queued assistant ChatTurn.
-6. AI generates assistant response.
-7. Response is validated and persisted.
-8. Candidate Canvas extraction runs after response generation.
-9. User promotes, edits, and reorders Canvas blocks.
-10. User generates BriefVersion from selected/current Canvas blocks.
-11. Later research updates Canvas.
-12. User generates newer BriefVersion and sees what changed.
+3. User creates/opens a focused Chat/Thread.
+4. User asks naturally in one Ask box.
+5. Backend detects intent and source type.
+6. If URLs/files are present, backend creates/attaches Source rows.
+7. Backend creates user ChatTurn and queued assistant ChatTurn.
+8. AI generates assistant response.
+9. Response is validated and persisted.
+10. Candidate Canvas extraction runs after response generation.
+11. User may add AI blocks, notes, images, or mind-map elements to Canvas.
+12. Project Memory may be updated explicitly or by user-approved AI refresh.
+13. User generates BriefVersion on request from selected context.
+14. Later research can update chat, sources, Canvas, or Memory.
+15. User generates newer BriefVersion and sees what changed.
 ```
 
 ---
 
-# 3. Input Types
+# 3. Input Handling Rules
 
 Supported v0.3 input types:
 
@@ -152,6 +228,8 @@ ARTICLE_URL
 YOUTUBE_URL
 PDF_FILE
 BROWSER_PAGE
+FILING_URL
+IMAGE_FILE
 MIXED
 ```
 
@@ -166,6 +244,15 @@ PASTED_TEXT is not a primary v0.3 UX path.
 Do not make users paste entire articles as the normal fallback.
 ```
 
+```text
+If a message contains a URL, AlphaBrief should auto-detect whether it is article, YouTube, filing, PDF, or unknown URL.
+```
+
+```text
+If source access fails, do not pretend the source body was read.
+Use metadata + allowed context and disclose the limitation.
+```
+
 ---
 
 # 4. Source Access Methods
@@ -176,7 +263,7 @@ Normalize source intake using `source_access_method`.
 SERVER_FETCH         # Backend attempts safe public URL extraction
 BROWSER_EXTENSION    # User clicked extension on page they were viewing
 API_CONTEXT          # Related market/news/filing context from allowed APIs
-UPLOAD               # User uploaded a PDF/file
+UPLOAD               # User uploaded a PDF/file/image
 YOUTUBE_METADATA     # YouTube title/channel/description metadata
 YOUTUBE_TRANSCRIPT   # Transcript/caption data from an allowed path
 ```
@@ -201,37 +288,72 @@ CHAT_ONLY         # No external source used
 
 ---
 
-# 5. Chat Turn Generation Pipeline
+# 5. Unified Ask Generation Pipeline
 
 ```text
 User submits message
 → owner check on chat/project
 → reject archived chat
+→ detect intent and source inputs
+→ create/reuse Source records when URLs/files are detected
 → validate attached source ownership/status
 → create completed user ChatTurn
 → create queued assistant ChatTurn
 → attach sources to user turn
+→ decide pipeline route
 → schedule background assistant generation
 → return assistantTurnId for polling
 ```
 
-## 5.1 Assistant Generation Background Flow
+## 5.1 Pipeline Router
+
+Routing logic:
+
+```text
+No source + normal question
+→ GENERAL_ASK
+
+Article/news URL detected
+→ create Source(ARTICLE_URL)
+→ ARTICLE_ANALYSIS
+
+YouTube URL detected
+→ create Source(YOUTUBE_URL)
+→ YOUTUBE_ANALYSIS
+
+PDF/file uploaded or attached
+→ create Source(PDF_FILE)
+→ PDF_ANALYSIS
+
+SEC/filing URL detected
+→ create Source(FILING_URL)
+→ FILING_ANALYSIS
+
+User asks to generate a brief
+→ BRIEF_GENERATION
+
+User asks to add/move/summarize Canvas material
+→ CANVAS_ACTION
+```
+
+## 5.2 Assistant Generation Background Flow
 
 ```text
 1. Open fresh DB session inside background task.
 2. Lock assistant turn; return if not QUEUED.
 3. Set status = RUNNING.
-4. Load chat, project, prior turns, attached sources, and optional Canvas context.
-5. Build prompt.
+4. Load chat, project, prior turns, attached sources, optional Memory, and optional Canvas context.
+5. Build prompt according to route.
 6. Call AI provider.
 7. Validate output.
 8. Persist assistant turn.
 9. Attach viewed sources to assistant turn.
-10. Set assistant status = COMPLETED.
-11. Trigger candidate extraction asynchronously or as a non-blocking follow-up.
+10. Track usage.
+11. Set assistant status = COMPLETED.
+12. Trigger candidate extraction asynchronously or as a non-blocking follow-up.
 ```
 
-## 5.2 Important Candidate Timing Rule
+## 5.3 Candidate Timing Rule
 
 Candidate extraction should not delay visible assistant replies.
 
@@ -242,7 +364,13 @@ Mark assistant turn COMPLETED as soon as the reply is validated and saved.
 Then run candidate extraction as a separate best-effort step.
 ```
 
-If the implementation keeps extraction in the same background task, the UI should still treat candidates as optional and never show the assistant answer as failed just because candidate extraction failed.
+If extraction fails:
+
+```text
+- log the error
+- create no candidates
+- keep assistant turn COMPLETED
+```
 
 ---
 
@@ -253,35 +381,44 @@ Prompt context should include:
 ```text
 - System role: market research assistant, educational not advice
 - Current project metadata
-- Short project context summary if available later
-- Recent chat history, truncated from oldest first
 - Current user message
-- Attached source snippets and metadata
-- Canvas context only when explicitly useful and budget-safe
+- Attached or detected source snippets/metadata
+- Recent chat history, truncated from oldest first
+- Project Memory if relevant and budget-safe
+- Selected Canvas elements only when explicitly useful
 ```
 
-Do not blindly inject the whole Canvas into every chat. That will become expensive, noisy, and emotionally needy.
+Do not blindly inject the whole Canvas into every chat. A giant whiteboard is not “context,” it is an expensive soup.
 
-## 6.1 Context Priority
-
-For normal chat replies:
+## 6.1 Context Priority for Normal Chat Replies
 
 ```text
 1. Current user message
-2. Attached sources
+2. Attached/detected sources
 3. Recent relevant turns
-4. Selected/high-signal Canvas blocks
-5. Project metadata
+4. Project Memory summary/entities/open questions
+5. Selected/high-signal Canvas elements only if relevant
+6. Project metadata
 ```
 
-For brief generation:
+## 6.2 Context Priority for Brief Generation
 
 ```text
-1. Selected Canvas blocks
-2. Canvas snapshot ordering
-3. Provenance/source metadata
-4. User brief instructions
-5. Prior brief version, only for what-changed comparison
+1. User's selected brief context
+2. Current thread, if selected
+3. Selected sources, if selected
+4. Project Memory, if selected
+5. Selected Canvas elements or cluster, if selected
+6. Prior brief version, only for what-changed comparison
+```
+
+Do not use:
+
+```text
+- entire raw project history by default
+- every Canvas element by default
+- all project sources by default
+- hidden unreviewed AI memory
 ```
 
 ---
@@ -291,7 +428,8 @@ For brief generation:
 ## 7.1 Article URL Pipeline
 
 ```text
-User submits article URL
+User pastes article URL in Ask box or Source picker
+→ detect URL type
 → validate URL
 → block localhost/private IP fetch targets
 → create Source(source_type = ARTICLE_URL, source_access_method = SERVER_FETCH)
@@ -326,7 +464,7 @@ User opens page
 → source appears in workspace and can be attached to chats
 ```
 
-The extension is user-initiated page analysis, not a paywall bypasser, login-content scraper, or background crawler. An important sentence, because apparently entire legal risk profiles can fit inside one verb.
+The extension is user-initiated page analysis, not a paywall bypasser, login-content scraper, or background crawler.
 
 ## 7.3 YouTube URL Pipeline
 
@@ -347,12 +485,12 @@ User submits YouTube URL
 
 Do not make v0.3 depend on always having YouTube transcripts.
 
-## 7.4 PDF Pipeline
+## 7.4 PDF / File Pipeline
 
 ```text
-User uploads PDF
+User uploads PDF/file/image
 → validate file type/size
-→ create Source(source_type = PDF_FILE, source_access_method = UPLOAD)
+→ create Source(source_type = PDF_FILE or IMAGE_FILE, source_access_method = UPLOAD)
 → extract text where possible
 → scan and segment if long/complex
 → mark FULL_TEXT_EXTRACTED or FAILED
@@ -372,6 +510,7 @@ ARTICLE_URL
 YOUTUBE_URL
 PDF_FILE
 BROWSER_PAGE
+FILING_URL
 ```
 
 Core rule:
@@ -428,7 +567,9 @@ actual research mode used
 
 ## 8.3 Research Intent, Coverage, and Depth
 
-For long/complex sources, ask for:
+For long/complex sources, ask for intent only when needed. Do not make every user configure a spaceship launch just to summarize one article.
+
+Possible internal values:
 
 ```text
 Analysis intent:
@@ -449,8 +590,6 @@ Research mode:
 - Standard
 - Deep
 ```
-
-Research intent is a cost-control tool. If the user only cares about Nvidia and AI chips, do not Deep-analyze unrelated oil commentary just because it appeared in the same video. The database has suffered enough.
 
 ## 8.4 Pre-Analysis Warning Threshold
 
@@ -529,9 +668,9 @@ After a validated assistant reply:
 ```text
 assistant reply
 → candidate extraction prompt
-→ return 0–N candidate blocks
-→ validate block types and markdown
-→ persist candidate_blocks as PENDING
+→ return 0–N candidate elements
+→ validate element types and markdown
+→ persist candidate_elements as PENDING
 → frontend shows promote/dismiss UX
 ```
 
@@ -553,7 +692,8 @@ Candidates should be:
 - specific
 - editable
 - source-aware when applicable
-- useful for future brief generation
+- useful for future understanding
+- optionally useful for future brief generation
 - not framed as personalized advice
 ```
 
@@ -563,57 +703,56 @@ Candidates should be:
 {
   "candidates": [
     {
-      "block_type": "CLAIM",
+      "element_type": "CLAIM",
       "title": "Blackwell ramp is the key catalyst",
-      "content_markdown": "Nvidia's near-term thesis depends heavily on whether Blackwell ramps smoothly into hyperscaler deployments."
+      "content_markdown": "Nvidia's near-term thesis depends heavily on whether Blackwell ramps smoothly into hyperscaler deployments.",
+      "suggested_position": {
+        "x": 640,
+        "y": 280,
+        "width": 320,
+        "height": 180
+      }
     }
   ]
 }
-```
-
-## 9.3 Failure Rule
-
-Candidate extraction failure should never fail the assistant reply.
-
-```text
-If extraction fails:
-- log the error
-- create no candidates
-- keep assistant turn COMPLETED
 ```
 
 ---
 
 # 10. Canvas Pipeline
 
-The Canvas is a curated project artifact.
+The Canvas is a freeform visual thinking space, not a formal brief outline.
 
-Canvas blocks can come from:
+Canvas elements can come from:
 
 ```text
 - Manual user notes
+- User-uploaded images/screenshots
 - Promoted assistant turns
 - Promoted AI candidates
 - Source quotes or source notes
+- Generated mind-map nodes
 ```
 
-## 10.1 Manual Block Flow
+## 10.1 Manual Element Flow
 
 ```text
-User clicks Add block
-→ chooses block type
-→ writes content
-→ backend creates CanvasBlock(provenance_kind = MANUAL)
-→ Canvas reorders/refreshes
+User clicks Text / Image / Node
+→ chooses element type
+→ writes content or uploads image
+→ frontend chooses x/y/size
+→ backend creates CanvasElement(provenance_kind = MANUAL)
+→ Canvas refreshes
 ```
 
 ## 10.2 Promote From Turn Flow
 
 ```text
-User clicks + Canvas on assistant turn
+User clicks Add to Canvas on assistant turn
 → frontend opens edit-before-promote form
-→ user selects block type and edits content
-→ backend creates CanvasBlock(provenance_kind = CHAT_TURN)
+→ user selects element type and edits content
+→ frontend sends x/y/size
+→ backend creates CanvasElement(provenance_kind = CHAT_TURN)
 ```
 
 ## 10.3 Promote Candidate Flow
@@ -622,31 +761,83 @@ User clicks + Canvas on assistant turn
 Assistant reply finishes
 → candidates appear
 → user promotes one or more
-→ backend creates CanvasBlock(provenance_kind = CHAT_TURN or CANDIDATE)
+→ backend creates CanvasElement(provenance_kind = CANDIDATE)
 → candidate marked PROMOTED
 ```
 
-## 10.4 Edit/Reorder Flow
+## 10.4 Source Quote / Evidence Flow
 
 ```text
-User edits content/title/type
-→ PATCH CanvasBlock
-→ updated block becomes new source material for future briefs
+User selects short source excerpt or writes source note
+→ user clicks Add to Canvas
+→ backend creates CanvasElement(provenance_kind = SOURCE)
+→ element keeps provenance_source_id
 ```
 
-This is why Canvas must support customization. A non-editable Canvas is just a warehouse for extracted chat scraps, and warehouses are not research workflows.
+## 10.5 Move / Resize / Edit Flow
+
+```text
+User drags, resizes, edits, styles, or archives element
+→ PATCH CanvasElement
+→ updated element persists as part of Canvas state
+```
+
+## 10.6 Mind Map Flow
+
+```text
+User creates nodes and connector lines manually
+OR user asks AI to create a draft mind map from selected answer/source
+→ backend creates CanvasElements + CanvasConnections
+→ user edits labels, positions, and relationships
+```
+
+Minimum v0.3 mind map elements:
+
+```text
+Node
+Connection line
+Group/frame
+Label
+Basic style/tag
+```
 
 ---
 
-# 11. Brief Version Generation Pipeline
+# 11. Project Memory Pipeline
 
-Formal briefs are generated from Canvas snapshots.
+Project Memory preserves explicit accumulated understanding.
+
+Sources of memory updates:
 
 ```text
-User chooses project brief or creates a new brief series
-→ selects all or some active Canvas blocks
-→ optional brief instructions/style
-→ backend creates CanvasSnapshot
+- user edits Memory tab manually
+- user asks AI to refresh Memory from recent project activity
+- system suggests memory updates after repeated themes appear
+```
+
+Memory should include:
+
+```text
+- project summary
+- key entities and tickers
+- recurring themes
+- current conclusions
+- open questions
+- important risks/catalysts
+```
+
+Memory should be visible. Invisible product memory turns into a haunted filing cabinet. Nobody needs that.
+
+---
+
+# 12. Brief Version Generation Pipeline
+
+Briefs are generated from selected context snapshots.
+
+```text
+User clicks Generate Brief
+→ frontend offers/contextually infers context choices
+→ backend creates BriefContextSnapshot
 → backend creates queued BriefVersion
 → AI generates structured brief from snapshot
 → output validation
@@ -656,15 +847,44 @@ User chooses project brief or creates a new brief series
 → create UsageEvent
 ```
 
-## 11.1 Brief Generation Prompt Context
+## 12.1 Context Options
+
+Supported context scopes:
+
+```text
+CURRENT_THREAD
+SELECTED_SOURCES
+SELECTED_CANVAS
+CANVAS_CLUSTER
+PROJECT_MEMORY
+FULL_PROJECT
+CUSTOM
+```
+
+Recommended v0.3 default:
+
+```text
+current thread + linked sources + optional project memory
+```
+
+Canvas should be included when:
+
+```text
+- user selected Canvas elements
+- user selected a Canvas cluster
+- user requests full project context
+- user explicitly says “use my Canvas”
+```
+
+## 12.2 Brief Generation Prompt Context
 
 Use:
 
 ```text
-- selected Canvas blocks, in user-defined order
-- block types and titles
-- provenance summaries
-- source metadata, not necessarily raw source text
+- selected chat turns, if any
+- selected source summaries/snippets/metadata, if any
+- selected Canvas elements, if any
+- Project Memory, if requested
 - user instructions
 - previous brief version for comparison only when requested
 ```
@@ -672,12 +892,13 @@ Use:
 Do not use:
 
 ```text
-- entire raw chat history
+- entire raw chat history by default
+- entire Canvas by default
 - all project sources by default
 - hidden unreviewed AI memory
 ```
 
-## 11.2 Brief Output Shape
+## 12.3 Brief Output Shape
 
 ```json
 {
@@ -692,13 +913,13 @@ Do not use:
   "open_questions": [],
   "what_changed_since_previous": "...",
   "learning_takeaway": "...",
-  "source_and_canvas_note": "Generated from 18 Canvas blocks and 7 linked sources.",
+  "generated_from_note": "Generated from current thread, 2 linked sources, project memory, and 4 selected Canvas elements.",
   "confidence_label": "MEDIUM",
   "disclaimer": "For educational and informational purposes only."
 }
 ```
 
-## 11.3 Brief Types
+## 12.4 Brief Types
 
 ```text
 COMPANY_RESEARCH
@@ -706,32 +927,26 @@ EARNINGS_BREAKDOWN
 SOURCE_SUMMARY
 MARKET_EVENT_EXPLAINER
 THESIS_MEMO
+BULL_BEAR_MEMO
 ```
 
-## 11.4 Versioning Rule
+## 12.5 Versioning Rule
 
 Every generated brief is a snapshot.
 
 ```text
 Brief = series
 BriefVersion = generated document at a point in time
-CanvasSnapshot = exact input used
+BriefContextSnapshot = exact selected context used
 ```
 
-When the Canvas changes materially after the latest brief version, the UI should show:
-
-```text
-Your Canvas has changed since this brief was generated.
-Generate an updated version?
-```
-
-## 11.5 What Changed Summary
+## 12.6 What Changed Summary
 
 When generating v2+, compare against previous version and summarize:
 
 ```text
 - New claims added
-- Removed/archived claims
+- Removed/changed claims
 - New risks
 - Changed assumptions
 - Thesis direction change
@@ -741,139 +956,33 @@ When generating v2+, compare against previous version and summarize:
 
 ---
 
-# 12. Validation Rules
+# 13. Validation Rules
 
 Treat AI output as untrusted.
 
 Validate:
 
 ```text
-- Markdown is renderable/safe
-- JSON shape matches workflow
-- Required fields exist
-- Disclaimer exists where needed
-- No personalized financial advice
-- No fabricated source claims
-- If source is METADATA_ONLY, output clearly states that full source text was unavailable
-- Candidate blocks use allowed block types
-- Brief version references Canvas snapshot, not raw chat transcript
-- Citations/source markers reference real attached or linked sources
+- markdown is non-empty and sanitized
+- JSON schema matches expected route
+- source references map to actual attached/selected sources
+- metadata-only sources are disclosed properly
+- no fabricated source claims
+- no personalized investment advice
+- disclaimers exist for briefs
+- generated-from note exists for briefs
 ```
 
-If validation fails:
-
-```text
-1. Retry once with repair prompt
-2. If still invalid, mark target entity FAILED
-3. Save safe error message
-```
+Repair once. On second failure, mark entity failed and return a safe message.
 
 ---
 
-# 13. Project Memory Policy
+# 14. MVP Success Definition
 
-Project memory is deferred.
-
-v0.3 should use explicit context only:
+v0.3 succeeds if a user can say:
 
 ```text
-- project metadata
-- selected Canvas blocks
-- recent chat history
-- attached source metadata/text snippets
+I pasted links, asked questions naturally, saved useful ideas into a visual Canvas, built a better understanding of a market topic, and generated a useful brief when I needed one.
 ```
 
-Do not add hidden long-term memory until:
-
-```text
-- Canvas workflow works
-- brief versioning works
-- users trust editable project state
-```
-
-Bad memory is not personalization. It is hallucination with a filing cabinet.
-
----
-
-# 14. Research Activity Creation
-
-Create `ResearchActivity` for meaningful actions:
-
-```text
-CREATED_PROJECT
-ASKED_QUESTION
-ATTACHED_SOURCE
-GENERATED_CHAT_REPLY
-PROMOTED_TO_CANVAS
-CREATED_CANVAS_BLOCK
-UPDATED_CANVAS_BLOCK
-GENERATED_BRIEF_VERSION
-CREATED_JOURNAL_ENTRY
-GENERATED_DAILY_SUMMARY
-```
-
-These events power:
-
-```text
-Daily summaries
-Research streaks later
-Learning goal progress later
-Project timeline later
-```
-
----
-
-# 15. Updated v0.3 Pipeline Rule
-
-The v0.3 pipeline should prove this loop:
-
-```text
-Project
-→ chat/source exploration
-→ AI-assisted candidate extraction
-→ user-curated Canvas
-→ generated BriefVersion
-→ later Canvas updates
-→ updated BriefVersion + what changed
-```
-
----
-
-# 16. Future Pipeline Additions
-
-Move these to later versions:
-
-```text
-ThreadSummary auto-promote
-ProjectMemory
-Proactive project suggestions
-Daily project briefs
-Monitoring and contradiction flagging
-Watchlist event ingestion
-Company timeline auto-refresh
-Claim-level citation verification
-Full multi-agent research planner
-Portfolio-aware implication layer
-Visual market map / mind map
-```
-
----
-
-# 17. MVP Demo Target
-
-The first compelling AlphaBrief demo should show:
-
-```text
-1. Open Nvidia project.
-2. Ask a question and attach a source.
-3. Assistant replies.
-4. Candidate claims appear.
-5. User promotes and edits them.
-6. Canvas visibly fills up.
-7. User generates Brief v1.
-8. User adds more research.
-9. User generates Brief v2.
-10. AlphaBrief explains what changed.
-```
-
-That is the product. Not another chat history with a nicer suit.
+That is AlphaBrief's wedge against generic chatbots and one-click report tools.

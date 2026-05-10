@@ -2,24 +2,36 @@
 
 ## Version
 
-`v0.3 First Milestone — Projects → Canvas → Versioned Briefs`
+`v0.3 First Milestone — One Ask Box → Smart Source Detection → Freeform Canvas → On-demand Briefs`
 
 ## Status
 
-This architecture reflects AlphaBrief's updated direction:
+This architecture reflects AlphaBrief's latest direction:
 
 ```text
 Market learning + research workspace
 Projects as top-level containers
-Chats as focused explorations inside projects
-Sources attached to chats
-Canvas as the curated research artifact
-Briefs as versioned snapshots generated from Canvas
+Threads/chats as focused explorations inside projects
+One universal Ask box with smart source detection
+Sources attached to chats and projects
+Canvas as a freeform editable visual thinking space
+Memory as explicit project-level understanding
+Briefs as on-demand generated outputs from selected context
 Chrome Extension-ready source ingestion
 Adaptive external-source research architecture
 ```
 
-The earlier architecture treated `ResearchItem` as the central saved object. The new architecture makes `Project`, `Chat`, `CanvasBlock`, and `BriefVersion` the core product objects.
+The earlier architecture treated Canvas as the source of truth for formal brief generation. The updated architecture makes Canvas the **middle visual understanding workspace**, while brief generation uses explicit selected context:
+
+```text
+current thread
+selected sources
+project memory
+selected Canvas elements or cluster
+full project context when requested
+```
+
+This is better for v0.3 because users can paste a link and ask for analysis without first turning their Canvas into a sacred database shrine. Progress, somehow.
 
 ---
 
@@ -28,13 +40,14 @@ The earlier architecture treated `ResearchItem` as the central saved object. The
 AlphaBrief v0.3 should prove this loop:
 
 ```text
-Ask or submit source
-→ explore inside a project chat
+Ask naturally or paste a source
+→ AlphaBrief detects source/intent
+→ analyze inside a project thread
 → AI suggests useful Canvas candidates
-→ user promotes/edits/reorders Canvas blocks
-→ generate a structured brief version from the Canvas
-→ continue researching
-→ generate updated brief versions and see what changed
+→ user builds understanding in a freeform Canvas
+→ project Memory captures durable understanding
+→ user generates briefs on demand from chosen context
+→ user keeps researching over time
 ```
 
 The Chrome extension strengthens source capture:
@@ -44,10 +57,10 @@ Read article/video page
 → click AlphaBrief extension
 → create Source
 → attach Source to project chat
-→ promote useful insights to Canvas
+→ promote useful insights/images/quotes to Canvas
 ```
 
-AlphaBrief is not trying to be only a one-click report generator. That road is crowded enough to need traffic lights.
+AlphaBrief is not only a one-click report generator. The core product bet is that users need a workspace to build understanding over time, not just another AI answer that evaporates into chat sludge.
 
 ---
 
@@ -58,10 +71,28 @@ AlphaBrief is not trying to be only a one-click report generator. That road is c
 ```text
 React
 TypeScript
-Vite
+Vite or Next.js
 TailwindCSS
 shadcn/ui or similar component system
-react-router v6
+react-router v6 if Vite
+```
+
+## Freeform Canvas Layer
+
+Recommended options:
+
+```text
+React Flow        # good for nodes/edges/mind-map-like structures
+Konva / react-konva # good for freeform canvas and shapes
+Tldraw SDK        # strong whiteboard behavior, heavier dependency
+Custom absolute-positioned div canvas # simplest first implementation
+```
+
+v0.3 pragmatic recommendation:
+
+```text
+Start with a custom absolute-positioned CanvasElement layer.
+Add React Flow or a graph library only if connectors/mind-map behavior becomes painful.
 ```
 
 ## Chrome Extension
@@ -102,14 +133,14 @@ Celery + Redis
 Arq + Redis
 ```
 
-Do not start with distributed-worker theater until the simple version hurts.
+Do not start with distributed-worker theater until the simple version actually hurts.
 
 ---
 
 # 3. High-Level Architecture
 
 ```text
-React/Vite Workspace App
+React/TypeScript Workspace App
         ↓
 FastAPI API Layer
         ↓
@@ -144,19 +175,19 @@ Object Storage Client
 
 | Client Surface | Purpose |
 |---|---|
-| Web App | Main research workspace: Projects, Chats, Sources, Canvas, Brief Versions |
+| Web App | Main research workspace: Projects, Agent chat, Canvas, Sources, Memory, Briefs |
 | Chrome Extension | User-initiated page capture and source creation from current browser page |
 
 ## Web App Core Areas
 
 | Area | Purpose |
 |---|---|
-| Project Sidebar | Top-level navigation; Catchall pinned; user projects below |
-| Chat Pane | Focused exploration inside active project |
-| Source Picker | Create/select sources and attach to chat messages |
-| Canvas Pane | Curated research blocks with provenance and editing |
-| Brief View | Versioned brief snapshots generated from Canvas |
-| Activity / Timeline later | Show research progress and what changed |
+| Project Sidebar | Top-level navigation; Catchall pinned; user projects and threads below |
+| Center Canvas | Freeform editable thinking workspace |
+| Agent Panel | Ask box, source analysis, AI replies, add-to-Canvas actions |
+| Sources Tab | Evidence library for project/thread |
+| Memory Tab | Explicit accumulated project understanding |
+| Brief View | Generated brief versions and history |
 
 ---
 
@@ -164,65 +195,128 @@ Object Storage Client
 
 ## 5.1 Layout
 
-Recommended MVP layout:
+Recommended MVP layout based on the latest design:
 
 ```text
-Left sidebar: Projects
-Center pane: Chats / active conversation
-Right pane: Canvas
+Left sidebar: Projects + threads
+Center pane: Freeform Canvas
+Right pane: Agent chat
+Top tabs: Canvas | Sources | Memory
+Top action: Generate brief
 ```
 
-The right Canvas pane should be collapsible.
+This is different from the previous left-chat/right-canvas layout.
+
+The Canvas should feel central. The Agent should feel like the assistant beside the user's thinking board.
 
 ## 5.2 Project Sidebar
 
 Responsibilities:
 
 ```text
-- Show Catchall pinned at top
-- List user projects ordered by updated_at desc
-- Create project inline
-- Navigate to /workspace/projects/:id
+- Show brand/date/user area if desired
+- Show Catchall or active projects
+- Show threads inside selected project
+- Create new thread
+- Search projects/threads
+- Navigate to /workspace/projects/:projectId/threads/:chatId
 ```
 
-## 5.3 Chat Pane
+## 5.3 Center Canvas
 
 Responsibilities:
 
 ```text
-- List chats in active project
-- Create/select chat
-- Show turns
-- Send message
-- Attach sources
-- Poll assistant replies
-- Render candidate review UI after assistant completion
+- Render freeform Canvas elements
+- Support text elements
+- Support AI-imported blocks
+- Support image/screenshot elements
+- Support simple mind-map nodes
+- Support connector lines
+- Support group/frame elements
+- Drag/move/resize elements
+- Edit text directly or through a side/popover editor
+- Preserve source/chat provenance
+- Allow selected area actions
 ```
 
-## 5.4 Canvas Pane
+Minimum v0.3 Canvas operations:
+
+```text
+create text
+create image
+create node
+move
+resize
+edit
+delete/archive
+duplicate
+connect elements
+group selected
+add AI answer to Canvas
+add source quote/note to Canvas
+```
+
+## 5.4 Agent Panel
 
 Responsibilities:
 
 ```text
-- Show active Canvas blocks ordered by position_index
-- Manual block creation
-- Edit/archive/delete blocks
-- Promote assistant turn to Canvas
-- Promote/dismiss candidate blocks
-- Show provenance footer
+- One Ask box
+- Allow paste URL / YouTube / source / question naturally
+- Detect source type after send
+- Show assistant answer cards
+- Show source chips/citations
+- Show candidate Canvas suggestions
+- Provide Add to Canvas actions
+- Trigger brief generation when requested
 ```
 
-## 5.5 Brief View
+Recommended placeholder:
+
+```text
+Ask, paste a URL, or upload a source to research...
+```
+
+## 5.5 Sources Tab
+
+Responsibilities:
+
+```text
+- List sources for project/thread
+- Show extraction status
+- Show metadata-only/full-text status
+- Show linked Canvas elements and chat turns
+- Allow source re-analysis
+- Allow Add quote/note to Canvas
+```
+
+## 5.6 Memory Tab
+
+Responsibilities:
+
+```text
+- Show project summary
+- Show entities/tickers/themes
+- Show open questions
+- Show current conclusions
+- Allow user edits
+- Later: AI refresh from recent project activity
+```
+
+## 5.7 Brief View
 
 Responsibilities:
 
 ```text
 - Create brief series
-- Generate new version from Canvas
+- Generate new version from selected context
+- Show context used for generation
 - Show version history
 - Show what changed between versions
-- Warn when Canvas changed since latest version
 ```
+
+Brief generation should not assume Canvas is the only source. Let users choose context because apparently agency is useful.
 
 ---
 
@@ -310,8 +404,11 @@ backend/app/
 │       ├── sources.py
 │       ├── source_scans.py
 │       ├── source_segments.py
-│       ├── canvas_blocks.py
-│       ├── candidate_blocks.py
+│       ├── canvases.py
+│       ├── canvas_elements.py
+│       ├── canvas_connections.py
+│       ├── candidate_elements.py
+│       ├── project_memory.py
 │       ├── briefs.py
 │       ├── brief_versions.py
 │       ├── tags.py
@@ -340,11 +437,14 @@ backend/app/
 │   ├── source.py
 │   ├── source_scan.py
 │   ├── source_segment.py
-│   ├── canvas_block.py
-│   ├── candidate_block.py
+│   ├── canvas.py
+│   ├── canvas_element.py
+│   ├── canvas_connection.py
+│   ├── candidate_element.py
+│   ├── project_memory.py
 │   ├── brief.py
 │   ├── brief_version.py
-│   ├── canvas_snapshot.py
+│   ├── brief_context_snapshot.py
 │   ├── tag.py
 │   ├── company.py
 │   ├── research_activity.py
@@ -360,8 +460,11 @@ backend/app/
 │   ├── extension_source.py
 │   ├── source_scan.py
 │   ├── source_segment.py
-│   ├── canvas_block.py
-│   ├── candidate_block.py
+│   ├── canvas.py
+│   ├── canvas_element.py
+│   ├── canvas_connection.py
+│   ├── candidate_element.py
+│   ├── project_memory.py
 │   ├── brief.py
 │   ├── brief_version.py
 │   ├── tag.py
@@ -379,11 +482,14 @@ backend/app/
 │   ├── source_repository.py
 │   ├── source_scan_repository.py
 │   ├── source_segment_repository.py
-│   ├── canvas_block_repository.py
-│   ├── candidate_block_repository.py
+│   ├── canvas_repository.py
+│   ├── canvas_element_repository.py
+│   ├── canvas_connection_repository.py
+│   ├── candidate_element_repository.py
+│   ├── project_memory_repository.py
 │   ├── brief_repository.py
 │   ├── brief_version_repository.py
-│   ├── canvas_snapshot_repository.py
+│   ├── brief_context_snapshot_repository.py
 │   ├── tag_repository.py
 │   ├── company_repository.py
 │   ├── activity_repository.py
@@ -394,6 +500,7 @@ backend/app/
 │   ├── project_service.py
 │   ├── chat_service.py
 │   ├── chat_turn_service.py
+│   ├── input_detection_service.py
 │   ├── chat_turn_orchestrator.py
 │   ├── chat_prompt_builder.py
 │   ├── chat_validation_service.py
@@ -404,9 +511,13 @@ backend/app/
 │   ├── source_scan_service.py
 │   ├── source_segmentation_service.py
 │   ├── research_allowance_service.py
-│   ├── canvas_block_service.py
+│   ├── canvas_service.py
+│   ├── canvas_element_service.py
+│   ├── canvas_connection_service.py
 │   ├── candidate_extraction_service.py
+│   ├── project_memory_service.py
 │   ├── brief_version_service.py
+│   ├── brief_context_service.py
 │   ├── brief_prompt_builder.py
 │   ├── brief_validation_service.py
 │   ├── activity_service.py
@@ -429,6 +540,17 @@ backend/app/
 
 # 8. Core Services
 
+## `InputDetectionService`
+
+Responsibilities:
+
+```text
+- Detect URLs in user message
+- Classify source type: article, YouTube, PDF, filing, unknown
+- Detect intent: general ask, source analysis, brief generation, Canvas action, comparison
+- Return routing decision to ChatTurnService
+```
+
 ## `ProjectService`
 
 Responsibilities:
@@ -436,6 +558,8 @@ Responsibilities:
 ```text
 - Create/update/archive/delete projects
 - Ensure Catchall project exists
+- Ensure default Canvas exists for project
+- Ensure ProjectMemory row exists for project
 - Reject user-created Catchall
 - Enforce Catchall immutability
 - Later: project accumulation detection
@@ -458,6 +582,8 @@ Responsibilities:
 
 ```text
 - Validate chat state and source refs
+- Use InputDetectionService
+- Create/reuse sources for detected URLs
 - Create user + assistant turn pair
 - Attach sources
 - Schedule background generation
@@ -472,7 +598,7 @@ Responsibilities:
 - Run assistant generation in background
 - Open fresh DB session
 - Lock queued assistant turn
-- Build prompt
+- Build prompt based on route
 - Call AI provider
 - Validate response
 - Persist response and usage
@@ -485,7 +611,7 @@ Responsibilities:
 Responsibilities:
 
 ```text
-- Build prompt from project, chat history, current message, and sources
+- Build prompt from route, project, chat history, current message, sources, Memory, and selected Canvas context
 - Cap prompt size
 - Truncate oldest history first
 - Trim source snippets
@@ -493,18 +619,37 @@ Responsibilities:
 - Avoid fabricated source claims
 ```
 
-## `CanvasBlockService`
+## `CanvasService`
 
 Responsibilities:
 
 ```text
-- Create manual blocks
+- Create/get default project Canvas
+- Persist viewport state if needed
+- Enforce project ownership
+```
+
+## `CanvasElementService`
+
+Responsibilities:
+
+```text
+- Create manual text/image/node/group elements
 - Promote from chat turns
 - Promote from sources
-- Edit/archive/delete blocks
-- Maintain fractional ordering
-- Rebalance positions when needed
+- Promote candidate elements
+- Edit/move/resize/archive/delete elements
 - Preserve provenance
+```
+
+## `CanvasConnectionService`
+
+Responsibilities:
+
+```text
+- Create/update/delete connections between Canvas elements
+- Validate both elements belong to same Canvas
+- Support simple relationship types
 ```
 
 ## `CandidateExtractionService`
@@ -512,10 +657,31 @@ Responsibilities:
 Responsibilities:
 
 ```text
-- Ask AI provider for candidate Canvas blocks
-- Validate candidate block types/content
+- Ask AI provider for candidate Canvas elements
+- Validate candidate element types/content
 - Persist PENDING candidates
 - Fail safely without breaking assistant turn
+```
+
+## `ProjectMemoryService`
+
+Responsibilities:
+
+```text
+- Get/update visible project memory
+- Summarize entities/themes/open questions
+- Refresh memory from recent project activity when requested
+- Avoid hidden uncontrolled memory behavior
+```
+
+## `BriefContextService`
+
+Responsibilities:
+
+```text
+- Build explicit context snapshots for brief generation
+- Support current thread, selected sources, project memory, selected Canvas elements, Canvas clusters, and full project context
+- Store exact snapshot_json used for generation
 ```
 
 ## `BriefVersionService`
@@ -524,9 +690,9 @@ Responsibilities:
 
 ```text
 - Create brief series
-- Create CanvasSnapshot from selected blocks
-- Generate BriefVersion from CanvasSnapshot
-- Compare with previous version
+- Create BriefContextSnapshot from selected context
+- Generate BriefVersion from snapshot
+- Compare with previous version when requested
 - Persist sections and summary_of_changes
 - Update current_version_id
 ```
@@ -536,7 +702,7 @@ Responsibilities:
 Responsibilities:
 
 ```text
-- Create URL, YouTube, PDF, and browser-extension sources
+- Create URL, YouTube, PDF, image, filing, and browser-extension sources
 - Normalize URLs and metadata
 - Track access method and status
 - Coordinate extraction services
@@ -555,77 +721,33 @@ Responsibilities:
 - Trigger segmentation when needed
 ```
 
-## `SourceSegmentationService`
-
-Responsibilities:
-
-```text
-- Segment transcripts, articles, PDFs, browser pages
-- Store source_segments
-- Preserve section metadata and relevance
-```
-
-## `ResearchAllowanceService`
-
-Responsibilities:
-
-```text
-- Estimate allowance impact before generation
-- Track actual impact after generation
-- Use config-based threshold initially
-- Add persistent allowance/cooldown later
-```
-
 ## `UsageTrackingService`
 
 Responsibilities:
 
 ```text
-- Persist token/cost events for chat turns, candidates, scans, and brief versions
+- Persist token/cost events for chat turns, candidates, scans, memory refreshes, and brief versions
 - Track cache read/write tokens when provider supports it
 ```
 
 ---
 
-# 9. Data Flow: Project + Chat
+# 9. Data Flow: Unified Ask
 
 ```text
-Frontend Workspace
-   ↓ POST /projects or GET /projects
-FastAPI projects route
-   ↓
-ProjectService
-   ↓
-ProjectRepository
-   ↓
-PostgreSQL
-```
-
-```text
-Frontend ChatPane
-   ↓ POST /projects/{projectId}/chats
-FastAPI chats route
-   ↓
-ChatService
-   ↓
-ChatRepository
-```
-
----
-
-# 10. Data Flow: Send Chat Message
-
-```text
-Frontend MessageComposer
+Frontend AgentComposer
    ↓ POST /chats/{chatId}/turns
 FastAPI chat_turns route
    ↓
 ChatTurnService
+   ↓
+InputDetectionService
+   ↓ create/reuse sources if needed
    ↓ validate chat + source ownership
    ↓ create user turn + queued assistant turn
    ↓ attach sources
    ↓ schedule background task
-Return assistantTurnId
+Return assistantTurnId + detectedInputType + detectedIntentType
 ```
 
 Background:
@@ -644,7 +766,19 @@ ChatTurnRepository
 
 ---
 
-# 11. Data Flow: Source Attachment
+# 10. Data Flow: Source Attachment
+
+```text
+User pastes URL in Ask box
+   ↓
+InputDetectionService detects source
+   ↓
+SourceService creates Source
+   ↓ extraction / metadata fallback
+   ↓ source attaches to ChatTurn
+```
+
+Manual SourcePicker flow remains available:
 
 ```text
 Frontend SourcePicker
@@ -655,17 +789,9 @@ SourceRepository
    ↓ source appears attachable when FULL_TEXT_EXTRACTED or METADATA_ONLY
 ```
 
-Then:
-
-```text
-MessageComposer attaches sourceIds
-   ↓ POST /chats/{chatId}/turns
-chat_turn_sources join records source linkage
-```
-
 ---
 
-# 12. Data Flow: Candidate Blocks
+# 11. Data Flow: Candidate Elements
 
 ```text
 Assistant turn completed
@@ -673,10 +799,10 @@ Assistant turn completed
 CandidateExtractionService
    ↓ AiProviderClient.extract_candidates
    ↓ validate candidates
-   ↓ persist candidate_blocks(PENDING)
-Frontend polls/loads candidates
+   ↓ persist candidate_elements(PENDING)
+Frontend loads candidates
    ↓ user promotes or dismisses
-CanvasBlockService creates CanvasBlock on promote
+CanvasElementService creates CanvasElement on promote
 ```
 
 Candidate extraction must be non-critical:
@@ -687,33 +813,81 @@ AI reply success + candidate extraction failure = reply still succeeds.
 
 ---
 
-# 13. Data Flow: Canvas
+# 12. Data Flow: Freeform Canvas
 
 ```text
-Frontend CanvasPane
-   ↓ GET /projects/{projectId}/canvas-blocks
-CanvasBlockService
-   ↓ CanvasBlockRepository
+Frontend Canvas
+   ↓ GET /projects/{projectId}/canvas
+CanvasService
+   ↓ returns default Canvas
 ```
 
-Manual block:
+Elements:
 
 ```text
-Frontend Add Block
-   ↓ POST /projects/{projectId}/canvas-blocks
-CanvasBlockService
-   ↓ position calculation + ownership
-   ↓ persist CanvasBlock(provenance=MANUAL)
+Frontend Canvas
+   ↓ GET /canvases/{canvasId}/elements
+CanvasElementService
+   ↓ CanvasElementRepository
 ```
 
-Promote from turn:
+Manual element:
 
 ```text
-Frontend +Canvas on assistant turn
-   ↓ user edits content/type/title
-   ↓ POST /projects/{projectId}/canvas-blocks/from-turn
-CanvasBlockService
-   ↓ persist CanvasBlock(provenance=CHAT_TURN)
+User adds text/image/node
+   ↓ POST /canvases/{canvasId}/elements
+CanvasElementService
+   ↓ persist element with x/y/width/height
+```
+
+Move/resize:
+
+```text
+User drags/resizes element
+   ↓ PATCH /canvas-elements/{elementId}
+CanvasElementService
+   ↓ persist x/y/width/height/zIndex
+```
+
+Connection:
+
+```text
+User draws connector
+   ↓ POST /canvases/{canvasId}/connections
+CanvasConnectionService
+   ↓ validate same Canvas
+   ↓ persist connection
+```
+
+---
+
+# 13. Data Flow: Project Memory
+
+```text
+Frontend Memory tab
+   ↓ GET /projects/{projectId}/memory
+ProjectMemoryService
+   ↓ ProjectMemoryRepository
+```
+
+Manual update:
+
+```text
+User edits memory
+   ↓ PATCH /projects/{projectId}/memory
+ProjectMemoryService
+   ↓ persist visible memory
+```
+
+AI refresh:
+
+```text
+User clicks Refresh Memory
+   ↓ POST /projects/{projectId}/memory/refresh
+ProjectMemoryService
+   ↓ load recent activity / high-signal turns / sources / selected Canvas elements
+   ↓ AiProviderClient
+   ↓ validate and persist memory update
 ```
 
 ---
@@ -721,12 +895,12 @@ CanvasBlockService
 # 14. Data Flow: Brief Version Generation
 
 ```text
-Frontend BriefView
-   ↓ POST /projects/{projectId}/briefs if series does not exist
+Frontend GenerateBriefDialog
+   ↓ user selects context:
+      current thread / selected sources / selected Canvas / project memory / full project
    ↓ POST /briefs/{briefId}/versions
 BriefVersionService
-   ↓ load selected CanvasBlocks
-   ↓ create CanvasSnapshot
+   ↓ BriefContextService creates BriefContextSnapshot
    ↓ BriefPromptBuilder
    ↓ AiProviderClient
    ↓ BriefValidationService
@@ -738,8 +912,9 @@ BriefVersionService
 Important:
 
 ```text
-Do not feed raw full chat transcripts into formal brief generation.
-Use CanvasSnapshot as the formal input.
+Do not force every brief through Canvas.
+Do not feed the entire raw project history by default.
+Use explicit selected context snapshots.
 ```
 
 ---
@@ -753,6 +928,7 @@ class AiProviderClient(Protocol):
     async def generate_chat_reply(self, prompt: ChatPrompt) -> ChatReply: ...
     async def extract_candidates(self, *, user_message: str, assistant_reply: str, attached_sources: list[Source]) -> list[CandidateExtraction]: ...
     async def generate_brief_version(self, prompt: BriefPrompt) -> BriefReply: ...
+    async def refresh_project_memory(self, prompt: MemoryPrompt) -> MemoryReply: ...
 ```
 
 Provider selection:
@@ -774,10 +950,11 @@ Stable prefix:
 - style guide
 
 Variable suffix:
-- project context summary later
+- project context summary
 - recent turns
 - current user message
 - attached sources
+- selected Canvas context if relevant
 ```
 
 ---
@@ -802,10 +979,33 @@ Validate:
 Validate:
 
 ```text
-- allowed CanvasBlockType
-- non-empty title/content
+- allowed CanvasElementType
+- non-empty title/content where applicable
 - no unsupported source-specific claims
 - no personalized advice
+```
+
+## Canvas Validation
+
+Validate:
+
+```text
+- element belongs to user/project/canvas
+- image/file references are owned by user
+- connector endpoints belong to same Canvas
+- element dimensions/coordinates are sane
+- source quotes are short and source-linked
+```
+
+## Memory Validation
+
+Validate:
+
+```text
+- memory is visible and user-editable
+- no unsupported claims from inaccessible sources
+- no personalized investment advice
+- memory refresh cites or links back to project artifacts where possible
 ```
 
 ## Brief Validation
@@ -815,10 +1015,10 @@ Validate:
 ```text
 - required sections exist
 - disclaimer exists
-- output generated from CanvasSnapshot
+- output generated from BriefContextSnapshot
+- generated-from note exists
 - no fabricated source claims
 - no personalized investment recommendation
-- source/provenance note present
 - what-changed summary present for v2+ when requested
 ```
 
@@ -835,45 +1035,82 @@ Build:
 ```text
 WorkspaceShell
 ProjectSidebar
-ChatPaneStub
-CanvasPaneStub
+CenterCanvasStub
+AgentPanelStub
+Canvas/Sources/Memory tabs
 /workspace routes
 ```
 
-## PR #13: Chat Pane
+## PR #13: Unified Agent Panel
 
 Build:
 
 ```text
-Chat list
-Turn list
-Message composer
-Source picker
+One Ask composer
+Turn list / answer cards
+URL paste support
+Detected source chips
 Assistant polling
+Add-to-Canvas action placeholders
 ```
 
-## PR #14: Canvas Pane
+## PR #14: Freeform Canvas MVP
 
 Build:
 
 ```text
-Canvas block list
-Candidate review banner
-Manual promote-from-turn
-Promote/dismiss candidates
-Edit/archive/delete blocks
+Canvas viewport
+CanvasElement rendering
+Text element creation
+Image element creation
+Move/resize/edit/delete
+Basic selection
 ```
 
-## Later: Brief View
+## PR #15: Canvas Connections + Mind Map Basics
+
+Build:
+
+```text
+Mind-map node element
+Connector line creation
+Connection labels
+Group/frame element
+```
+
+## PR #16: Sources Tab
+
+Build:
+
+```text
+Project source list
+Extraction status
+Source detail drawer
+Linked chat/canvas counts
+Add quote/note to Canvas
+```
+
+## PR #17: Memory Tab
+
+Build:
+
+```text
+Project memory display
+Entities/themes/open questions
+Manual edit
+AI refresh placeholder
+```
+
+## PR #18: Brief View
 
 Build:
 
 ```text
 Brief series creation
-Generate new version
+Generate from selected context
 Version history
+Context-used summary
 Compare versions
-Canvas changed warning
 ```
 
 ---
@@ -886,6 +1123,8 @@ Canvas changed warning
 projects table
 ProjectKind enum
 auto Catchall
+auto default Canvas
+auto ProjectMemory row
 project endpoints
 ```
 
@@ -897,11 +1136,12 @@ ChatStatus enum
 chat endpoints
 ```
 
-## PR #9: Chat Turns
+## PR #9: Unified Ask + Chat Turns
 
 ```text
 chat_turns
 chat_turn_sources
+InputDetectionService
 send endpoint
 mock provider
 background orchestrator
@@ -909,21 +1149,49 @@ polling endpoints
 orphan sweep
 ```
 
-## PR #10: Canvas Blocks
+## PR #10: Sources
 
 ```text
-canvas_blocks
-manual create
-promote from turn/source
-edit/reorder/archive/delete
+sources
+source extraction status
+article / YouTube / PDF routes
+metadata-only fallback
+browser-extension source route
 ```
 
-## PR #11: Candidate Blocks
+## PR #11: Freeform Canvas
 
 ```text
-candidate_blocks
+canvases
+canvas_elements
+manual create
+promote from turn/source
+edit/move/resize/archive/delete
+```
+
+## PR #12: Canvas Connections
+
+```text
+canvas_connections
+mind-map node support
+relationship labels
+same-canvas validation
+```
+
+## PR #13: Candidate Elements
+
+```text
+candidate_elements
 AI extraction
 promote/dismiss
+```
+
+## PR #14: Project Memory
+
+```text
+project_memories
+get/update
+AI refresh job optional
 ```
 
 ## PR #15: Real LLM
@@ -939,9 +1207,9 @@ cache token tracking
 
 ```text
 briefs
-canvas_snapshots
+brief_context_snapshots
 brief_versions
-generate from Canvas
+generate from selected context
 what-changed comparison
 ```
 
@@ -978,24 +1246,53 @@ enrichment service
 source extraction / validation services
 ```
 
+Things to rename or replace from the previous Canvas-first plan:
+
+```text
+CanvasBlock → CanvasElement
+CanvasSnapshot → BriefContextSnapshot
+canvas_blocks endpoints → canvas_elements endpoints
+Brief from Canvas only → Brief from selected context
+URL Mode / YouTube Mode as visible modes → one Ask box with internal routing
+```
+
 ---
 
 # 20. Key Architecture Concerns
 
-## 20.1 Catchall vs Project Canvas
+## 20.1 One Ask Box vs Internal Modes
 
-If Catchall has the same Canvas and Brief features as real projects, users may never feel the project difference.
+The user should see one Ask box. The backend can route internally.
 
 Recommendation:
 
 ```text
-Catchall = low-friction inbox.
-Real projects = full Canvas + BriefVersion workflow.
+Do not expose separate hard modes for Analyze Video / Analyze News / Ask.
+Use source chips and detected context UI after input is parsed.
 ```
 
-A softer MVP can allow Catchall Canvas capture but should strongly prompt users to create a real project once multiple related chats/candidates appear.
+## 20.2 Freeform Canvas Can Become Messy
 
-## 20.2 Candidate Extraction Should Not Block Replies
+Canvas needs freedom plus lightweight helper actions.
+
+Recommendation:
+
+```text
+Support group, connect, summarize selected area, and find contradictions.
+Do not enforce a report outline.
+```
+
+## 20.3 Canvas Is Optional Brief Context
+
+If the user built a useful Canvas, it should be usable for a brief. But if they want a quick source brief from a thread, they should not need Canvas first.
+
+Recommendation:
+
+```text
+Generate briefs from explicit selected context snapshots.
+```
+
+## 20.4 Candidate Extraction Should Not Block Replies
 
 The assistant reply is the primary user-visible result. Candidate extraction is enhancement.
 
@@ -1006,30 +1303,28 @@ Complete and show assistant turn first.
 Then extract candidates best-effort.
 ```
 
-## 20.3 Brief Generation Deferred But Data Model Ready
-
-The provided PR sequence defers project-brief generation. That is reasonable, but the docs should keep `Brief`, `BriefVersion`, and `CanvasSnapshot` defined now so Cursor/Claude do not build a dead-end Canvas.
-
-## 20.4 Avoid Recreating `ResearchItem` Ambiguity
+## 20.5 Avoid Recreating `ResearchItem` Ambiguity
 
 Do not rebuild a universal `ResearchItem` abstraction unless search/log views require it. The new architecture has clearer nouns.
 
-## 20.5 Do Not Overbuild Notion
+## 20.6 Do Not Overbuild Miro
 
-Canvas needs editing and ordering, not a full Notion clone.
+Canvas needs editable research thinking, not a full whiteboard startup inside your startup.
 
 MVP Canvas:
 
 ```text
-block type
-content
-title
+text
+AI block
+image
+mind-map node
+connector
+group/frame
+move/resize/edit/delete
 provenance
-ordering
-edit/archive/delete
 ```
 
-That is enough. No comments, backlinks, embeds, collaboration, or block-level AI agents yet. Save the product from becoming a cathedral of movable rectangles.
+That is enough for v0.3. No multiplayer, comments, complex vector tooling, backlinks, embedded spreadsheets, or block-level agents yet. Please let the MVP breathe.
 
 ---
 
@@ -1038,7 +1333,7 @@ That is enough. No comments, backlinks, embeds, collaboration, or block-level AI
 v0.3 succeeds if a user can say:
 
 ```text
-I asked several market questions, saved the useful parts into a Canvas, refined my thesis, and generated a better updated brief than I would get from a one-off AI report.
+I pasted sources and asked questions naturally, used the Canvas to visually build my understanding, tracked important sources and memory, and generated a useful brief when I needed one.
 ```
 
 That is the wedge.

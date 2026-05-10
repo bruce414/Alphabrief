@@ -2,7 +2,7 @@
 
 ## Version
 
-`v0.3 First Milestone — Projects → Canvas → Versioned Briefs`
+`v0.3 First Milestone — One Ask Box → Smart Source Detection → Freeform Canvas → On-demand Briefs`
 
 ## Base Path
 
@@ -12,13 +12,23 @@
 
 ## Status
 
-This API spec reflects AlphaBrief's updated direction:
+This API spec updates the previous Canvas-as-brief-source model.
+
+AlphaBrief v0.3 now follows this product model:
 
 ```text
-Projects → Chats / Sources → Canvas → Brief Versions
+Projects → Threads / Agent Chat → Sources → Freeform Canvas → Memory → On-demand Brief Versions
 ```
 
-Chats are exploratory. The Canvas is the curated research artifact. Formal briefs are versioned snapshots generated from the Canvas.
+Key change:
+
+```text
+The Canvas is an editable visual thinking space.
+Briefs are generated on request from selected context: current thread, selected sources, project memory, selected Canvas elements/clusters, or full project context.
+Canvas is optional context for briefs, not a mandatory source of truth.
+```
+
+The visible UX should use one main Ask box. Users can paste a news link or YouTube link and write “analyze this for me.” The backend detects the input type and routes the request internally. Revolutionary stuff: making software do the classification instead of making the user file paperwork.
 
 ---
 
@@ -30,13 +40,18 @@ Chats are exploratory. The Canvas is the curated research artifact. Formal brief
 - Consistent error shape
 - Supports low-friction asking through Catchall project
 - Supports explicit project workspaces for ongoing research
-- Treats Canvas as the source of truth for formal briefs
-- Tracks source provenance from Canvas blocks back to chat turns and sources
+- Uses one user-facing Ask endpoint / composer behavior
+- Performs smart input detection for source links and user intent
 - Distinguishes full source analysis from metadata/API context fallback
 - Avoids primary paste-entire-article workflow
 - Supports Quick, Standard, and Deep research modes for source analysis
 - Supports cheap source scanning before expensive generation
 - Supports Optimize Research for adaptive section-level depth control
+- Treats Canvas as a freeform editable thinking workspace
+- Supports Canvas text, AI blocks, images, mind-map nodes, connectors, and groups
+- Tracks source provenance from Canvas elements back to chat turns and sources
+- Supports explicit project memory
+- Supports brief generation from selected context, not only Canvas
 - Tracks usage/cost from the beginning
 - Keeps finance output educational/informational, not personalized investment advice
 
@@ -67,9 +82,12 @@ CHAT_ARCHIVED
 INVALID_SOURCE_REF
 SOURCE_NOT_READY
 CANDIDATE_DISMISSED
-CANVAS_BLOCK_NOT_FOUND
+CANVAS_NOT_FOUND
+CANVAS_ELEMENT_NOT_FOUND
+CANVAS_CONNECTION_NOT_FOUND
 BRIEF_GENERATION_FAILED
 HIGH_USAGE_WARNING_REQUIRED
+CONTEXT_SELECTION_EMPTY
 ```
 
 ---
@@ -102,7 +120,7 @@ Response:
 }
 ```
 
-Registration should ensure a Catchall project exists for the user. For legacy users, Catchall creation is also handled lazily by `GET /projects`.
+Registration should ensure a Catchall project and default Canvas exist for the user. For legacy users, Catchall and Canvas creation can also be handled lazily by `GET /projects` and `GET /projects/{projectId}/canvas`.
 
 ## Login
 
@@ -205,6 +223,7 @@ Behavior:
 ```text
 Returns Catchall first, then active user projects by updated_at desc.
 If a legacy user has no Catchall, create it lazily before returning.
+Each project should expose counts for chats, sources, Canvas elements, and briefs when cheap.
 ```
 
 Response:
@@ -217,6 +236,10 @@ Response:
       "kind": "CATCHALL",
       "title": "My Research",
       "description": "Default workspace for unsorted chats.",
+      "chatCount": 4,
+      "canvasElementCount": 7,
+      "sourceCount": 5,
+      "briefCount": 1,
       "archivedAt": null,
       "updatedAt": "2026-05-08T00:00:00Z"
     }
@@ -256,11 +279,11 @@ Catchall cannot be renamed or archived.
 DELETE /api/v1/projects/{projectId}
 ```
 
-Reject Catchall. Deleting a project cascades to chats, Canvas blocks, candidates, and brief versions.
+Reject Catchall. Deleting a project cascades to chats, Canvas, candidates, memory, and brief versions.
 
 ---
 
-# 6. Chat Endpoints
+# 6. Chat / Thread Endpoints
 
 ## Create Chat
 
@@ -272,7 +295,7 @@ Request:
 
 ```json
 {
-  "title": "Why did Nvidia data center revenue growth decelerate?"
+  "title": "Nvidia moat after Blackwell"
 }
 ```
 
@@ -282,7 +305,7 @@ Response:
 {
   "id": "uuid",
   "projectId": "uuid",
-  "title": "Why did Nvidia data center revenue growth decelerate?",
+  "title": "Nvidia moat after Blackwell",
   "status": "ACTIVE",
   "lastTurnAt": null,
   "createdAt": "2026-05-08T00:00:00Z"
@@ -303,7 +326,7 @@ Response:
     {
       "id": "uuid",
       "projectId": "uuid",
-      "title": "New chat",
+      "title": "Nvidia moat after Blackwell",
       "status": "ACTIVE",
       "lastTurnAt": "2026-05-08T00:00:00Z"
     }
@@ -345,7 +368,119 @@ Hard delete. Future versions may switch to soft delete.
 
 ---
 
-# 7. Source Endpoints
+# 7. Unified Ask / Chat Turn Endpoints
+
+## Send Message Through One Ask Box
+
+```http
+POST /api/v1/chats/{chatId}/turns
+```
+
+Request:
+
+```json
+{
+  "content": "https://www.youtube.com/watch?v=example Analyze this for Nvidia's Blackwell moat.",
+  "sourceIds": [],
+  "researchMode": "STANDARD",
+  "optimizeResearch": true,
+  "clientContext": {
+    "activeTab": "CANVAS",
+    "selectedCanvasElementIds": []
+  }
+}
+```
+
+Flow:
+
+```text
+1. Owner check on chat.
+2. Reject archived chats.
+3. Detect input type and user intent.
+4. If message contains source URLs, create or reuse Source rows.
+5. Validate explicit sourceIds belong to user and are usable.
+6. Create completed user turn.
+7. Create queued assistant turn.
+8. Attach sources to user turn.
+9. Schedule assistant generation in background.
+10. Return turn IDs, detected input, and source creation status.
+```
+
+Response:
+
+```json
+{
+  "userTurnId": "uuid",
+  "assistantTurnId": "uuid",
+  "assistantStatus": "QUEUED",
+  "detectedInputType": "YOUTUBE_URL",
+  "detectedIntentType": "SOURCE_ANALYSIS",
+  "createdSourceIds": ["uuid"],
+  "requiresPreAnalysisWarning": false
+}
+```
+
+### Internal intent types
+
+```text
+GENERAL_ASK
+SOURCE_ANALYSIS
+ARTICLE_ANALYSIS
+YOUTUBE_ANALYSIS
+PDF_ANALYSIS
+FILING_ANALYSIS
+BRIEF_GENERATION
+CANVAS_ACTION
+COMPARISON
+```
+
+These are internal routing labels. Do not force the user to select these as separate hard modes.
+
+## List Chat Turns
+
+```http
+GET /api/v1/chats/{chatId}/turns
+```
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "role": "USER",
+      "status": "COMPLETED",
+      "detectedInputType": "ARTICLE_URL",
+      "intentType": "SOURCE_ANALYSIS",
+      "contentMarkdown": "What does this article imply for Nvidia?",
+      "createdAt": "2026-05-08T00:00:00Z"
+    },
+    {
+      "id": "uuid",
+      "role": "ASSISTANT",
+      "status": "COMPLETED",
+      "contentMarkdown": "### Quick answer\n...",
+      "contentJson": {
+        "summary": "...",
+        "key_points": []
+      }
+    }
+  ]
+}
+```
+
+## Get Chat Turn
+
+```http
+GET /api/v1/chat-turns/{turnId}
+```
+
+Used for polling assistant turns.
+
+---
+
+# 8. Source Endpoints
 
 ## Create Source From URL
 
@@ -353,14 +488,15 @@ Hard delete. Future versions may switch to soft delete.
 POST /api/v1/sources
 ```
 
-Use for article URLs and YouTube URLs submitted from the web app.
+Use for article URLs, YouTube URLs, filings, and other URL-based sources submitted from the web app. The unified Ask endpoint may call this internally.
 
 Request:
 
 ```json
 {
-  "sourceType": "ARTICLE_URL",
-  "input": "https://example.com/market-news"
+  "sourceType": "AUTO_DETECT",
+  "input": "https://example.com/market-news",
+  "projectId": "uuid"
 }
 ```
 
@@ -382,13 +518,14 @@ Response:
 POST /api/v1/sources/upload
 ```
 
-Use for PDF files.
+Use for PDF files and images/screenshots.
 
 Request:
 
 ```text
 multipart/form-data
-file=<pdf>
+file=<pdf-or-image>
+projectId=<uuid>
 ```
 
 Response:
@@ -408,10 +545,10 @@ Response:
 ## List Sources
 
 ```http
-GET /api/v1/sources?limit=20&status=FULL_TEXT_EXTRACTED,METADATA_ONLY
+GET /api/v1/projects/{projectId}/sources?limit=20&status=FULL_TEXT_EXTRACTED,METADATA_ONLY
 ```
 
-Used by the chat SourcePicker.
+Used by the Sources tab and chat SourcePicker.
 
 Response:
 
@@ -424,7 +561,9 @@ Response:
       "publisher": "Yahoo Finance",
       "sourceType": "ARTICLE_URL",
       "sourceAccessStatus": "FULL_TEXT_EXTRACTED",
-      "normalizedUrl": "https://example.com/news"
+      "normalizedUrl": "https://example.com/news",
+      "linkedChatTurnCount": 2,
+      "linkedCanvasElementCount": 3
     }
   ]
 }
@@ -442,6 +581,7 @@ Request:
 
 ```json
 {
+  "projectId": "uuid",
   "url": "https://finance.yahoo.com/news/example-article",
   "canonicalUrl": "https://finance.yahoo.com/news/example-article",
   "title": "Nvidia shares rise after earnings beat",
@@ -474,7 +614,7 @@ Response:
 
 ---
 
-# 8. Source Scan Endpoints
+# 9. Source Scan Endpoints
 
 ## Run Source Scan
 
@@ -535,89 +675,7 @@ Response:
 
 ---
 
-# 9. Chat Turn Endpoints
-
-## Send Chat Message
-
-```http
-POST /api/v1/chats/{chatId}/turns
-```
-
-Request:
-
-```json
-{
-  "content": "What does this article imply for Nvidia and AI chip demand?",
-  "sourceIds": ["uuid"]
-}
-```
-
-Flow:
-
-```text
-1. Owner check on chat.
-2. Reject archived chats.
-3. Validate sources belong to user and are FULL_TEXT_EXTRACTED or METADATA_ONLY.
-4. Create completed user turn.
-5. Create queued assistant turn.
-6. Attach sources to user turn.
-7. Schedule assistant generation in background.
-8. Return turn IDs for polling.
-```
-
-Response:
-
-```json
-{
-  "userTurnId": "uuid",
-  "assistantTurnId": "uuid",
-  "assistantStatus": "QUEUED"
-}
-```
-
-## List Chat Turns
-
-```http
-GET /api/v1/chats/{chatId}/turns
-```
-
-Response:
-
-```json
-{
-  "items": [
-    {
-      "id": "uuid",
-      "role": "USER",
-      "status": "COMPLETED",
-      "contentMarkdown": "What does this article imply for Nvidia?",
-      "createdAt": "2026-05-08T00:00:00Z"
-    },
-    {
-      "id": "uuid",
-      "role": "ASSISTANT",
-      "status": "COMPLETED",
-      "contentMarkdown": "### Quick answer\n...",
-      "contentJson": {
-        "summary": "...",
-        "key_points": []
-      }
-    }
-  ]
-}
-```
-
-## Get Chat Turn
-
-```http
-GET /api/v1/chat-turns/{turnId}
-```
-
-Used for polling assistant turns.
-
----
-
-# 10. Candidate Canvas Block Endpoints
+# 10. Candidate Element Endpoints
 
 ## List Candidates for Chat Turn
 
@@ -634,7 +692,7 @@ Response:
       "id": "uuid",
       "chatTurnId": "uuid",
       "projectId": "uuid",
-      "blockType": "CLAIM",
+      "suggestedElementType": "CLAIM",
       "title": "AI capex remains the core driver",
       "contentMarkdown": "Nvidia's near-term demand depends heavily on hyperscaler AI infrastructure spending.",
       "status": "PENDING"
@@ -643,7 +701,7 @@ Response:
 }
 ```
 
-## Promote Candidate
+## Promote Candidate to Canvas
 
 ```http
 POST /api/v1/candidates/{candidateId}/promote
@@ -653,7 +711,14 @@ Request:
 
 ```json
 {
-  "positionAfter": "uuid-or-null"
+  "canvasId": "uuid",
+  "elementType": "CLAIM",
+  "title": "AI capex remains the core driver",
+  "contentMarkdown": "Edited version selected by the user.",
+  "x": 640,
+  "y": 280,
+  "width": 320,
+  "height": 180
 }
 ```
 
@@ -662,17 +727,20 @@ Response:
 ```json
 {
   "id": "uuid",
+  "canvasId": "uuid",
   "projectId": "uuid",
-  "blockType": "CLAIM",
+  "elementType": "CLAIM",
   "title": "AI capex remains the core driver",
-  "contentMarkdown": "Nvidia's near-term demand depends heavily on hyperscaler AI infrastructure spending.",
-  "provenanceKind": "CHAT_TURN",
-  "provenanceChatTurnId": "uuid",
-  "positionIndex": "4.0000000000"
+  "contentMarkdown": "Edited version selected by the user.",
+  "provenanceKind": "CANDIDATE",
+  "x": 640,
+  "y": 280,
+  "width": 320,
+  "height": 180
 }
 ```
 
-Promotion is idempotent. If already promoted, return the existing block.
+Promotion is idempotent. If already promoted, return the existing element.
 
 ## Dismiss Candidate
 
@@ -684,73 +752,36 @@ No-op if already dismissed.
 
 ---
 
-# 11. Canvas Block Endpoints
+# 11. Canvas Endpoints
 
-## Create Manual Canvas Block
+## Get Project Canvas
 
 ```http
-POST /api/v1/projects/{projectId}/canvas-blocks
+GET /api/v1/projects/{projectId}/canvas
 ```
 
-Request:
+Creates a default Canvas lazily if missing.
+
+Response:
 
 ```json
 {
-  "blockType": "NOTE",
-  "title": "My thesis note",
-  "contentMarkdown": "The market may already price in near-perfect Blackwell execution.",
-  "contentJson": {},
-  "positionAfter": null,
-  "provenanceKind": "MANUAL"
+  "id": "uuid",
+  "projectId": "uuid",
+  "title": "Working canvas",
+  "viewportJson": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  },
+  "updatedAt": "2026-05-08T00:00:00Z"
 }
 ```
 
-Only `MANUAL` provenance is allowed through this endpoint.
-
-## Promote Chat Turn to Canvas
+## List Canvas Elements
 
 ```http
-POST /api/v1/projects/{projectId}/canvas-blocks/from-turn
-```
-
-Request:
-
-```json
-{
-  "chatTurnId": "uuid",
-  "blockType": "SUMMARY",
-  "title": "Nvidia demand summary",
-  "contentMarkdown": "Edited summary text selected by the user.",
-  "positionAfter": null
-}
-```
-
-If `contentMarkdown` is omitted, default to the turn markdown. The frontend should allow edit-before-promote.
-
-## Create Canvas Block From Source
-
-```http
-POST /api/v1/projects/{projectId}/canvas-blocks/from-source
-```
-
-Request:
-
-```json
-{
-  "sourceId": "uuid",
-  "blockType": "QUOTE",
-  "title": "Management quote on demand",
-  "contentMarkdown": "Short source quote or user-written source note.",
-  "positionAfter": null
-}
-```
-
-For quote blocks, keep quotes short and source-linked. Do not encourage storing full copyrighted article text as Canvas content.
-
-## List Canvas Blocks
-
-```http
-GET /api/v1/projects/{projectId}/canvas-blocks?includeArchived=0
+GET /api/v1/canvases/{canvasId}/elements?includeArchived=0
 ```
 
 Response:
@@ -760,11 +791,17 @@ Response:
   "items": [
     {
       "id": "uuid",
+      "canvasId": "uuid",
       "projectId": "uuid",
-      "blockType": "CLAIM",
+      "elementType": "CLAIM",
       "title": "Blackwell ramp is the key catalyst",
       "contentMarkdown": "The core near-term thesis depends on whether Blackwell revenue contribution ramps cleanly.",
-      "positionIndex": "1.0000000000",
+      "x": 420,
+      "y": 260,
+      "width": 320,
+      "height": 180,
+      "zIndex": 3,
+      "styleJson": {},
       "provenanceKind": "CHAT_TURN",
       "provenanceChatTurnId": "uuid",
       "provenanceSourceId": null,
@@ -774,10 +811,81 @@ Response:
 }
 ```
 
-## Update Canvas Block
+## Create Manual Canvas Element
 
 ```http
-PATCH /api/v1/canvas-blocks/{blockId}
+POST /api/v1/canvases/{canvasId}/elements
+```
+
+Request:
+
+```json
+{
+  "elementType": "TEXT",
+  "title": "My thesis note",
+  "contentMarkdown": "The market may already price in near-perfect Blackwell execution.",
+  "contentJson": {},
+  "x": 220,
+  "y": 180,
+  "width": 360,
+  "height": 180,
+  "styleJson": {},
+  "provenanceKind": "MANUAL"
+}
+```
+
+Only `MANUAL` provenance is allowed through this endpoint unless using a promotion endpoint.
+
+## Promote Chat Turn to Canvas
+
+```http
+POST /api/v1/canvases/{canvasId}/elements/from-turn
+```
+
+Request:
+
+```json
+{
+  "chatTurnId": "uuid",
+  "elementType": "AI_BLOCK",
+  "title": "Nvidia demand summary",
+  "contentMarkdown": "Edited summary text selected by the user.",
+  "x": 640,
+  "y": 260,
+  "width": 360,
+  "height": 220
+}
+```
+
+If `contentMarkdown` is omitted, default to the turn markdown. The frontend should allow edit-before-promote.
+
+## Create Canvas Element From Source
+
+```http
+POST /api/v1/canvases/{canvasId}/elements/from-source
+```
+
+Request:
+
+```json
+{
+  "sourceId": "uuid",
+  "elementType": "QUOTE",
+  "title": "Management quote on demand",
+  "contentMarkdown": "Short source quote or user-written source note.",
+  "x": 520,
+  "y": 500,
+  "width": 320,
+  "height": 160
+}
+```
+
+For quote elements, keep quotes short and source-linked. Do not encourage storing full copyrighted article text as Canvas content.
+
+## Update Canvas Element
+
+```http
+PATCH /api/v1/canvas-elements/{elementId}
 ```
 
 Request:
@@ -785,25 +893,167 @@ Request:
 ```json
 {
   "title": "Updated title",
-  "contentMarkdown": "Updated user-edited block content.",
+  "contentMarkdown": "Updated user-edited element content.",
   "contentJson": {},
-  "blockType": "CLAIM",
-  "archived": false,
-  "positionAfter": "uuid-or-null"
+  "elementType": "CLAIM",
+  "x": 700,
+  "y": 300,
+  "width": 360,
+  "height": 200,
+  "zIndex": 4,
+  "styleJson": {},
+  "archived": false
 }
 ```
 
-## Delete Canvas Block
+All fields are optional; omitted fields preserve existing values.
+
+## Delete Canvas Element
 
 ```http
-DELETE /api/v1/canvas-blocks/{blockId}
+DELETE /api/v1/canvas-elements/{elementId}
 ```
 
-Hard delete. Future versions may prefer soft delete by default.
+Hard delete for v0.3. Future versions may prefer soft delete by default.
 
 ---
 
-# 12. Brief Endpoints
+# 12. Canvas Connection Endpoints
+
+## List Canvas Connections
+
+```http
+GET /api/v1/canvases/{canvasId}/connections
+```
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "canvasId": "uuid",
+      "fromElementId": "uuid",
+      "toElementId": "uuid",
+      "label": "supports",
+      "connectionType": "SUPPORTS",
+      "styleJson": {}
+    }
+  ]
+}
+```
+
+## Create Canvas Connection
+
+```http
+POST /api/v1/canvases/{canvasId}/connections
+```
+
+Request:
+
+```json
+{
+  "fromElementId": "uuid",
+  "toElementId": "uuid",
+  "label": "supports",
+  "connectionType": "SUPPORTS",
+  "styleJson": {}
+}
+```
+
+## Update Canvas Connection
+
+```http
+PATCH /api/v1/canvas-connections/{connectionId}
+```
+
+Request:
+
+```json
+{
+  "label": "depends on",
+  "connectionType": "DEPENDS_ON",
+  "styleJson": {}
+}
+```
+
+## Delete Canvas Connection
+
+```http
+DELETE /api/v1/canvas-connections/{connectionId}
+```
+
+---
+
+# 13. Project Memory Endpoints
+
+## Get Project Memory
+
+```http
+GET /api/v1/projects/{projectId}/memory
+```
+
+Response:
+
+```json
+{
+  "id": "uuid",
+  "projectId": "uuid",
+  "summaryMarkdown": "Current understanding of Nvidia's AI infrastructure thesis...",
+  "entities": ["NVDA", "TSMC", "ASML", "AWS Trainium", "Google TPU"],
+  "themes": ["AI capex", "advanced packaging", "sovereign AI"],
+  "openQuestions": ["How durable is Blackwell demand into FY27?"],
+  "conclusions": [],
+  "updatedAt": "2026-05-08T00:00:00Z"
+}
+```
+
+## Update Project Memory
+
+```http
+PATCH /api/v1/projects/{projectId}/memory
+```
+
+Request:
+
+```json
+{
+  "summaryMarkdown": "Updated user-edited memory summary.",
+  "entities": ["NVDA", "TSMC"],
+  "themes": ["AI infrastructure"],
+  "openQuestions": ["What changes the bear case?"],
+  "conclusions": []
+}
+```
+
+## Refresh Project Memory With AI
+
+```http
+POST /api/v1/projects/{projectId}/memory/refresh
+```
+
+Request:
+
+```json
+{
+  "source": "RECENT_ACTIVITY",
+  "maxActivityItems": 30
+}
+```
+
+Response:
+
+```json
+{
+  "memoryRefreshJobId": "uuid",
+  "status": "QUEUED"
+}
+```
+
+---
+
+# 14. Brief Endpoints
 
 ## Create Brief Series
 
@@ -837,7 +1087,7 @@ Response:
 }
 ```
 
-## Generate Brief Version From Canvas
+## Generate Brief Version From Selected Context
 
 ```http
 POST /api/v1/briefs/{briefId}/versions
@@ -847,7 +1097,12 @@ Request:
 
 ```json
 {
-  "selectedCanvasBlockIds": ["uuid", "uuid"],
+  "contextScope": "CUSTOM",
+  "selectedChatTurnIds": ["uuid"],
+  "selectedSourceIds": ["uuid", "uuid"],
+  "selectedCanvasElementIds": ["uuid"],
+  "includeProjectMemory": true,
+  "includeCurrentThread": true,
   "briefStyle": "INVESTOR_STYLE_LEARNING",
   "includeWhatChanged": true,
   "compareToVersionId": "uuid-or-null",
@@ -855,7 +1110,24 @@ Request:
 }
 ```
 
-If `selectedCanvasBlockIds` is omitted, default to all active project Canvas blocks.
+Context scope values:
+
+```text
+CURRENT_THREAD
+SELECTED_SOURCES
+SELECTED_CANVAS
+CANVAS_CLUSTER
+PROJECT_MEMORY
+FULL_PROJECT
+CUSTOM
+```
+
+Default v0.3 behavior when context is omitted:
+
+```text
+Use current thread + linked sources + optional project memory.
+Do not automatically use the entire Canvas unless the user selected it or requested full project context.
+```
 
 Response:
 
@@ -864,15 +1136,17 @@ Response:
   "briefVersionId": "uuid",
   "briefId": "uuid",
   "versionNumber": 2,
-  "canvasSnapshotId": "uuid",
-  "status": "QUEUED"
+  "briefContextSnapshotId": "uuid",
+  "status": "QUEUED",
+  "generatedFromSummary": "current thread + 2 sources + project memory + 1 selected Canvas element"
 }
 ```
 
 Important rule:
 
 ```text
-Brief versions must be generated from Canvas snapshots, not from raw chat transcripts.
+Brief versions must be generated from explicit selected context snapshots.
+Canvas may be included, but it is not required.
 ```
 
 ## Get Brief
@@ -903,33 +1177,10 @@ Response:
 GET /api/v1/projects/{projectId}/briefs
 ```
 
-## List Brief Versions
-
-```http
-GET /api/v1/briefs/{briefId}/versions
-```
-
-Response:
-
-```json
-{
-  "items": [
-    {
-      "id": "uuid",
-      "versionNumber": 2,
-      "status": "COMPLETED",
-      "generatedFromBlockCount": 18,
-      "summaryOfChanges": "Added valuation risk and Blackwell ramp dependency.",
-      "createdAt": "2026-06-20T00:00:00Z"
-    }
-  ]
-}
-```
-
 ## Get Brief Version
 
 ```http
-GET /api/v1/brief-versions/{briefVersionId}
+GET /api/v1/brief-versions/{versionId}
 ```
 
 Response:
@@ -940,228 +1191,129 @@ Response:
   "briefId": "uuid",
   "versionNumber": 2,
   "status": "COMPLETED",
-  "contentMarkdown": "# Nvidia AI Infrastructure Thesis Brief v2\n...",
-  "sections": {
-    "executiveSummary": "...",
-    "coreThesis": "...",
-    "evidenceBase": [],
-    "risks": [],
-    "openQuestions": [],
-    "whatChanged": "...",
-    "learningTakeaway": "...",
-    "disclaimer": "For educational and informational purposes only."
-  },
-  "summaryOfChanges": "Added export restriction risk and valuation concern.",
-  "generatedFromBlockCount": 18,
-  "createdAt": "2026-06-20T00:00:00Z"
+  "contentMarkdown": "# Nvidia AI Infrastructure Thesis Brief\n...",
+  "sections": {},
+  "summaryOfChanges": "Added stronger TPU disconfirmation section.",
+  "generatedFromSummary": "current thread + 2 sources + selected Canvas cluster",
+  "disclaimer": "For educational and informational purposes only."
 }
 ```
 
-## Compare Brief Versions
+---
+
+# 15. Canvas-AI Helper Endpoints
+
+These are useful but optional for v0.3.
+
+## Summarize Selected Canvas Area
 
 ```http
-GET /api/v1/briefs/{briefId}/versions/compare?fromVersionId=uuid&toVersionId=uuid
+POST /api/v1/canvases/{canvasId}/summarize-selection
+```
+
+Request:
+
+```json
+{
+  "selectedElementIds": ["uuid", "uuid"],
+  "instruction": "Summarize this cluster into three key takeaways."
+}
+```
+
+## Find Contradictions in Selected Canvas Area
+
+```http
+POST /api/v1/canvases/{canvasId}/find-contradictions
+```
+
+Request:
+
+```json
+{
+  "selectedElementIds": ["uuid", "uuid"],
+  "instruction": "Find claims that may conflict or need evidence."
+}
+```
+
+## Generate Mind Map From Selected Context
+
+```http
+POST /api/v1/canvases/{canvasId}/generate-mindmap
+```
+
+Request:
+
+```json
+{
+  "source": "CHAT_TURN",
+  "chatTurnId": "uuid",
+  "originX": 500,
+  "originY": 300
+}
 ```
 
 Response:
 
 ```json
 {
-  "fromVersionId": "uuid",
-  "toVersionId": "uuid",
-  "summary": "The thesis moved from broadly bullish to conditional bullish.",
-  "addedClaims": [],
-  "removedClaims": [],
-  "changedAssumptions": [],
-  "newRisks": [],
-  "confidenceChange": "MEDIUM_TO_LOW"
+  "createdElementIds": ["uuid"],
+  "createdConnectionIds": ["uuid"]
 }
 ```
 
+These helpers should create draft elements that users can edit. Do not let AI redecorate the user's Canvas like an overexcited interior designer with venture funding.
+
 ---
 
-# 13. Research Activity Endpoints
+# 16. Activity and Usage Endpoints
 
 ## List Project Activity
 
 ```http
-GET /api/v1/projects/{projectId}/activity
+GET /api/v1/projects/{projectId}/activity?limit=50
 ```
 
-Response:
-
-```json
-{
-  "items": [
-    {
-      "id": "uuid",
-      "activityType": "PROMOTED_TO_CANVAS",
-      "entityType": "CANVAS_BLOCK",
-      "entityId": "uuid",
-      "createdAt": "2026-05-08T00:00:00Z"
-    }
-  ]
-}
-```
-
----
-
-# 14. Research Allowance Endpoints
-
-## Get Current Allowance
+## Get Allowance
 
 ```http
-GET /api/v1/me/research-allowance
+GET /api/v1/allowance
 ```
 
 Response:
 
 ```json
 {
-  "allowancePercentRemaining": 76,
+  "researchAllowancePercentRemaining": 76,
   "cooldownUntil": null,
-  "nextRecoveryAt": "2026-05-05T16:00:00Z",
-  "quickAvailable": true,
-  "standardAvailable": true,
-  "deepAvailable": true
+  "dailyUsedPercent": 24
 }
 ```
 
-User-facing UI should prefer percentages and labels over exact internal cost numbers.
-
 ---
 
-# 15. Enum Values
+# 17. MVP Endpoint Priority
+
+## Build first
 
 ```text
-ProjectKind:
-CATCHALL
-COVERAGE
-THESIS
-EVENT
-THEME
-DECISION
-
-ChatStatus:
-ACTIVE
-ARCHIVED
-
-ChatTurnRole:
-USER
-ASSISTANT
-
-ChatTurnStatus:
-QUEUED
-RUNNING
-COMPLETED
-FAILED
-
-CanvasBlockType:
-CLAIM
-QUOTE
-NOTE
-SUMMARY
-RISK
-QUESTION
-METRIC
-BULL_CASE
-BEAR_CASE
-
-ProvenanceKind:
-CHAT_TURN
-SOURCE
-MANUAL
-CANDIDATE
-
-CandidateStatus:
-PENDING
-PROMOTED
-DISMISSED
-
-BriefType:
-COMPANY_RESEARCH
-EARNINGS_BREAKDOWN
-SOURCE_SUMMARY
-MARKET_EVENT_EXPLAINER
-THESIS_MEMO
-
-BriefVersionStatus:
-QUEUED
-PROCESSING
-COMPLETED
-FAILED
-ARCHIVED
-
-ResearchMode:
-QUICK
-STANDARD
-DEEP
-
-CompletionStrategy:
-STRICT_REQUESTED_MODE
-OPTIMIZE_RESEARCH
-
-CoverageMode:
-FULL_SOURCE
-SELECTED_TOPICS
-SELECTED_ENTITIES
-CUSTOM_QUESTION
-
-AnalysisIntent:
-QUICK_SUMMARY
-MARKET_IMPACT
-COMPANY_ANALYSIS
-LEARNING_MODE
-STRUCTURED_BRIEF
+/projects
+/projects/{projectId}/chats
+/chats/{chatId}/turns
+/sources
+/sources/upload
+/projects/{projectId}/canvas
+/canvases/{canvasId}/elements
+/canvases/{canvasId}/connections
+/chat-turns/{chatTurnId}/candidates
+/projects/{projectId}/memory
+/briefs/{briefId}/versions
 ```
 
----
-
-# 16. Future API Endpoints Not in v0.3
-
-Move these to future versions:
+## Defer if needed
 
 ```text
-/project-memory
-/project-summaries
-/thread-summaries
-/watchlists
-/watchlist-items
-/company-events
-/event-impact-notes
-/notifications
-/theses/formal-tracking
-/thesis-updates
-/subscription
-/promo-codes
-/referrals
-/shares
-/exports
-/extension/connect
-/extension/devices
-/research-baskets
-/market-map
-/multi-agent-research
-/collaboration
+/canvases/{canvasId}/summarize-selection
+/canvases/{canvasId}/find-contradictions
+/canvases/{canvasId}/generate-mindmap
+/projects/{projectId}/memory/refresh
 ```
-
----
-
-# 17. MVP Demo Flow
-
-The smallest compelling demo should be:
-
-```text
-Create/open project
-→ create chat
-→ attach source or ask question
-→ assistant replies
-→ candidate Canvas blocks appear
-→ user promotes/edits blocks
-→ Canvas fills up
-→ user generates Brief v1 from Canvas
-→ user adds more research later
-→ user generates Brief v2 and sees what changed
-```
-
-This is the product wedge. Everything else is scaffolding with opinions.
