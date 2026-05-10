@@ -10,8 +10,11 @@ from pydantic import BaseModel, ConfigDict, Field
 class CreateSourceRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    source_type: Literal["ARTICLE_URL", "YOUTUBE_URL"] = Field(alias="sourceType")
+    source_type: Literal["ARTICLE_URL", "YOUTUBE_URL", "FILING_URL", "AUTO_DETECT"] = Field(
+        alias="sourceType"
+    )
     input: str = Field(min_length=1)
+    project_id: UUID | None = Field(default=None, alias="projectId")
 
 
 class SourceCreateResponse(BaseModel):

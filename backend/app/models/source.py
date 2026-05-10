@@ -25,6 +25,12 @@ class Source(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=False,
         index=True,
     )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     source_type: Mapped[str] = mapped_column(String(50), nullable=False)
     source_access_method: Mapped[str] = mapped_column(String(50), nullable=False)
     source_access_status: Mapped[str] = mapped_column(String(50), nullable=False)

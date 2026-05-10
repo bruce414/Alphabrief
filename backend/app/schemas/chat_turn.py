@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.enums import ChatTurnRole, ChatTurnStatus
+from app.core.enums import ChatTurnRole, ChatTurnStatus, InputType, IntentType
 
 
 class ChatTurnResponse(BaseModel):
@@ -26,6 +26,9 @@ class ChatTurnResponse(BaseModel):
 
     model_provider: str | None = Field(default=None, alias="modelProvider")
     model_name: str | None = Field(default=None, alias="modelName")
+
+    detected_input_type: InputType | None = Field(default=None, alias="detectedInputType")
+    intent_type: IntentType | None = Field(default=None, alias="intentType")
 
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
@@ -50,4 +53,9 @@ class SendChatMessageResponse(BaseModel):
     user_turn_id: UUID = Field(alias="userTurnId")
     assistant_turn_id: UUID = Field(alias="assistantTurnId")
     assistant_status: ChatTurnStatus = Field(alias="assistantStatus")
+
+    detected_input_type: InputType = Field(alias="detectedInputType")
+    detected_intent_type: IntentType = Field(alias="detectedIntentType")
+    created_source_ids: list[UUID] = Field(alias="createdSourceIds")
+    requires_pre_analysis_warning: bool = Field(default=False, alias="requiresPreAnalysisWarning")
 

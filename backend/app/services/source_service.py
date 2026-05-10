@@ -12,6 +12,7 @@ from app.models.source import Source
 from app.models.user import User
 from app.repositories.source_repository import SourceRepository
 from app.schemas.source import CreateSourceRequest
+from app.services.input_detection_service import classify_url_input_type
 from app.services.source_extraction_service import (
     apply_article_extraction,
     apply_youtube_extraction,
@@ -31,8 +32,21 @@ async def create_source_from_request(
 ) -> Source:
     inp = data.input.strip()
     st = data.source_type
+    project_id = data.project_id
 
-    if st == "ARTICLE_URL":
+    if st == "AUTO_DETECT":
+        resolved = classify_url_input_type(inp).value
+        if resolved not in {"ARTICLE_URL", "YOUTUBE_URL", "FILING_URL"}:
+            raise AppError(
+                error_code="INVALID_URL",
+                message="Could not classify URL",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        st_resolved: str = resolved
+    else:
+        st_resolved = st
+
+    if st_resolved in {"ARTICLE_URL", "FILING_URL"}:
         assert_url_scheme_http(inp)
         access_method = "SERVER_FETCH"
     else:
@@ -46,7 +60,8 @@ async def create_source_from_request(
 
     source = Source(
         user_id=current_user.id,
-        source_type=st,
+        project_id=project_id,
+        source_type=st_resolved,
         source_access_method=access_method,
         source_access_status="PENDING",
         original_input=inp,
@@ -59,7 +74,7 @@ async def create_source_from_request(
     await repo.create(source)
 
     try:
-        if st == "ARTICLE_URL":
+        if st_resolved in {"ARTICLE_URL", "FILING_URL"}:
             await apply_article_extraction(source, db=db, http_client=http_client)
         else:
             await apply_youtube_extraction(source, http_client=http_client)

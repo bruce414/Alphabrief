@@ -49,6 +49,9 @@ class ChatTurn(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     model_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
     model_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
+    intent_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    detected_input_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
     chat: Mapped["Chat"] = relationship("Chat")
     user: Mapped["User"] = relationship("User")
     sources: Mapped[list["Source"]] = relationship("Source", secondary="chat_turn_sources")
