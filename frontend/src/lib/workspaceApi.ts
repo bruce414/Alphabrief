@@ -45,6 +45,13 @@ export function createChat(
   });
 }
 
+export function getChat(chatId: string): Promise<{
+  chat: Chat;
+  project: { id: string; kind: string; title: string };
+}> {
+  return apiFetch(`/chats/${encodeURIComponent(chatId)}`);
+}
+
 export function listChatTurns(chatId: string): Promise<{ items: ChatTurn[] }> {
   return apiFetch(`/chats/${encodeURIComponent(chatId)}/turns`);
 }
@@ -206,4 +213,8 @@ export function listProjectSources(
   projectId: string,
 ): Promise<{ items: Source[] }> {
   return apiFetch(`/projects/${encodeURIComponent(projectId)}/sources`);
+}
+
+export function getSourceById(sourceId: string): Promise<Source> {
+  return apiFetch(`/sources/${encodeURIComponent(sourceId)}`);
 }

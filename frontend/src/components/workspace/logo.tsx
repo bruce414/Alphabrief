@@ -1,6 +1,9 @@
-import { T } from "../../styles/tokens";
+/** Raster crops from `alphabrief_offical_logo.png`: icon mark only + wordmark only */
+const MARK_SRC = "/alphabrief_logo_mark.png";
+const WORDMARK_SRC = "/alphabrief_logo_wordmark.png";
 
-const LOGO_SRC = "/alphabrief_offical_logo.png";
+/** Wordmark crop height / icon crop height in source asset (aligns cap height to sidebar logo) */
+const WORDMARK_HEIGHT_RATIO = 213 / 325;
 
 export function AlphaBriefLogo({
   size = 28,
@@ -9,28 +12,37 @@ export function AlphaBriefLogo({
   size?: number;
   showText?: boolean;
 }) {
+  const wordH = size * WORDMARK_HEIGHT_RATIO;
+
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <div
+      role="img"
+      aria-label="AlphaBrief"
+      style={{ display: "flex", alignItems: "center", gap: 8 }}
+    >
       <img
-        src={LOGO_SRC}
-        width={size}
+        src={MARK_SRC}
         height={size}
-        alt={showText ? "" : "AlphaBrief"}
-        style={{ display: "block", objectFit: "contain" }}
+        alt=""
+        style={{
+          display: "block",
+          height: size,
+          width: "auto",
+          objectFit: "contain",
+        }}
       />
-      {showText && (
-        <span
+      {showText ? (
+        <img
+          src={WORDMARK_SRC}
+          alt=""
           style={{
-            fontFamily: T.fontSans,
-            fontWeight: 600,
-            fontSize: size * 0.64,
-            color: T.black,
-            letterSpacing: "-0.02em",
+            display: "block",
+            height: wordH,
+            width: "auto",
+            objectFit: "contain",
           }}
-        >
-          AlphaBrief
-        </span>
-      )}
+        />
+      ) : null}
     </div>
   );
 }
