@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import CanvasElementType, ProvenanceKind
 from app.core.errors import AppError
+from app.models.candidate_element import CandidateElement
 from app.models.canvas import Canvas
 from app.models.canvas_element import CanvasElement
 from app.models.chat import Chat
@@ -123,6 +124,50 @@ class CanvasElementService:
             style_json=style_json,
             provenance_kind=ProvenanceKind.MANUAL.value,
             provenance_chat_turn_id=None,
+            provenance_source_id=None,
+            confidence_label=None,
+            archived_at=None,
+        )
+        return await self._element_repo.create(element)
+
+    async def create_from_candidate(
+        self,
+        *,
+        user_id: UUID,
+        canvas_id: UUID,
+        candidate: CandidateElement,
+        element_type: CanvasElementType,
+        title: str | None,
+        content_markdown: str,
+        x: Decimal,
+        y: Decimal,
+        width: Decimal | None,
+        height: Decimal | None,
+    ) -> CanvasElement:
+        canvas = await self._get_canvas_owned(user_id=user_id, canvas_id=canvas_id)
+        if canvas.project_id != candidate.project_id:
+            raise AppError(
+                error_code="INVALID_INPUT",
+                message="Canvas does not belong to this candidate's project",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        element = CanvasElement(
+            canvas_id=canvas.id,
+            project_id=canvas.project_id,
+            user_id=user_id,
+            element_type=element_type.value,
+            title=title,
+            content_markdown=content_markdown,
+            content_json=candidate.content_json or {},
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            z_index=0,
+            style_json=None,
+            provenance_kind=ProvenanceKind.CANDIDATE.value,
+            provenance_chat_turn_id=candidate.chat_turn_id,
             provenance_source_id=None,
             confidence_label=None,
             archived_at=None,

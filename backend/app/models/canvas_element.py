@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 class CanvasElement(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-    """Atomic visual element on a freeform Canvas (v0.3 replacement for CanvasBlock)."""
+    """Atomic visual element on a freeform Canvas (v0.3)."""
 
     __tablename__ = "canvas_elements"
 

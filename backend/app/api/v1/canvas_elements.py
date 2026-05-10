@@ -20,6 +20,7 @@ from app.schemas.canvas_element import (
     CreateCanvasElementFromTurnRequest,
     CreateManualCanvasElementRequest,
     PatchCanvasElementRequest,
+    canvas_element_model_to_response,
 )
 from app.services.canvas_element_service import CanvasElementService
 
@@ -37,34 +38,6 @@ def _dec_opt(value: float | int | Decimal | None) -> Decimal | None:
     return Decimal(str(value))
 
 
-def _to_float(d: Decimal | None) -> float | None:
-    if d is None:
-        return None
-    return float(d)
-
-
-def _to_element_response(element: Any) -> CanvasElementResponse:
-    return CanvasElementResponse(
-        id=element.id,
-        canvasId=element.canvas_id,
-        projectId=element.project_id,
-        elementType=element.element_type,
-        title=element.title,
-        contentMarkdown=element.content_markdown,
-        contentJson=element.content_json or {},
-        x=float(element.x),
-        y=float(element.y),
-        width=_to_float(element.width),
-        height=_to_float(element.height),
-        zIndex=element.z_index,
-        styleJson=element.style_json if element.style_json is not None else {},
-        provenanceKind=element.provenance_kind,
-        provenanceChatTurnId=element.provenance_chat_turn_id,
-        provenanceSourceId=element.provenance_source_id,
-        archivedAt=element.archived_at,
-    )
-
-
 @router.get("/canvases/{canvas_id}/elements", response_model=CanvasElementListResponse)
 async def list_canvas_elements(
     canvas_id: UUID,
@@ -80,7 +53,7 @@ async def list_canvas_elements(
         canvas_id=canvas_id,
         include_archived=bool(includeArchived),
     )
-    return CanvasElementListResponse(items=[_to_element_response(e) for e in rows])
+    return CanvasElementListResponse(items=[canvas_element_model_to_response(e) for e in rows])
 
 
 @router.post(
@@ -110,7 +83,7 @@ async def create_manual_canvas_element(
         height=_dec_opt(data.height),
         style_json=data.style_json,
     )
-    return _to_element_response(element)
+    return canvas_element_model_to_response(element)
 
 
 @router.post(
@@ -139,7 +112,7 @@ async def create_canvas_element_from_turn(
         width=_dec_opt(data.width),
         height=_dec_opt(data.height),
     )
-    return _to_element_response(element)
+    return canvas_element_model_to_response(element)
 
 
 @router.post(
@@ -168,7 +141,7 @@ async def create_canvas_element_from_source(
         width=_dec_opt(data.width),
         height=_dec_opt(data.height),
     )
-    return _to_element_response(element)
+    return canvas_element_model_to_response(element)
 
 
 @router.patch("/canvas-elements/{element_id}", response_model=CanvasElementResponse)
@@ -219,7 +192,7 @@ async def patch_canvas_element(
         partial["archived"] = data.archived
 
     element = await svc.patch(user_id=current_user.id, element_id=element_id, **partial)
-    return _to_element_response(element)
+    return canvas_element_model_to_response(element)
 
 
 @router.delete("/canvas-elements/{element_id}", status_code=status.HTTP_204_NO_CONTENT)

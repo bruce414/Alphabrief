@@ -95,18 +95,6 @@ class ChatTurnStatus(str, Enum):
     FAILED = "FAILED"
 
 
-class CanvasBlockType(str, Enum):
-    CLAIM = "CLAIM"
-    QUOTE = "QUOTE"
-    NOTE = "NOTE"
-    SUMMARY = "SUMMARY"
-    RISK = "RISK"
-    QUESTION = "QUESTION"
-    METRIC = "METRIC"
-    BULL_CASE = "BULL_CASE"
-    BEAR_CASE = "BEAR_CASE"
-
-
 class ProvenanceKind(str, Enum):
     CHAT_TURN = "CHAT_TURN"
     SOURCE = "SOURCE"

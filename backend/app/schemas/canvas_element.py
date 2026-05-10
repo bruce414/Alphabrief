@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.enums import CanvasElementType, ProvenanceKind
+from app.models.canvas_element import CanvasElement
 
 
 class CanvasElementResponse(BaseModel):
@@ -124,3 +126,32 @@ class PatchCanvasElementRequest(BaseModel):
     z_index: int | None = Field(default=None, alias="zIndex")
     style_json: dict[str, Any] | None = Field(default=None, alias="styleJson")
     archived: bool | None = None
+
+
+def canvas_element_model_to_response(element: CanvasElement) -> CanvasElementResponse:
+    """Map a persisted CanvasElement ORM row to the public API response shape."""
+
+    def _dec_to_float(d: Decimal | None) -> float | None:
+        if d is None:
+            return None
+        return float(d)
+
+    return CanvasElementResponse(
+        id=element.id,
+        canvasId=element.canvas_id,
+        projectId=element.project_id,
+        elementType=element.element_type,
+        title=element.title,
+        contentMarkdown=element.content_markdown,
+        contentJson=element.content_json or {},
+        x=float(element.x),
+        y=float(element.y),
+        width=_dec_to_float(element.width),
+        height=_dec_to_float(element.height),
+        zIndex=element.z_index,
+        styleJson=element.style_json if element.style_json is not None else {},
+        provenanceKind=element.provenance_kind,
+        provenanceChatTurnId=element.provenance_chat_turn_id,
+        provenanceSourceId=element.provenance_source_id,
+        archivedAt=element.archived_at,
+    )

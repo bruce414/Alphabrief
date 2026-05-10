@@ -8,71 +8,58 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.core.enums import CandidateStatus, CanvasBlockType, ProvenanceKind
+from app.core.enums import CandidateStatus, CanvasElementType
 from app.core.errors import AppError
 from app.db.session import get_db
-from app.models.canvas_block import CanvasBlock
+from app.models.candidate_element import CandidateElement
 from app.models.chat import Chat
 from app.models.chat_turn import ChatTurn
-from app.models.candidate_block import CandidateBlock
 from app.models.user import User
-from app.repositories.canvas_block_repository import CanvasBlockRepository
-from app.repositories.candidate_block_repository import CandidateBlockRepository
-from app.schemas.canvas_block import CanvasBlockResponse
-from app.schemas.candidate_block import (
-    CandidateBlockListResponse,
-    CandidateBlockResponse,
+from app.repositories.canvas_element_repository import CanvasElementRepository
+from app.repositories.candidate_element_repository import CandidateElementRepository
+from app.repositories.source_repository import SourceRepository
+from app.schemas.canvas_element import CanvasElementResponse, canvas_element_model_to_response
+from app.schemas.candidate_element import (
+    CandidateElementListResponse,
+    CandidateElementResponse,
     PromoteCandidateRequest,
 )
+from app.services.canvas_element_service import CanvasElementService
 
 
 router = APIRouter(tags=["candidates"])
 
-_POS_QUANT = Decimal("0.0000000000")
+
+def _dec(value: float | int | Decimal) -> Decimal:
+    return Decimal(str(value))
 
 
-def _pos_str(pos: Decimal) -> str:
-    return str(pos.quantize(_POS_QUANT))
+def _dec_opt(value: float | int | Decimal | None) -> Decimal | None:
+    if value is None:
+        return None
+    return Decimal(str(value))
 
 
-def _to_canvas_block_response(block: CanvasBlock) -> CanvasBlockResponse:
-    return CanvasBlockResponse(
-        id=block.id,
-        projectId=block.project_id,
-        blockType=CanvasBlockType(block.block_type),
-        title=block.title,
-        contentMarkdown=block.content_markdown,
-        contentJson=block.content_json,
-        positionIndex=_pos_str(block.position_index),
-        provenanceKind=block.provenance_kind,
-        provenanceChatTurnId=block.provenance_chat_turn_id,
-        provenanceSourceId=block.provenance_source_id,
-        archivedAt=block.archived_at,
-        createdAt=block.created_at,
-        updatedAt=block.updated_at,
-    )
-
-
-def _to_candidate_response(c: CandidateBlock) -> CandidateBlockResponse:
-    return CandidateBlockResponse(
+def _to_candidate_element_response(c: CandidateElement) -> CandidateElementResponse:
+    return CandidateElementResponse(
         id=c.id,
         chatTurnId=c.chat_turn_id,
         projectId=c.project_id,
-        blockType=CanvasBlockType(c.block_type),
+        suggestedElementType=CanvasElementType(c.suggested_element_type),
         title=c.title,
         contentMarkdown=c.content_markdown,
+        contentJson=c.content_json or {},
         status=CandidateStatus(c.status),
     )
 
 
-@router.get("/chat-turns/{chat_turn_id}/candidates", response_model=CandidateBlockListResponse)
+@router.get("/chat-turns/{chat_turn_id}/candidates", response_model=CandidateElementListResponse)
 async def list_candidates_for_turn(
     chat_turn_id: UUID,
     includeAll: int = 0,  # noqa: N803 - query param casing per spec
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> CandidateBlockListResponse:
-    # Owner check via chat_turn -> chat -> user_id.
+) -> CandidateElementListResponse:
     stmt = (
         select(ChatTurn)
         .join(Chat, Chat.id == ChatTurn.chat_id)
@@ -86,43 +73,23 @@ async def list_candidates_for_turn(
             status_code=status.HTTP_404_NOT_FOUND,
         )
 
-    repo = CandidateBlockRepository(db)
+    repo = CandidateElementRepository(db)
     items = await repo.list_for_turn(chat_turn_id=chat_turn_id, include_all=bool(includeAll))
-    return CandidateBlockListResponse(items=[_to_candidate_response(i) for i in items])
+    return CandidateElementListResponse(items=[_to_candidate_element_response(i) for i in items])
 
 
-async def _compute_position_index(
-    *,
-    repo: CanvasBlockRepository,
-    project_id: UUID,
-    position_after: UUID | None,
-) -> Decimal:
-    if position_after is None:
-        max_pos = await repo.get_max_active_position(project_id=project_id)
-        return (max_pos + Decimal("1.0")) if max_pos is not None else Decimal("1.0")
-
-    after = await repo.get_by_id(position_after)
-    if after is None or after.project_id != project_id or after.archived_at is not None:
-        raise AppError(
-            error_code="INVALID_INPUT",
-            message="Invalid positionAfter reference",
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
-
-    nxt = await repo.get_next_active_after(project_id=project_id, position_index=after.position_index)
-    if nxt is None:
-        return after.position_index + Decimal("1.0")
-    return (after.position_index + nxt.position_index) / Decimal(2)
-
-
-@router.post("/candidates/{candidate_id}/promote", response_model=CanvasBlockResponse)
+@router.post(
+    "/candidates/{candidate_id}/promote",
+    response_model=CanvasElementResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def promote_candidate(
     candidate_id: UUID,
     data: PromoteCandidateRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> CanvasBlockResponse:
-    cand_repo = CandidateBlockRepository(db)
+) -> CanvasElementResponse:
+    cand_repo = CandidateElementRepository(db)
     c = await cand_repo.get_by_id(candidate_id)
     if c is None:
         raise AppError(
@@ -144,42 +111,44 @@ async def promote_candidate(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Idempotent promote.
-    if c.status == CandidateStatus.PROMOTED.value and c.promoted_block_id is not None:
-        block_repo = CanvasBlockRepository(db)
-        b = await block_repo.get_by_id(c.promoted_block_id)
-        if b is not None:
-            return _to_canvas_block_response(b)
+    element_repo = CanvasElementRepository(db)
+    if c.status == CandidateStatus.PROMOTED.value and c.promoted_element_id is not None:
+        existing = await element_repo.get_by_id(c.promoted_element_id)
+        if existing is not None:
+            return canvas_element_model_to_response(existing)
 
-    block_type = CanvasBlockType(c.block_type)
-    block_repo = CanvasBlockRepository(db)
-    pos = await _compute_position_index(repo=block_repo, project_id=c.project_id, position_after=data.position_after)
+    resolved_md = (data.content_markdown or c.content_markdown) or ""
+    if not (resolved_md or "").strip():
+        raise AppError(
+            error_code="INVALID_INPUT",
+            message="Invalid input",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
 
-    block = CanvasBlock(
-        project_id=c.project_id,
-        user_id=c.user_id,
-        block_type=block_type.value,
-        title=c.title,
-        content_markdown=c.content_markdown,
-        content_json={},
-        position_index=pos,
-        provenance_kind=ProvenanceKind.CHAT_TURN.value,
-        provenance_chat_turn_id=c.chat_turn_id,
-        provenance_source_id=None,
-        confidence_label=None,
-        archived_at=None,
-        metadata_={},
+    resolved_title = c.title
+    if "title" in data.model_fields_set:
+        resolved_title = data.title
+
+    source_repo = SourceRepository(db)
+    svc = CanvasElementService(db=db, element_repo=element_repo, source_repo=source_repo)
+    element = await svc.create_from_candidate(
+        user_id=current_user.id,
+        canvas_id=data.canvas_id,
+        candidate=c,
+        element_type=data.element_type,
+        title=resolved_title,
+        content_markdown=resolved_md,
+        x=_dec(data.x),
+        y=_dec(data.y),
+        width=_dec_opt(data.width),
+        height=_dec_opt(data.height),
     )
 
-    db.add(block)
-    await db.flush()
-
     c.status = CandidateStatus.PROMOTED.value
-    c.promoted_block_id = block.id
-    db.add(c)
-    await db.commit()
-    await db.refresh(block)
-    return _to_canvas_block_response(block)
+    c.promoted_element_id = element.id
+    await cand_repo.update(c)
+
+    return canvas_element_model_to_response(element)
 
 
 @router.post("/candidates/{candidate_id}/dismiss", status_code=status.HTTP_200_OK)
@@ -188,7 +157,7 @@ async def dismiss_candidate(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, str]:
-    repo = CandidateBlockRepository(db)
+    repo = CandidateElementRepository(db)
     c = await repo.get_by_id(candidate_id)
     if c is None:
         raise AppError(
@@ -205,8 +174,6 @@ async def dismiss_candidate(
 
     if c.status != CandidateStatus.DISMISSED.value:
         c.status = CandidateStatus.DISMISSED.value
-        db.add(c)
-        await db.commit()
+        await repo.update(c)
 
     return {"status": "ok"}
-
