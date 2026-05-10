@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import Request, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.websockets import WebSocket
@@ -90,6 +91,6 @@ async def request_validation_error_handler(
         content=error_payload(
             error_code="INVALID_INPUT",
             message="Invalid input",
-            details=exc.errors(),
+            details=jsonable_encoder(exc.errors()),
         ),
     )
