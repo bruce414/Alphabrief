@@ -22,17 +22,29 @@ from app.models.candidate_block import CandidateBlock
 from app.models.canvas_snapshot import CanvasSnapshot
 from app.models.brief_version import BriefVersion
 
+# v0.3 freeform Canvas world (DATA_MODEL.md §4.9–§4.13).
+from app.models.canvas import Canvas
+from app.models.canvas_element import CanvasElement
+from app.models.canvas_connection import CanvasConnection
+from app.models.candidate_element import CandidateElement
+from app.models.project_memory import ProjectMemory
+
 __all__ = [
     "Brief",
     "BriefVersion",
     "BriefSource",
+    "Canvas",
+    "CanvasBlock",
+    "CanvasConnection",
+    "CanvasElement",
+    "CanvasSnapshot",
+    "CandidateBlock",
+    "CandidateElement",
     "Chat",
     "ChatTurn",
     "ChatTurnSource",
-    "CanvasBlock",
-    "CandidateBlock",
-    "CanvasSnapshot",
     "Project",
+    "ProjectMemory",
     "Source",
     "SourceFetchLog",
     "SourceFetchPolicy",
