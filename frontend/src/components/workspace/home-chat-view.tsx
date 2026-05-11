@@ -213,10 +213,6 @@ export function HomeChatView({
                 </div>
                 <div
                   style={{
-                    background: T.white,
-                    border: `1px solid ${T.border}`,
-                    borderRadius: 12,
-                    padding: "16px 20px",
                     fontFamily: T.fontSans,
                     fontSize: 14,
                     color: T.black,

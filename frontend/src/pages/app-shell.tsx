@@ -13,11 +13,9 @@ function currentViewFromPath(pathname: string): 'home' | 'research' | 'discover'
 export function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
-  const researchWorkspaceMatch = useMatch({
-    path: '/app/research/:projectId',
-    end: true,
-  })
-  const showMainSidebar = researchWorkspaceMatch == null
+  const isWorkspace = Boolean(
+    useMatch({ path: '/app/research/:projectId', end: true }),
+  )
   const currentView = useMemo(
     () => currentViewFromPath(location.pathname),
     [location.pathname],
@@ -41,7 +39,7 @@ export function AppShell() {
         scrollbar-width: thin;
         scrollbar-color: ${T.gray300} transparent;
       `}</style>
-      {showMainSidebar ? (
+      {!isWorkspace ? (
         <MainSidebar
           currentView={currentView}
           onNavigate={(view) => {

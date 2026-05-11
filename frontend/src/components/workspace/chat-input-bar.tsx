@@ -17,12 +17,14 @@ export type ChatInputBarProps = {
   onSend: (text: string, researchMode: ApiResearchMode) => void;
   placeholder?: string;
   disabled?: boolean;
+  containerBackground?: string;
 };
 
 export function ChatInputBar({
   onSend,
   placeholder = "Ask, or paste a URL to research...",
   disabled = false,
+  containerBackground = T.bgPanel,
 }: ChatInputBarProps) {
   const [val, setVal] = useState("");
   const [modeIndex, setModeIndex] = useState(0);
@@ -42,7 +44,7 @@ export function ChatInputBar({
     <div
       style={{
         padding: "16px 24px 20px",
-        background: T.bgPanel,
+        background: containerBackground,
       }}
     >
       <div

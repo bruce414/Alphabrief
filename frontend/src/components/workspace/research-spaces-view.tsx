@@ -37,6 +37,7 @@ function SpaceCard({
   project: Project;
   onEnter: () => void;
 }) {
+  const desc = project.description?.trim();
   return (
     <button
       type="button"
@@ -48,8 +49,9 @@ function SpaceCard({
         borderRadius: 14,
         padding: "24px 26px",
         cursor: "pointer",
-        transition: "box-shadow 0.15s ease, border-color 0.15s ease",
+        transition: "box-shadow 0.15s, border-color 0.15s",
         fontFamily: T.fontSans,
+        position: "relative",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.08)";
@@ -76,9 +78,10 @@ function SpaceCard({
             minWidth: 0,
           }}
         >
-          <Icon.ResearchSpace style={{ flexShrink: 0 }} />
+          <Icon.ResearchSpace style={{ flexShrink: 0, color: T.black }} />
           <span
             style={{
+              fontFamily: T.fontSans,
               fontSize: 16,
               fontWeight: 700,
               color: T.black,
@@ -88,30 +91,30 @@ function SpaceCard({
             {project.title}
           </span>
         </div>
-        <Icon.ArrowUpRight style={{ flexShrink: 0, color: T.gray400 }} />
+        <Icon.ArrowUpRight style={{ flexShrink: 0, color: T.black }} />
       </div>
-      {project.description ? (
-        <p
-          style={{
-            fontSize: 13,
-            color: T.gray500,
-            margin: "10px 0 16px",
-            lineHeight: 1.5,
-          }}
-        >
-          {project.description}
-        </p>
-      ) : null}
+      <p
+        style={{
+          fontFamily: T.fontSans,
+          fontSize: 13,
+          color: desc ? T.gray500 : T.gray400,
+          margin: "10px 0 16px",
+          lineHeight: 1.5,
+          fontStyle: desc ? "normal" : "italic",
+        }}
+      >
+        {desc || "No description yet"}
+      </p>
       <div
         style={{
           display: "flex",
           gap: 8,
-          marginTop: project.description ? 0 : 10,
           fontSize: 11,
           fontWeight: 600,
           color: T.gray400,
           textTransform: "uppercase",
           letterSpacing: "0.06em",
+          fontFamily: T.fontSans,
         }}
       >
         <span>{project.chatCount} threads</span>
@@ -186,7 +189,7 @@ export function ResearchSpacesView() {
         display: "flex",
         flexDirection: "column",
         height: "100vh",
-        background: T.bgPanel,
+        background: T.bg,
         fontFamily: T.fontSans,
         color: T.black,
         minHeight: 0,
@@ -209,7 +212,9 @@ export function ResearchSpacesView() {
             display: "flex",
             alignItems: "center",
             gap: 8,
+            fontFamily: T.fontSans,
             fontSize: 13,
+            color: T.gray500,
             minWidth: 0,
           }}
         >
@@ -220,9 +225,7 @@ export function ResearchSpacesView() {
           {researchProjects.length > 0 ? (
             <>
               <span style={{ color: T.gray300 }}>·</span>
-              <span style={{ color: T.gray400 }}>
-                {researchProjects.length} active
-              </span>
+              <span>{researchProjects.length} active</span>
             </>
           ) : null}
         </div>
@@ -252,18 +255,21 @@ export function ResearchSpacesView() {
       <div
         style={{
           flex: 1,
-          overflow: "auto",
+          overflowY: "auto",
           padding: "48px 60px",
           minHeight: 0,
+          background: T.bg,
         }}
       >
         <div
           style={{
+            marginBottom: 4,
             fontSize: 11,
             fontWeight: 700,
             color: T.gray400,
             textTransform: "uppercase",
             letterSpacing: "0.08em",
+            fontFamily: T.fontSans,
           }}
         >
           Spaces
@@ -283,13 +289,15 @@ export function ResearchSpacesView() {
         </h1>
         <p
           style={{
+            fontFamily: T.fontSans,
             fontSize: 14,
             color: T.gray500,
             marginBottom: 40,
             lineHeight: 1.5,
           }}
         >
-          Each space holds its own threads, sources, memory, and canvas.
+          Each space holds its own threads, sources, memory, and canvas. Open
+          one to dive into the editor.
         </p>
 
         {isLoading ? (
@@ -323,7 +331,7 @@ export function ResearchSpacesView() {
                 alignItems: "center",
                 justifyContent: "center",
                 minHeight: 150,
-                transition: "border-color 0.15s ease, background 0.15s ease",
+                transition: "border-color 0.15s, background 0.15s",
                 fontFamily: T.fontSans,
               }}
               onMouseEnter={(e) => {
