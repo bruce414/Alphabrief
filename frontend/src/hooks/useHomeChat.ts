@@ -9,8 +9,10 @@ import {
   getChat,
   getChatTurn,
   getSourceById,
+  listChatTurns,
   sendChatMessage,
 } from "@/lib/workspaceApi";
+import type { ChatTurn } from "@/types/workspace";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -27,12 +29,21 @@ function domainFromUrl(url: string | null): string {
   }
 }
 
-export function useHomeChat() {
+export type UseHomeChatOptions = {
+  /** Chat selected in the main sidebar (App shell). */
+  selectedChatId: string | null;
+  /** After creating a chat from the first send, sync sidebar selection. */
+  onChatCreated?: (chatId: string) => void;
+};
+
+export function useHomeChat(options: UseHomeChatOptions) {
+  const { selectedChatId, onChatCreated } = options;
   const { catchall, isLoading: projectsLoading } = useProjects();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [catchallChatId, setCatchallChatId] = useState<string | null>(null);
   const [chatTitle, setChatTitle] = useState("New chat");
   const [awaitingReply, setAwaitingReply] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const sendingRef = useRef(false);
 
   const chatIdRef = useRef<string | null>(null);
@@ -40,10 +51,106 @@ export function useHomeChat() {
     chatIdRef.current = catchallChatId;
   }, [catchallChatId]);
 
-  const isStarted = messages.length > 0;
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+
+  /** Tracks shell selection so clearing to null resets local state only when leaving a chat. */
+  const prevShellChatRef = useRef<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (selectedChatId !== null) {
+      prevShellChatRef.current = selectedChatId;
+      return;
+    }
+    const prev = prevShellChatRef.current;
+    prevShellChatRef.current = null;
+    if (prev !== undefined && prev !== null) {
+      setMessages([]);
+      setCatchallChatId(null);
+      chatIdRef.current = null;
+      setChatTitle("New chat");
+    }
+  }, [selectedChatId]);
+
+  useEffect(() => {
+    if (!selectedChatId || !catchall?.id) return;
+
+    if (
+      selectedChatId === chatIdRef.current &&
+      messagesRef.current.length > 0
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    setHistoryLoading(true);
+    setChatTitle("Loading…");
+
+    (async () => {
+      try {
+        const [detail, turnsRes] = await Promise.all([
+          getChat(selectedChatId),
+          listChatTurns(selectedChatId),
+        ]);
+        if (cancelled) return;
+
+        const items = [...turnsRes.items].sort(
+          (a, b) => a.turnIndex - b.turnIndex,
+        );
+        const mapped: ChatMessage[] = [];
+        for (const t of items) {
+          const role = String(t.role).toUpperCase();
+          const pending =
+            t.status === "QUEUED" || t.status === "RUNNING";
+          if (role === "USER") {
+            mapped.push({
+              id: t.id,
+              role: "user",
+              text: t.contentMarkdown ?? "",
+            });
+          } else if (role === "ASSISTANT") {
+            mapped.push({
+              id: t.id,
+              role: "ai",
+              text: pending
+                ? "Thinking…"
+                : (t.contentMarkdown ?? "").trim() || "_No content_",
+              loading: pending,
+            });
+          }
+        }
+
+        setCatchallChatId(selectedChatId);
+        chatIdRef.current = selectedChatId;
+        setChatTitle(detail.chat.title);
+        setMessages(mapped);
+      } catch {
+        if (!cancelled) {
+          setMessages([]);
+          setChatTitle("Chat unavailable");
+        }
+      } finally {
+        if (!cancelled) setHistoryLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedChatId, catchall?.id]);
+
+  const hasConversation =
+    Boolean(selectedChatId) ||
+    Boolean(catchallChatId) ||
+    messages.length > 0;
+
+  const isStarted = hasConversation;
 
   const inputDisabled =
-    projectsLoading || !catchall?.id || awaitingReply;
+    projectsLoading ||
+    !catchall?.id ||
+    awaitingReply ||
+    historyLoading;
 
   const onSend = useCallback(
     async (text: string, researchMode: ApiResearchMode) => {
@@ -63,6 +170,7 @@ export function useHomeChat() {
           chatIdRef.current = chat.id;
           setCatchallChatId(chat.id);
           setChatTitle(chat.title);
+          onChatCreated?.(chat.id);
         }
 
         const userId = crypto.randomUUID();
@@ -88,7 +196,7 @@ export function useHomeChat() {
         const createdIds = sendRes.createdSourceIds ?? [];
 
         const deadline = Date.now() + 60_000;
-        let turn = await getChatTurn(assistantTurnId);
+        let turn: ChatTurn = await getChatTurn(assistantTurnId);
         while (
           turn.status !== "COMPLETED" &&
           turn.status !== "FAILED" &&
@@ -171,7 +279,7 @@ export function useHomeChat() {
         setAwaitingReply(false);
       }
     },
-    [catchall],
+    [catchall, onChatCreated],
   );
 
   return {
