@@ -9,7 +9,10 @@ import {
   type SpaceSidebarTab,
 } from '@/components/workspace/space-sidebar'
 import { SpaceLoading } from '@/components/workspace/space-loading'
+import { WorkspaceMemoryPanel } from '@/components/workspace/workspace-memory-panel'
+import { WorkspaceSourcesPanel } from '@/components/workspace/workspace-sources-panel'
 import { useChats } from '@/hooks/useChats'
+import { sortChatsByRecent } from '@/lib/chatSort'
 import { useProjects } from '@/hooks/useProjects'
 import { T } from '@/styles/tokens'
 
@@ -34,11 +37,7 @@ export function ResearchWorkspaceView() {
   /** Primary chat for chrome — most recently updated (matches sidebar order). */
   const mostRecentChatId = useMemo(() => {
     if (!chats.length) return null
-    const sorted = [...chats].sort((a, b) => {
-      const ta = a.lastTurnAt ? new Date(a.lastTurnAt).getTime() : 0
-      const tb = b.lastTurnAt ? new Date(b.lastTurnAt).getTime() : 0
-      return tb - ta
-    })
+    const sorted = sortChatsByRecent(chats)
     return sorted[0]?.id ?? null
   }, [chats])
 
@@ -114,6 +113,7 @@ export function ResearchWorkspaceView() {
         onTabChange={setActiveTab}
         onBack={() => navigate('/app/research')}
         selectedChatId={activeChatId}
+        onSelectChat={(id) => setActiveChatId(id)}
       />
 
       <div
@@ -140,75 +140,97 @@ export function ResearchWorkspaceView() {
               display: 'flex',
               flexDirection: 'column',
               minWidth: 0,
+              minHeight: 0,
               position: 'relative',
               background: T.workspaceDashboard,
             }}
           >
-            {/* Fixed overlays (do not move with canvas) */}
-            <div
-              style={{
-                position: 'absolute',
-                top: 12,
-                left: 12,
-                zIndex: 20,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                background: T.workspaceTopBar,
-                border: `1px solid ${T.border}`,
-                borderRadius: 12,
-                padding: '6px 14px',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
-              }}
-            >
-              <Icon.Agent style={{ color: T.black }} />
-              <span
-                style={{
-                  fontFamily: T.fontSans,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: T.black,
-                }}
-              >
-                AI Intelligence
-              </span>
+            {activeTab === 'canvas' ? (
               <div
                 style={{
-                  width: 32,
-                  height: 18,
-                  background: aiIntelligenceOn ? T.black : T.gray300,
-                  borderRadius: 10,
+                  flex: 1,
+                  minHeight: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
                   position: 'relative',
-                  marginLeft: 4,
-                  cursor: 'pointer',
-                }}
-                role="switch"
-                aria-checked={aiIntelligenceOn}
-                tabIndex={0}
-                onClick={() => setAiIntelligenceOn((v) => !v)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    setAiIntelligenceOn((v) => !v)
-                  }
+                  width: '100%',
                 }}
               >
+                {/* Fixed overlays (do not move with canvas) */}
                 <div
                   style={{
                     position: 'absolute',
-                    left: aiIntelligenceOn ? undefined : 2,
-                    right: aiIntelligenceOn ? 2 : undefined,
-                    top: 2,
-                    width: 14,
-                    height: 14,
-                    borderRadius: '50%',
-                    background: 'white',
+                    top: 12,
+                    left: 12,
+                    zIndex: 20,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    background: T.workspaceTopBar,
+                    border: `1px solid ${T.border}`,
+                    borderRadius: 12,
+                    padding: '6px 14px',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
                   }}
-                />
-              </div>
-            </div>
+                >
+                  <Icon.Agent style={{ color: T.black }} />
+                  <span
+                    style={{
+                      fontFamily: T.fontSans,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: T.black,
+                    }}
+                  >
+                    AI Intelligence
+                  </span>
+                  <div
+                    style={{
+                      width: 32,
+                      height: 18,
+                      background: aiIntelligenceOn ? T.black : T.gray300,
+                      borderRadius: 10,
+                      position: 'relative',
+                      marginLeft: 4,
+                      cursor: 'pointer',
+                    }}
+                    role="switch"
+                    aria-checked={aiIntelligenceOn}
+                    tabIndex={0}
+                    onClick={() => setAiIntelligenceOn((v) => !v)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setAiIntelligenceOn((v) => !v)
+                      }
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: aiIntelligenceOn ? undefined : 2,
+                        right: aiIntelligenceOn ? 2 : undefined,
+                        top: 2,
+                        width: 14,
+                        height: 14,
+                        borderRadius: '50%',
+                        background: 'white',
+                      }}
+                    />
+                  </div>
+                </div>
 
-            <InfiniteCanvas projectId={project.id} />
+                <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+                  <InfiniteCanvas projectId={project.id} />
+                </div>
+              </div>
+            ) : null}
+            {activeTab === 'sources' ? (
+              <WorkspaceSourcesPanel projectId={project.id} />
+            ) : null}
+            {activeTab === 'memory' ? (
+              <WorkspaceMemoryPanel projectId={project.id} />
+            ) : null}
           </div>
 
           {/* Resizer */}

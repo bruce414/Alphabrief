@@ -1,9 +1,9 @@
 import { AlphaBriefLogo } from "@/components/workspace/logo";
 import { Icon } from "@/components/workspace/icons";
 import { useChats } from "@/hooks/useChats";
+import { sortChatsByRecent } from "@/lib/chatSort";
 import { useProjects } from "@/hooks/useProjects";
 import { T } from "@/styles/tokens";
-import type { Chat } from "@/types/workspace";
 
 function formatRelativeTime(iso: string | null): string {
   if (!iso) return "";
@@ -18,14 +18,6 @@ function formatRelativeTime(iso: string | null): string {
   const day = Math.floor(hr / 24);
   if (day < 7) return `${day}d`;
   return new Date(iso).toLocaleDateString();
-}
-
-function sortChatsByRecent(items: Chat[]): Chat[] {
-  return [...items].sort((a, b) => {
-    const ta = a.lastTurnAt ? new Date(a.lastTurnAt).getTime() : 0;
-    const tb = b.lastTurnAt ? new Date(b.lastTurnAt).getTime() : 0;
-    return tb - ta;
-  });
 }
 
 export type MainSidebarProps = {

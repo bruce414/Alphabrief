@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { useSWRConfig } from "swr";
 
@@ -9,6 +9,7 @@ import {
 import { Icon } from "@/components/workspace/icons";
 import { useChats } from "@/hooks/useChats";
 import { ApiError } from "@/lib/api";
+import { sortChatsByRecent } from "@/lib/chatSort";
 import { createChat, listChatTurns, sendChatMessage } from "@/lib/workspaceApi";
 import { T } from "@/styles/tokens";
 import type { Chat, ChatTurn } from "@/types/workspace";
@@ -41,7 +42,9 @@ export function useSpaceChat(projectId: string, chatId: string | null) {
   const { mutate: mutateGlobal } = useSWRConfig();
 
   const resolvedChatId = useMemo(() => {
-    return chatId ?? chats[0]?.id ?? null;
+    if (chatId) return chatId;
+    const sorted = sortChatsByRecent(chats);
+    return sorted[0]?.id ?? null;
   }, [chatId, chats]);
 
   const chat: Chat | null = useMemo(() => {
@@ -138,6 +141,8 @@ export function useSpaceChat(projectId: string, chatId: string | null) {
           researchMode,
         });
 
+        await mutateGlobal(["chats", projectId]);
+
         const assistantTurnId = sendRes.assistantTurnId;
         const createdSourceIds = sendRes.createdSourceIds ?? [];
 
@@ -206,7 +211,7 @@ export function useSpaceChat(projectId: string, chatId: string | null) {
         sendingRef.current = false;
       }
     },
-    [mutateTurns, projectId, resolvedChatId, turns],
+    [mutateGlobal, mutateTurns, projectId, resolvedChatId, turns],
   );
 
   return {
@@ -227,10 +232,36 @@ export function SpaceChatPanel({
   chatId: string | null;
   onChatReady: (chatId: string) => void;
 }) {
+  const { mutate: mutateGlobal } = useSWRConfig();
   const { chat, turns, isLoading, resolvedChatId, onSend } = useSpaceChat(
     projectId,
     chatId,
   );
+  const [isCreatingChat, setIsCreatingChat] = useState(false);
+  const creatingChatRef = useRef(false);
+
+  const onNewChat = useCallback(async () => {
+    if (creatingChatRef.current) return;
+    creatingChatRef.current = true;
+    setIsCreatingChat(true);
+    try {
+      const newChat = await createChat(projectId, { title: "New chat" });
+      mutateGlobal(
+        ["chats", projectId],
+        (cur: { items?: Chat[] } | undefined) => ({
+          items: [
+            newChat,
+            ...((cur?.items ?? []).filter((c) => c.id !== newChat.id)),
+          ],
+        }),
+        { revalidate: false },
+      );
+      onChatReady(newChat.id);
+    } finally {
+      creatingChatRef.current = false;
+      setIsCreatingChat(false);
+    }
+  }, [mutateGlobal, onChatReady, projectId]);
 
   useEffect(() => {
     if (!chatId && resolvedChatId) onChatReady(resolvedChatId);
@@ -299,24 +330,56 @@ export function SpaceChatPanel({
             {chat?.title ?? "New chat"}
           </span>
         </div>
-        <button
-          type="button"
+        <div
           style={{
-            fontSize: 12,
-            color: T.gray400,
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            padding: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
             flexShrink: 0,
-            fontFamily: T.fontSans,
-          }}
-          onClick={() => {
-            // no-op for now
           }}
         >
-          Clear
-        </button>
+          <button
+            type="button"
+            aria-label="New chat"
+            title="New chat"
+            disabled={isCreatingChat || isLoading}
+            onClick={() => void onNewChat()}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 32,
+              height: 32,
+              padding: 0,
+              color: T.gray400,
+              background: "transparent",
+              border: "none",
+              borderRadius: 8,
+              cursor:
+                isCreatingChat || isLoading ? "not-allowed" : "pointer",
+              opacity: isCreatingChat || isLoading ? 0.45 : 1,
+            }}
+          >
+            <Icon.Plus size={18} />
+          </button>
+          <button
+            type="button"
+            style={{
+              fontSize: 12,
+              color: T.gray400,
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              padding: "6px 0",
+              fontFamily: T.fontSans,
+            }}
+            onClick={() => {
+              // no-op for now
+            }}
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
       {/* Messages */}

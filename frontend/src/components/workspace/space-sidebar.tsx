@@ -1,12 +1,10 @@
 import { AlphaBriefLogo } from "@/components/workspace/logo";
 import { Icon } from "@/components/workspace/icons";
 import { useChats } from "@/hooks/useChats";
-import { useProjectMemory } from "@/hooks/useProjectMemory";
+import { sortChatsByRecent } from "@/lib/chatSort";
 import { useProjectSources } from "@/hooks/useProjectSources";
-import { patchProjectMemory } from "@/lib/workspaceApi";
 import { T } from "@/styles/tokens";
-import type { Chat, Project } from "@/types/workspace";
-import { useMemo, useState } from "react";
+import type { Project } from "@/types/workspace";
 
 export type SpaceSidebarTab = "canvas" | "sources" | "memory";
 
@@ -25,14 +23,6 @@ function formatRelativeTime(iso: string | null): string {
   return new Date(iso).toLocaleDateString();
 }
 
-function sortChatsByRecent(items: Chat[]): Chat[] {
-  return [...items].sort((a, b) => {
-    const ta = a.lastTurnAt ? new Date(a.lastTurnAt).getTime() : 0;
-    const tb = b.lastTurnAt ? new Date(b.lastTurnAt).getTime() : 0;
-    return tb - ta;
-  });
-}
-
 export type SpaceSidebarProps = {
   project: Project;
   activeTab: SpaceSidebarTab;
@@ -40,6 +30,7 @@ export type SpaceSidebarProps = {
   onBack: () => void;
   /** Highlights the active chat row (dashboard screenshot) */
   selectedChatId?: string | null;
+  onSelectChat?: (chatId: string) => void;
 };
 
 const tabs: {
@@ -58,65 +49,11 @@ export function SpaceSidebar({
   onTabChange,
   onBack,
   selectedChatId = null,
+  onSelectChat,
 }: SpaceSidebarProps) {
   const { sources } = useProjectSources(project.id);
   const { chats } = useChats(project.id);
-  const { memory, mutate: mutateMemory } = useProjectMemory(project.id);
   const orderedChats = sortChatsByRecent(chats);
-
-  type MemorySection = "summary" | "entities" | "themes" | "openQuestions";
-  const [editingSection, setEditingSection] = useState<MemorySection | null>(
-    null,
-  );
-  const [draft, setDraft] = useState("");
-  const [isSavingMemory, setIsSavingMemory] = useState(false);
-
-  const memoryText = useMemo(() => {
-    if (!memory) {
-      return {
-        summary: "",
-        entities: "",
-        themes: "",
-        openQuestions: "",
-      };
-    }
-    return {
-      summary: memory.summaryMarkdown ?? "",
-      entities: (memory.entities ?? []).join(", "),
-      themes: (memory.themes ?? []).join(", "),
-      openQuestions: (memory.openQuestions ?? []).join("\n"),
-    };
-  }, [memory]);
-
-  async function saveMemorySection(section: MemorySection, text: string) {
-    setIsSavingMemory(true);
-    try {
-      const body: Record<string, unknown> = {};
-      if (section === "summary") {
-        body.summaryMarkdown = text;
-      } else if (section === "entities") {
-        body.entities = text
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-      } else if (section === "themes") {
-        body.themes = text
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-      } else if (section === "openQuestions") {
-        body.openQuestions = text
-          .split("\n")
-          .map((s) => s.trim())
-          .filter(Boolean);
-      }
-      await patchProjectMemory(project.id, body);
-      await mutateMemory();
-      setEditingSection(null);
-    } finally {
-      setIsSavingMemory(false);
-    }
-  }
 
   return (
     <aside
@@ -277,7 +214,7 @@ export function SpaceSidebar({
         }}
       />
 
-      {/* Body */}
+      {/* Body: Resources + Chats — fixed; tab selection drives the main canvas */}
       <div
         style={{
           flex: 1,
@@ -286,341 +223,134 @@ export function SpaceSidebar({
           padding: "0 0 12px",
         }}
       >
-        {activeTab === "canvas" ? (
-          <>
-            <div
-              style={{
-                fontSize: 10,
-                fontWeight: 600,
-                color: T.gray400,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                padding: "0 20px 8px",
-              }}
-            >
-              Resources
-            </div>
-            <div style={{ padding: "0 12px" }}>
-              {sources.slice(0, 8).map((source) => {
-                const title = source.title?.trim() || "Untitled";
-                return (
-                  <div
-                    key={source.id}
+        <div
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            color: T.gray400,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            padding: "0 20px 8px",
+          }}
+        >
+          Resources
+        </div>
+        <div style={{ padding: "0 12px" }}>
+          {sources.slice(0, 8).map((source) => {
+            const title = source.title?.trim() || "Untitled";
+            return (
+              <div
+                key={source.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "6px 8px",
+                }}
+              >
+                <Icon.Sources
+                  style={{ flexShrink: 0, color: T.gray400 }}
+                  width={14}
+                  height={14}
+                />
+                <span
+                  title={title}
+                  style={{
+                    fontSize: 12,
+                    color: T.gray600,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    minWidth: 0,
+                    flex: 1,
+                  }}
+                >
+                  {title}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        <div
+          style={{
+            height: 1,
+            background: T.border,
+            margin: "12px 0",
+          }}
+        />
+
+        <div
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            color: T.gray400,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            padding: "0 20px 8px",
+          }}
+        >
+          Chats
+        </div>
+        <div style={{ padding: "0 12px" }}>
+          {orderedChats.map((chat) => {
+            const selected = selectedChatId === chat.id;
+            return (
+              <button
+                key={chat.id}
+                type="button"
+                onClick={() => onSelectChat?.(chat.id)}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 8,
+                  padding: "8px 10px",
+                  marginBottom: 4,
+                  borderRadius: 8,
+                  background: selected ? T.gray100 : "transparent",
+                  border: "none",
+                  width: "100%",
+                  cursor: onSelectChat ? "pointer" : "default",
+                  textAlign: "left",
+                  fontFamily: T.fontSans,
+                }}
+              >
+                <Icon.Chat
+                  style={{
+                    flexShrink: 0,
+                    marginTop: 2,
+                    color: T.gray400,
+                  }}
+                />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "6px 8px",
+                      display: "block",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: T.black,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
                     }}
                   >
-                    <Icon.Sources
-                      style={{ flexShrink: 0, color: T.gray400 }}
-                      width={14}
-                      height={14}
-                    />
-                    <span
-                      title={title}
-                      style={{
-                        fontSize: 12,
-                        color: T.gray600,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        minWidth: 0,
-                        flex: 1,
-                      }}
-                    >
-                      {title}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div
-              style={{
-                height: 1,
-                background: T.border,
-                margin: "12px 0",
-              }}
-            />
-
-            <div
-              style={{
-                fontSize: 10,
-                fontWeight: 600,
-                color: T.gray400,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                padding: "0 20px 8px",
-              }}
-            >
-              Chats
-            </div>
-            <div style={{ padding: "0 12px" }}>
-              {orderedChats.map((chat) => {
-                const selected = selectedChatId === chat.id;
-                return (
-                <div
-                  key={chat.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 8,
-                    padding: "8px 10px",
-                    marginBottom: 4,
-                    borderRadius: 8,
-                    background: selected ? T.gray100 : "transparent",
-                  }}
-                >
-                  <Icon.Chat
-                    style={{
-                      flexShrink: 0,
-                      marginTop: 2,
-                      color: T.gray400,
-                    }}
-                  />
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <span
-                      style={{
-                        display: "block",
-                        fontSize: 13,
-                        fontWeight: 500,
-                        color: T.black,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {chat.title}
-                    </span>
-                    <span
-                      style={{
-                        display: "block",
-                        fontSize: 11,
-                        color: T.gray500,
-                        marginTop: 2,
-                      }}
-                    >
-                      {formatRelativeTime(chat.lastTurnAt)}
-                    </span>
+                    {chat.title}
                   </span>
-                </div>
-              );
-              })}
-            </div>
-          </>
-        ) : activeTab === "sources" ? (
-          <div style={{ padding: "0 20px" }}>
-            {sources.length === 0 ? (
-              <div
-                style={{
-                  fontSize: 12,
-                  color: T.gray400,
-                  fontFamily: T.fontSans,
-                  padding: "16px 0",
-                }}
-              >
-                No sources yet. Paste a URL in the chat.
-              </div>
-            ) : (
-              sources.map((source) => (
-                <div
-                  key={source.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "6px 0",
-                    cursor: "pointer",
-                  }}
-                >
-                  <Icon.Sources style={{ color: T.gray400 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: T.gray600,
-                        fontFamily: T.fontSans,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                      title={
-                        source.title ||
-                        source.normalizedUrl ||
-                        "Untitled source"
-                      }
-                    >
-                      {source.title ||
-                        source.normalizedUrl ||
-                        "Untitled source"}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 10,
-                        color: T.gray400,
-                        marginTop: 2,
-                      }}
-                    >
-                      {source.sourceType} · {source.sourceAccessStatus}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        ) : (
-          <div style={{ padding: "0 20px" }}>
-            <div style={{ padding: "10px 0 14px" }}>
-              <button
-                type="button"
-                disabled
-                title="Coming soon"
-                style={{
-                  fontSize: 11,
-                  color: T.gray400,
-                  border: `1px solid ${T.border}`,
-                  borderRadius: 8,
-                  padding: "4px 10px",
-                  cursor: "not-allowed",
-                  opacity: 0.5,
-                  background: "transparent",
-                  fontFamily: T.fontSans,
-                }}
-              >
-                Refresh from activity
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: 11,
+                      color: T.gray500,
+                      marginTop: 2,
+                    }}
+                  >
+                    {formatRelativeTime(chat.lastTurnAt)}
+                  </span>
+                </span>
               </button>
-            </div>
-
-            {!memory ? (
-              <div
-                style={{
-                  fontSize: 12,
-                  color: T.gray400,
-                  fontFamily: T.fontSans,
-                }}
-              >
-                Memory builds as you research. Add a note to start.
-              </div>
-            ) : (
-              <div style={{ paddingBottom: 12 }}>
-                {(
-                  [
-                    { id: "summary", title: "Summary", value: memoryText.summary },
-                    { id: "entities", title: "Entities", value: memoryText.entities },
-                    { id: "themes", title: "Themes", value: memoryText.themes },
-                    {
-                      id: "openQuestions",
-                      title: "Open Questions",
-                      value: memoryText.openQuestions,
-                    },
-                  ] as const
-                ).map(({ id, title, value }) => {
-                  const isEditing = editingSection === id;
-                  return (
-                    <div key={id} style={{ padding: "10px 0" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "baseline",
-                          justifyContent: "space-between",
-                          gap: 8,
-                          marginBottom: 4,
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: 10,
-                            color: T.gray400,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.08em",
-                            fontWeight: 600,
-                          }}
-                        >
-                          {title}
-                        </div>
-                        {isEditing ? (
-                          <button
-                            type="button"
-                            onClick={() => saveMemorySection(id, draft)}
-                            disabled={isSavingMemory}
-                            style={{
-                              fontSize: 11,
-                              color: T.gray400,
-                              fontFamily: T.fontSans,
-                              border: "none",
-                              background: "transparent",
-                              cursor: isSavingMemory ? "default" : "pointer",
-                              padding: 0,
-                            }}
-                          >
-                            Save
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingSection(id);
-                              setDraft(value);
-                            }}
-                            style={{
-                              fontSize: 11,
-                              color: T.gray400,
-                              fontFamily: T.fontSans,
-                              border: "none",
-                              background: "transparent",
-                              cursor: "pointer",
-                              padding: 0,
-                            }}
-                          >
-                            Edit
-                          </button>
-                        )}
-                      </div>
-
-                      {isEditing ? (
-                        <textarea
-                          value={draft}
-                          autoFocus
-                          onChange={(e) => setDraft(e.target.value)}
-                          onBlur={() => {
-                            void saveMemorySection(id, draft);
-                          }}
-                          style={{
-                            width: "100%",
-                            minHeight: 70,
-                            resize: "vertical",
-                            fontSize: 12,
-                            color: T.gray600,
-                            lineHeight: 1.5,
-                            fontFamily: T.fontSans,
-                            border: `1px solid ${T.border}`,
-                            borderRadius: 8,
-                            padding: "8px 10px",
-                            background: T.white,
-                            outline: "none",
-                          }}
-                        />
-                      ) : (
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: T.gray600,
-                            lineHeight: 1.5,
-                            whiteSpace: id === "openQuestions" ? "pre-wrap" : "normal",
-                          }}
-                        >
-                          {value || ""}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
+            );
+          })}
+        </div>
       </div>
 
       {/* Footer */}
