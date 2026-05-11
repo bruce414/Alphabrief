@@ -1,7 +1,9 @@
 import pytest
-from sqlalchemy import delete
+from sqlalchemy import delete, func, select
 
+from app.models.canvas import Canvas
 from app.models.project import Project
+from app.models.project_memory import ProjectMemory
 
 
 @pytest.mark.asyncio
@@ -17,6 +19,10 @@ async def test_new_user_get_projects_returns_exactly_one_catchall(client):
     items = resp.json()["items"]
     assert len(items) == 1
     assert items[0]["kind"] == "CATCHALL"
+    assert items[0]["chatCount"] == 0
+    assert items[0]["canvasElementCount"] == 0
+    assert items[0]["sourceCount"] == 0
+    assert items[0]["briefCount"] == 0
 
 
 @pytest.mark.asyncio
@@ -32,7 +38,12 @@ async def test_post_project_kind_coverage_returns_201(client):
         json={"title": "My coverage project", "kind": "COVERAGE"},
     )
     assert created.status_code == 201
-    assert created.json()["kind"] == "COVERAGE"
+    body = created.json()
+    assert body["kind"] == "COVERAGE"
+    assert body["chatCount"] == 0
+    assert body["canvasElementCount"] == 0
+    assert body["sourceCount"] == 0
+    assert body["briefCount"] == 0
 
 
 @pytest.mark.asyncio
@@ -134,4 +145,44 @@ async def test_lazy_catchall_recreated_if_missing(client, db_session):
     items = second.json()["items"]
     assert len(items) >= 1
     assert items[0]["kind"] == "CATCHALL"
+
+
+@pytest.mark.asyncio
+async def test_create_project_provisions_canvas_memory_list_counts_and_canvas_ready(client, db_session):
+    reg = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "provision@example.com", "password": "password123"},
+    )
+    assert reg.status_code == 201
+
+    created = await client.post(
+        "/api/v1/projects",
+        json={"title": "Provisioned project", "kind": "COVERAGE"},
+    )
+    assert created.status_code == 201
+    project_id = created.json()["id"]
+
+    n_canvas = (
+        await db_session.execute(select(func.count()).select_from(Canvas).where(Canvas.project_id == project_id))
+    ).scalar_one()
+    assert n_canvas == 1
+
+    n_memory = (
+        await db_session.execute(
+            select(func.count()).select_from(ProjectMemory).where(ProjectMemory.project_id == project_id)
+        )
+    ).scalar_one()
+    assert n_memory == 1
+
+    listed = await client.get("/api/v1/projects")
+    assert listed.status_code == 200
+    row = next(i for i in listed.json()["items"] if i["id"] == project_id)
+    assert row["chatCount"] == 0
+    assert row["canvasElementCount"] == 0
+    assert row["sourceCount"] == 0
+    assert row["briefCount"] == 0
+
+    canvas_resp = await client.get(f"/api/v1/projects/{project_id}/canvas")
+    assert canvas_resp.status_code == 200
+    assert canvas_resp.json()["projectId"] == project_id
 

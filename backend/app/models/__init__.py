@@ -17,22 +17,30 @@ from app.models.source_segment import SourceSegment
 from app.models.usage_event import UsageEvent
 from app.models.chat_turn import ChatTurn
 from app.models.chat_turn_source import ChatTurnSource
-from app.models.canvas_block import CanvasBlock
-from app.models.candidate_block import CandidateBlock
 from app.models.canvas_snapshot import CanvasSnapshot
 from app.models.brief_version import BriefVersion
+
+# v0.3 freeform Canvas world (DATA_MODEL.md §4.9–§4.13).
+from app.models.canvas import Canvas
+from app.models.canvas_element import CanvasElement
+from app.models.canvas_connection import CanvasConnection
+from app.models.candidate_element import CandidateElement
+from app.models.project_memory import ProjectMemory
 
 __all__ = [
     "Brief",
     "BriefVersion",
     "BriefSource",
+    "Canvas",
+    "CanvasConnection",
+    "CanvasElement",
+    "CanvasSnapshot",
+    "CandidateElement",
     "Chat",
     "ChatTurn",
     "ChatTurnSource",
-    "CanvasBlock",
-    "CandidateBlock",
-    "CanvasSnapshot",
     "Project",
+    "ProjectMemory",
     "Source",
     "SourceFetchLog",
     "SourceFetchPolicy",

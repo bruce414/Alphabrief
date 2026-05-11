@@ -95,23 +95,66 @@ class ChatTurnStatus(str, Enum):
     FAILED = "FAILED"
 
 
-class CanvasBlockType(str, Enum):
-    CLAIM = "CLAIM"
-    QUOTE = "QUOTE"
-    NOTE = "NOTE"
-    SUMMARY = "SUMMARY"
-    RISK = "RISK"
-    QUESTION = "QUESTION"
-    METRIC = "METRIC"
-    BULL_CASE = "BULL_CASE"
-    BEAR_CASE = "BEAR_CASE"
-
-
 class ProvenanceKind(str, Enum):
     CHAT_TURN = "CHAT_TURN"
     SOURCE = "SOURCE"
     MANUAL = "MANUAL"
     CANDIDATE = "CANDIDATE"
+    GENERATED = "GENERATED"
+
+
+class CanvasElementType(str, Enum):
+    TEXT = "TEXT"
+    AI_BLOCK = "AI_BLOCK"
+    CLAIM = "CLAIM"
+    EVIDENCE = "EVIDENCE"
+    QUOTE = "QUOTE"
+    DATA = "DATA"
+    IMAGE = "IMAGE"
+    QUESTION = "QUESTION"
+    RISK = "RISK"
+    CATALYST = "CATALYST"
+    MINDMAP_NODE = "MINDMAP_NODE"
+    GROUP = "GROUP"
+    STICKY_NOTE = "STICKY_NOTE"
+
+
+class ConnectionType(str, Enum):
+    SUPPORTS = "SUPPORTS"
+    CONTRADICTS = "CONTRADICTS"
+    CAUSES = "CAUSES"
+    DEPENDS_ON = "DEPENDS_ON"
+    RELATED_TO = "RELATED_TO"
+    CUSTOM = "CUSTOM"
+
+
+class MemoryUpdatedBy(str, Enum):
+    USER = "USER"
+    AI = "AI"
+    SYSTEM = "SYSTEM"
+
+
+class InputType(str, Enum):
+    QUESTION = "QUESTION"
+    ARTICLE_URL = "ARTICLE_URL"
+    YOUTUBE_URL = "YOUTUBE_URL"
+    PDF_FILE = "PDF_FILE"
+    BROWSER_PAGE = "BROWSER_PAGE"
+    FILING_URL = "FILING_URL"
+    IMAGE_FILE = "IMAGE_FILE"
+    MIXED = "MIXED"
+
+
+class IntentType(str, Enum):
+    GENERAL_ASK = "GENERAL_ASK"
+    SOURCE_ANALYSIS = "SOURCE_ANALYSIS"
+    ARTICLE_ANALYSIS = "ARTICLE_ANALYSIS"
+    YOUTUBE_ANALYSIS = "YOUTUBE_ANALYSIS"
+    PDF_ANALYSIS = "PDF_ANALYSIS"
+    FILING_ANALYSIS = "FILING_ANALYSIS"
+    BRIEF_GENERATION = "BRIEF_GENERATION"
+    CANVAS_ACTION = "CANVAS_ACTION"
+    COMPARISON = "COMPARISON"
 
 
 class CandidateStatus(str, Enum):

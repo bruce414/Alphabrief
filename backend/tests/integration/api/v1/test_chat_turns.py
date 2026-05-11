@@ -185,7 +185,12 @@ async def test_send_chat_message_no_sources_creates_turns_and_completes_assistan
 
     sent = await client.post(f"/api/v1/chats/{chat_id}/turns", json={"content": "Hello there"})
     assert sent.status_code == 200
-    asst_id = sent.json()["assistantTurnId"]
+    payload = sent.json()
+    assert payload["detectedInputType"] == "QUESTION"
+    assert payload["detectedIntentType"] == "GENERAL_ASK"
+    assert payload["createdSourceIds"] == []
+    assert payload["requiresPreAnalysisWarning"] is False
+    asst_id = payload["assistantTurnId"]
     user_id = sent.json()["userTurnId"]
 
     # BackgroundTasks should complete quickly in tests; poll defensively.
@@ -255,8 +260,13 @@ async def test_send_chat_message_with_valid_sources_attaches_sources_to_user_and
         json={"content": "Use my source", "sourceIds": [str(src.id)]},
     )
     assert sent.status_code == 200
-    user_turn_id = sent.json()["userTurnId"]
-    asst_turn_id = sent.json()["assistantTurnId"]
+    payload = sent.json()
+    assert payload["detectedInputType"] == "QUESTION"
+    assert payload["detectedIntentType"] == "GENERAL_ASK"
+    assert payload["createdSourceIds"] == []
+    assert payload["requiresPreAnalysisWarning"] is False
+    user_turn_id = payload["userTurnId"]
+    asst_turn_id = payload["assistantTurnId"]
 
     join_repo = ChatTurnSourceRepository(db_session)
     user_rows = await join_repo.list_for_turn(chat_turn_id=user_turn_id)
@@ -369,6 +379,11 @@ async def test_first_turn_auto_titles_chat_but_subsequent_turns_do_not_overwrite
     first_content = "A" * 80
     sent1 = await client.post(f"/api/v1/chats/{chat_id}/turns", json={"content": first_content})
     assert sent1.status_code == 200
+    p1 = sent1.json()
+    assert p1["detectedInputType"] == "QUESTION"
+    assert p1["detectedIntentType"] == "GENERAL_ASK"
+    assert p1["createdSourceIds"] == []
+    assert p1["requiresPreAnalysisWarning"] is False
 
     got1 = await client.get(f"/api/v1/chats/{chat_id}")
     assert got1.status_code == 200
@@ -376,6 +391,11 @@ async def test_first_turn_auto_titles_chat_but_subsequent_turns_do_not_overwrite
 
     sent2 = await client.post(f"/api/v1/chats/{chat_id}/turns", json={"content": "Second message"})
     assert sent2.status_code == 200
+    p2 = sent2.json()
+    assert p2["detectedInputType"] == "QUESTION"
+    assert p2["detectedIntentType"] == "GENERAL_ASK"
+    assert p2["createdSourceIds"] == []
+    assert p2["requiresPreAnalysisWarning"] is False
 
     got2 = await client.get(f"/api/v1/chats/{chat_id}")
     assert got2.status_code == 200
@@ -399,6 +419,11 @@ async def test_chat_last_turn_at_updated_on_send(client):
 
     sent = await client.post(f"/api/v1/chats/{chat_id}/turns", json={"content": "Hello"})
     assert sent.status_code == 200
+    pl = sent.json()
+    assert pl["detectedInputType"] == "QUESTION"
+    assert pl["detectedIntentType"] == "GENERAL_ASK"
+    assert pl["createdSourceIds"] == []
+    assert pl["requiresPreAnalysisWarning"] is False
 
     after = await client.get(f"/api/v1/chats/{chat_id}")
     assert after.json()["chat"]["lastTurnAt"] is not None

@@ -1,3 +1,5 @@
+# LEGACY v0.1/v0.2: kept for compatibility. v0.3 brief generation is deferred.
+# Do not delete, refactor, or modify in v0.3 prompts.
 from __future__ import annotations
 
 from uuid import UUID

@@ -1,36 +1,41 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 
-import { AppLayout } from '@/components/layout/app-layout'
-import { AskPage } from '@/pages/ask-page'
-import { AppSectionPage } from '@/pages/app-section-page'
+import { AppShell } from '@/pages/app-shell'
+import { HomeView } from '@/pages/home-view'
 import { LandingPage } from '@/pages/landing-page'
+import { LoginPage } from '@/pages/login-page'
 import { NotFoundPage } from '@/pages/not-found-page'
+import { RegisterPage } from '@/pages/register-page'
+import { ResearchSpacesView } from '@/pages/research-spaces-view'
+import { ResearchWorkspaceView } from '@/pages/research-workspace-view'
+import { T } from '@/styles/tokens'
+
+function DiscoverPlaceholder() {
+  return (
+    <div
+      style={{
+        padding: 24,
+        fontFamily: T.fontSans,
+        color: T.black,
+      }}
+    >
+      Discover
+    </div>
+  )
+}
 
 function App() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
-      <Route path="/app" element={<AppLayout />}>
-        <Route index element={<Navigate to="/app/ask" replace />} />
-        <Route path="ask" element={<AskPage />} />
-        <Route
-          path="research"
-          element={
-            <AppSectionPage
-              title="Research"
-              description="Deeper workflows for filings, calls, and notes."
-            />
-          }
-        />
-        <Route
-          path="reflection"
-          element={
-            <AppSectionPage
-              title="Reflection"
-              description="Review and refine takeaways over time."
-            />
-          }
-        />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/app" element={<AppShell />}>
+        <Route index element={<Navigate to="/app/home" replace />} />
+        <Route path="home" element={<HomeView />} />
+        <Route path="discover" element={<DiscoverPlaceholder />} />
+        <Route path="research" element={<ResearchSpacesView />} />
+        <Route path="research/:projectId" element={<ResearchWorkspaceView />} />
       </Route>
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

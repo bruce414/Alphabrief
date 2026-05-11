@@ -9,9 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clients.ai_provider_client import AiProviderClient, MockAiProviderClient
-from app.core.enums import CandidateStatus, CanvasBlockType
+from app.core.enums import CandidateStatus, CanvasElementType
 from app.db.session import async_session_factory
-from app.models.candidate_block import CandidateBlock
+from app.models.candidate_element import CandidateElement
 from app.models.chat import Chat
 from app.models.chat_turn import ChatTurn
 from app.models.chat_turn_source import ChatTurnSource
@@ -123,7 +123,7 @@ async def _extract(*, asst_turn_id: UUID, db: AsyncSession, ai_provider: AiProvi
 
     created_count = 0
     for c in extracted:
-        block_type_raw = (c.get("block_type") or "").strip()
+        element_type_raw = (c.get("suggested_element_type") or "").strip()
         content_raw = (c.get("content_markdown") or "").strip()
         title_raw = c.get("title")
         title = title_raw.strip()[:500] if isinstance(title_raw, str) and title_raw.strip() else None
@@ -131,7 +131,7 @@ async def _extract(*, asst_turn_id: UUID, db: AsyncSession, ai_provider: AiProvi
         if not content_raw:
             continue
         try:
-            block_type = CanvasBlockType(block_type_raw)
+            element_type = CanvasElementType(element_type_raw)
         except Exception:
             continue
 
@@ -144,16 +144,28 @@ async def _extract(*, asst_turn_id: UUID, db: AsyncSession, ai_provider: AiProvi
         if not cleaned:
             continue
 
+        content_json: dict = {}
+        suggested_position = c.get("suggested_position")
+        if isinstance(suggested_position, dict):
+            sanitized_position: dict[str, float] = {}
+            for key in ("x", "y", "width", "height"):
+                value = suggested_position.get(key)
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    sanitized_position[key] = float(value)
+            if sanitized_position:
+                content_json["suggested_position"] = sanitized_position
+
         db.add(
-            CandidateBlock(
+            CandidateElement(
                 chat_turn_id=asst.id,
                 project_id=chat.project_id,
                 user_id=asst.user_id,
-                block_type=block_type.value,
+                suggested_element_type=element_type.value,
                 title=title,
                 content_markdown=cleaned,
+                content_json=content_json,
                 status=CandidateStatus.PENDING.value,
-                promoted_block_id=None,
+                promoted_element_id=None,
                 extraction_model_name=getattr(asst, "model_name", None),
             )
         )

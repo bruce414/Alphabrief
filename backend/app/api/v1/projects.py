@@ -16,13 +16,13 @@ from app.schemas.project import (
     ProjectListResponse,
     ProjectResponse,
 )
-from app.services.project_service import ProjectService
+from app.services.project_service import ProjectCounts, ProjectService
 
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-def _to_project_response(project) -> ProjectResponse:
+def _to_project_response(project, counts: ProjectCounts) -> ProjectResponse:
     return ProjectResponse(
         id=project.id,
         kind=project.kind,
@@ -31,6 +31,10 @@ def _to_project_response(project) -> ProjectResponse:
         archivedAt=project.archived_at,
         createdAt=project.created_at,
         updatedAt=project.updated_at,
+        chatCount=counts.chat_count,
+        canvasElementCount=counts.canvas_element_count,
+        sourceCount=counts.source_count,
+        briefCount=counts.brief_count,
     )
 
 
@@ -47,8 +51,10 @@ async def create_project(
         title=data.title,
         kind=data.kind,
         description=data.description,
+        db=db,
     )
-    return _to_project_response(project)
+    counts = await svc.counts_for_single_project(db=db, project_id=project.id)
+    return _to_project_response(project, counts)
 
 
 @router.get("", response_model=ProjectListResponse)
@@ -59,7 +65,7 @@ async def list_projects(
     repo = ProjectRepository(db)
     svc = ProjectService(repo)
     items = await svc.list_projects_for_user(user=current_user, db=db)
-    return ProjectListResponse(items=[_to_project_response(p) for p in items])
+    return ProjectListResponse(items=[_to_project_response(row.project, row.counts) for row in items])
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)
@@ -71,7 +77,9 @@ async def get_project(
     repo = ProjectRepository(db)
     svc = ProjectService(repo)
     project = await svc.get_project_or_forbidden(user=current_user, project_id=project_id)
-    return _to_project_response(project)
+    await svc.ensure_canvas_and_memory_for_project(user=current_user, project_id=project_id, db=db)
+    counts = await svc.counts_for_single_project(db=db, project_id=project.id)
+    return _to_project_response(project, counts)
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
@@ -97,7 +105,8 @@ async def patch_project(
         description=data.description,
         archived=data.archived,
     )
-    return _to_project_response(project)
+    counts = await svc.counts_for_single_project(db=db, project_id=project.id)
+    return _to_project_response(project, counts)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

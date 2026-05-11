@@ -21,10 +21,11 @@ class ChatReply(TypedDict):
     output_tokens: int
 
 
-class CandidateExtraction(TypedDict):
-    block_type: str
+class CandidateExtraction(TypedDict, total=False):
+    suggested_element_type: str
     title: str | None
     content_markdown: str
+    suggested_position: dict[str, float] | None
 
 
 class AiProviderClient(Protocol):
@@ -92,12 +93,19 @@ class MockAiProviderClient:
 
         candidates: list[CandidateExtraction] = []
         if headers:
-            for h in headers[:2]:
+            for idx, h in enumerate(headers[:2]):
+                element_type = "CLAIM" if idx == 0 else "QUESTION"
                 candidates.append(
                     {
-                        "block_type": "CLAIM",
+                        "suggested_element_type": element_type,
                         "title": h[:120],
                         "content_markdown": f"{h}",
+                        "suggested_position": {
+                            "x": 320.0 + 360.0 * idx,
+                            "y": 240.0,
+                            "width": 320.0,
+                            "height": 180.0,
+                        },
                     }
                 )
             return candidates
@@ -106,9 +114,15 @@ class MockAiProviderClient:
             title = reply.replace("\n", " ")[:60].strip() or None
             return [
                 {
-                    "block_type": "CLAIM",
+                    "suggested_element_type": "CLAIM",
                     "title": title,
                     "content_markdown": reply[:400].strip() or reply,
+                    "suggested_position": {
+                        "x": 320.0,
+                        "y": 240.0,
+                        "width": 320.0,
+                        "height": 180.0,
+                    },
                 }
             ]
 

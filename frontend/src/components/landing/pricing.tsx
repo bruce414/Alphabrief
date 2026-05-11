@@ -109,7 +109,7 @@ export function Pricing() {
                 variant={plan.popular ? 'default' : 'secondary'}
                 asChild
               >
-                <Link to="/app">{plan.cta}</Link>
+                <Link to="/register">{plan.cta}</Link>
               </Button>
             </div>
           ))}

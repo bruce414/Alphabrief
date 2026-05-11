@@ -5,8 +5,10 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
-from app.core.enums import ChatTurnRole, ChatTurnStatus
+import httpx
+
+from app.api.deps import get_current_user, get_http_client
+from app.core.enums import ChatTurnRole, ChatTurnStatus, InputType, IntentType
 from app.core.errors import AppError
 from app.db.session import get_db
 from app.models.user import User
@@ -37,6 +39,8 @@ def _to_turn_response(turn) -> ChatTurnResponse:
         errorMessage=turn.error_message,
         modelProvider=turn.model_provider,
         modelName=turn.model_name,
+        detectedInputType=InputType(turn.detected_input_type) if turn.detected_input_type else None,
+        intentType=IntentType(turn.intent_type) if turn.intent_type else None,
         createdAt=turn.created_at,
         updatedAt=turn.updated_at,
     )
@@ -75,19 +79,32 @@ async def post_chat_turn(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    http_client: httpx.AsyncClient = Depends(get_http_client),
 ) -> SendChatMessageResponse:
-    user_turn_id, assistant_turn_id, assistant_status = await send_chat_message(
+    (
+        user_turn_id,
+        assistant_turn_id,
+        assistant_status,
+        detected_input_type,
+        intent_type,
+        created_source_ids,
+    ) = await send_chat_message(
         db=db,
         current_user=current_user,
         chat_id=chat_id,
         content=data.content,
         source_ids=data.source_ids,
         background_tasks=background_tasks,
+        http_client=http_client,
     )
     return SendChatMessageResponse(
         userTurnId=user_turn_id,
         assistantTurnId=assistant_turn_id,
         assistantStatus=ChatTurnStatus(assistant_status),
+        detectedInputType=InputType(detected_input_type),
+        detectedIntentType=IntentType(intent_type),
+        createdSourceIds=created_source_ids,
+        requiresPreAnalysisWarning=False,
     )
 
 

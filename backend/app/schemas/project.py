@@ -35,6 +35,10 @@ class ProjectResponse(BaseModel):
     archived_at: datetime | None = Field(default=None, alias="archivedAt")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
+    chat_count: int = Field(alias="chatCount")
+    canvas_element_count: int = Field(alias="canvasElementCount")
+    source_count: int = Field(alias="sourceCount")
+    brief_count: int = Field(alias="briefCount")
 
 
 class ProjectListResponse(BaseModel):

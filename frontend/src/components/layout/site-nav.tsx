@@ -69,8 +69,14 @@ export function SiteNav({ variant = 'landing' }: SiteNavProps) {
                   {item.label}
                 </a>
               ))}
+              <Link
+                to="/login"
+                className="transition-colors hover:text-foreground motion-reduce:transition-none"
+              >
+                Sign in
+              </Link>
               <Button size="sm" className="rounded-full" asChild>
-                <Link to="/app">Join Waitlist</Link>
+                <Link to="/register">Get started</Link>
               </Button>
             </nav>
           ) : (
