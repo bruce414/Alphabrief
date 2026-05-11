@@ -4,6 +4,11 @@ import { Outlet, useLocation, useMatch, useNavigate } from 'react-router-dom'
 import { MainSidebar } from '@/components/workspace/main-sidebar'
 import { T } from '@/styles/tokens'
 
+export type AppShellOutletContext = {
+  activeChatId: string | null
+  setActiveChatId: (id: string | null) => void
+}
+
 function currentViewFromPath(pathname: string): 'home' | 'research' | 'discover' {
   if (pathname.startsWith('/app/discover')) return 'discover'
   if (pathname.startsWith('/app/research')) return 'research'
@@ -52,7 +57,7 @@ export function AppShell() {
           }}
           activeChatId={activeChatId}
           onChatSelect={setActiveChatId}
-          onNewChat={() => {}}
+          onNewChat={() => setActiveChatId(null)}
         />
       ) : null}
       <div
@@ -64,7 +69,14 @@ export function AppShell() {
           overflow: 'hidden',
         }}
       >
-        <Outlet />
+        <Outlet
+          context={
+            {
+              activeChatId,
+              setActiveChatId,
+            } satisfies AppShellOutletContext
+          }
+        />
       </div>
     </div>
   )
