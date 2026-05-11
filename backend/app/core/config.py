@@ -73,6 +73,13 @@ class Settings(BaseSettings):
         default=8.0, validation_alias="ENRICHMENT_TIMEOUT_SECONDS"
     )
 
+    ai_provider: str = Field(default="mock", validation_alias="AI_PROVIDER")
+    anthropic_api_key: str = Field(default="", validation_alias="ANTHROPIC_API_KEY")
+    anthropic_model: str = Field(
+        default="claude-sonnet-4-6",
+        validation_alias="ANTHROPIC_MODEL",
+    )
+
     model_config = SettingsConfigDict(
         env_file=str(_BACKEND_ROOT / ".env"),
         env_file_encoding="utf-8",
