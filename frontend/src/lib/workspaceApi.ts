@@ -8,6 +8,7 @@ import type {
   ChatTurn,
   Project,
   ProjectMemory,
+  ProjectMemoryRefreshResponse,
   SendMessageResponse,
   Source,
 } from "../types/workspace";
@@ -76,6 +77,27 @@ export function sendChatMessage(
   });
 }
 
+export type AssistantTurnActionResponse = {
+  assistantTurnId: string;
+  assistantStatus: string;
+};
+
+export function stopChatTurnGeneration(
+  turnId: string,
+): Promise<AssistantTurnActionResponse> {
+  return apiFetch(`/chat-turns/${encodeURIComponent(turnId)}/stop`, {
+    method: "POST",
+  });
+}
+
+export function regenerateAssistantTurn(
+  turnId: string,
+): Promise<AssistantTurnActionResponse> {
+  return apiFetch(`/chat-turns/${encodeURIComponent(turnId)}/regenerate`, {
+    method: "POST",
+  });
+}
+
 export function listCandidates(
   chatTurnId: string,
 ): Promise<{ items: CandidateElement[] }> {
@@ -85,7 +107,13 @@ export function listCandidates(
   );
 }
 
-export function promoteCandidate(
+export function listCandidatesForTurn(
+  chatTurnId: string,
+): Promise<CandidateElement[]> {
+  return listCandidates(chatTurnId).then((r) => r.items);
+}
+
+function promoteCandidateRaw(
   candidateId: string,
   body: Record<string, unknown>,
 ): Promise<CanvasElement> {
@@ -93,6 +121,25 @@ export function promoteCandidate(
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+export function promoteCandidate(
+  candidateId: string,
+  body: {
+    canvasId: string;
+    elementType: string;
+    title: string | null;
+    contentMarkdown: string;
+    x: number;
+    y: number;
+    width: number | null;
+    height: number | null;
+  },
+): Promise<CanvasElement> {
+  return promoteCandidateRaw(
+    candidateId,
+    body as unknown as Record<string, unknown>,
+  );
 }
 
 export function dismissCandidate(candidateId: string): Promise<void> {
@@ -165,13 +212,20 @@ export function deleteCanvasElement(elementId: string): Promise<void> {
 
 export function listCanvasConnections(
   canvasId: string,
-): Promise<{ items: CanvasConnection[] }> {
-  return apiFetch(`/canvases/${encodeURIComponent(canvasId)}/connections`);
+): Promise<CanvasConnection[]> {
+  return apiFetch<{ items: CanvasConnection[] }>(
+    `/canvases/${encodeURIComponent(canvasId)}/connections`,
+  ).then((r) => r.items);
 }
 
-export function createConnection(
+export function createCanvasConnection(
   canvasId: string,
-  body: Record<string, unknown>,
+  body: {
+    fromElementId: string;
+    toElementId: string;
+    label?: string | null;
+    connectionType?: string;
+  },
 ): Promise<CanvasConnection> {
   return apiFetch(`/canvases/${encodeURIComponent(canvasId)}/connections`, {
     method: "POST",
@@ -179,17 +233,21 @@ export function createConnection(
   });
 }
 
-export function patchConnection(
+export function patchCanvasConnection(
   connectionId: string,
-  body: Record<string, unknown>,
+  patch: {
+    label?: string | null;
+    connectionType?: string;
+    styleJson?: Record<string, unknown>;
+  },
 ): Promise<CanvasConnection> {
   return apiFetch(`/canvas-connections/${encodeURIComponent(connectionId)}`, {
     method: "PATCH",
-    body: JSON.stringify(body),
+    body: JSON.stringify(patch),
   });
 }
 
-export function deleteConnection(connectionId: string): Promise<void> {
+export function deleteCanvasConnection(connectionId: string): Promise<void> {
   return apiFetch(`/canvas-connections/${encodeURIComponent(connectionId)}`, {
     method: "DELETE",
   });
@@ -209,10 +267,31 @@ export function patchProjectMemory(
   });
 }
 
+export function refreshProjectMemory(
+  projectId: string,
+): Promise<ProjectMemoryRefreshResponse> {
+  return apiFetch(
+    `/projects/${encodeURIComponent(projectId)}/memory/refresh`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        source: "RECENT_ACTIVITY",
+        maxActivityItems: 30,
+      }),
+    },
+  );
+}
+
 export function listProjectSources(
   projectId: string,
 ): Promise<{ items: Source[] }> {
   return apiFetch(`/projects/${encodeURIComponent(projectId)}/sources`);
+}
+
+export function listChatSources(
+  chatId: string,
+): Promise<{ items: Source[] }> {
+  return apiFetch(`/chats/${encodeURIComponent(chatId)}/sources`);
 }
 
 export function getSourceById(sourceId: string): Promise<Source> {

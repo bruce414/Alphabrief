@@ -59,3 +59,27 @@ class SourceDetailResponse(BaseModel):
     payload_metadata: dict[str, Any] = Field(alias="metadata")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
+
+
+class SourceSummaryResponse(BaseModel):
+    """Slim shape used in list endpoints (project sources tab, chat sources tab)."""
+
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
+
+    id: UUID
+    project_id: UUID | None = Field(default=None, alias="projectId")
+    source_type: str = Field(alias="sourceType")
+    source_access_method: str = Field(alias="sourceAccessMethod")
+    source_access_status: str = Field(alias="sourceAccessStatus")
+    normalized_url: str | None = Field(default=None, alias="normalizedUrl")
+    title: str | None = None
+    publisher: str | None = None
+    # Provenance hint for the UI: "user" (pasted by the user) or "ai_web_search" (added by AI research).
+    origin: str | None = None
+    created_at: datetime = Field(alias="createdAt")
+
+
+class SourceListResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    items: list[SourceSummaryResponse]

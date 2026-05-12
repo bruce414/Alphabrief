@@ -1,12 +1,12 @@
 export const T = {
   /** Research workspace main canvas — matches design screenshot */
-  workspaceDashboard: "#f7f7f7",
+  workspaceDashboard: "#ffffff",
   workspaceTopBar: "#ffffff",
   workspaceChatPanel: "#ffffff",
   workspaceFloatingBar: "#3a3a3a",
-  bg: "#f0ede8",
-  bgPanel: "#f0ede8",
-  sidebar: "#ebe8e3",
+  bg: "#ffffff",
+  bgPanel: "#ffffff",
+  sidebar: "#ffffff",
   white: "#ffffff",
   black: "#1a1a1a",
   blackSoft: "#111111",

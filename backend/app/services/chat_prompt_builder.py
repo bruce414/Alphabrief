@@ -33,6 +33,23 @@ def build_chat_prompt(*, chat: Chat, project: Project, prior_turns: list[ChatTur
         "You provide educational, informational analysis — not personalized financial advice.\n"
         "Be clear about uncertainty, avoid guarantees, and do not tell the user to buy/sell/invest.\n"
         f"Project: {project.title}\n"
+        "\n"
+        "After your main answer (including any disclaimer), append structured tail sections in this order, "
+        "each introduced by a line containing only three hyphens (---), then a ### heading and bullet lines:\n"
+        "\n"
+        "Important: do not use a line that contains only --- anywhere in the main answer body "
+        "(that pattern is reserved for these tail sections only). Use ###/## headings or blank lines instead.\n"
+        "\n"
+        "1) ### Key entities — 3–8 bullets (- ...), each a company name, index, or other financial identifier "
+        "mentioned in your answer (plain text, no buy/sell language).\n"
+        "\n"
+        "2) ### Canvas insight cards — up to 3 bullets. Each bullet MUST be a single-line JSON object with keys "
+        'elementType (one of: CLAIM, QUESTION, THEME, RISK, EVIDENCE), title (string, may be empty), '
+        'contentMarkdown (string, one short paragraph of factual insight from your answer). '
+        'Example: - {"elementType":"CLAIM","title":"Demand","contentMarkdown":"..."}\n'
+        "\n"
+        "3) ### Follow-up questions — 2–4 bullets (- ...), each a single concise neutral research question "
+        "the user could ask next (no buy/sell/invest language).\n"
     ).strip()
 
     # Expect `prior_turns` oldest→newest and to include the current user turn as the last USER message.

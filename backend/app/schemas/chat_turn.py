@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.enums import ChatTurnRole, ChatTurnStatus, InputType, IntentType
+from app.core.enums import ChatTurnRole, ChatTurnStatus, InputType, IntentType, ResearchMode
 
 
 class ChatTurnResponse(BaseModel):
@@ -45,6 +45,7 @@ class SendChatMessageRequest(BaseModel):
 
     content: str
     source_ids: list[UUID] | None = Field(default=None, alias="sourceIds")
+    research_mode: ResearchMode | None = Field(default=None, alias="researchMode")
 
 
 class SendChatMessageResponse(BaseModel):
@@ -58,4 +59,13 @@ class SendChatMessageResponse(BaseModel):
     detected_intent_type: IntentType = Field(alias="detectedIntentType")
     created_source_ids: list[UUID] = Field(alias="createdSourceIds")
     requires_pre_analysis_warning: bool = Field(default=False, alias="requiresPreAnalysisWarning")
+
+
+class AssistantTurnActionResponse(BaseModel):
+    """Stop / regenerate flows return the assistant turn id and new status."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    assistant_turn_id: UUID = Field(alias="assistantTurnId")
+    assistant_status: ChatTurnStatus = Field(alias="assistantStatus")
 

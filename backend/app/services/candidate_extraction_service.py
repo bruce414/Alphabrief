@@ -8,7 +8,7 @@ import bleach
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.clients.ai_provider_client import AiProviderClient, MockAiProviderClient
+from app.clients.ai_provider_client import AiProviderClient, get_ai_provider_client
 from app.core.enums import CandidateStatus, CanvasElementType
 from app.db.session import async_session_factory
 from app.models.candidate_element import CandidateElement
@@ -114,7 +114,7 @@ async def _extract(*, asst_turn_id: UUID, db: AsyncSession, ai_provider: AiProvi
                 .all()
             )
 
-    ai = ai_provider or MockAiProviderClient()
+    ai = ai_provider or get_ai_provider_client()
     extracted = await ai.extract_candidates(
         user_message=user_message,
         assistant_reply=asst.content_markdown or "",

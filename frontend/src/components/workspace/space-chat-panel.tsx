@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
 import useSWR from "swr";
 import { useSWRConfig } from "swr";
 
@@ -6,23 +15,49 @@ import {
   ChatInputBar,
   type ApiResearchMode,
 } from "@/components/workspace/chat-input-bar";
+import { MAX_USER_MESSAGE_CHARS } from "@/lib/chatLimits";
+import { CandidateSuggestions } from "@/components/workspace/candidate-suggestions";
+import { FollowUpQuestionsBlock } from "@/components/workspace/follow-up-questions";
 import { Icon } from "@/components/workspace/icons";
+import { InlineSourceChipsRow } from "@/components/workspace/inline-source-chips";
+import {
+  CanvasInsightSuggestions,
+  MentionedEntitiesBlock,
+} from "@/components/workspace/reply-tail-blocks";
+import { ResearchProgress } from "@/components/workspace/research-progress";
 import { useChats } from "@/hooks/useChats";
 import { ApiError } from "@/lib/api";
+import { parseAssistantReplyForDisplay } from "@/lib/followUpQuestions";
 import { sortChatsByRecent } from "@/lib/chatSort";
-import { createChat, listChatTurns, sendChatMessage } from "@/lib/workspaceApi";
+import {
+  createChat,
+  getChatTurn,
+  getProjectCanvas,
+  listChatTurns,
+  regenerateAssistantTurn,
+  sendChatMessage,
+  stopChatTurnGeneration,
+} from "@/lib/workspaceApi";
 import { T } from "@/styles/tokens";
-import type { Chat, ChatTurn } from "@/types/workspace";
+import type { Canvas, Chat, ChatTurn, ResearchEvent } from "@/types/workspace";
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function extractEvents(turn: ChatTurn): ResearchEvent[] {
+  const cj = (turn.contentJson ?? {}) as Record<string, unknown>;
+  const raw = cj.events;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (x): x is ResearchEvent =>
+      x !== null && typeof x === "object" && "type" in (x as Record<string, unknown>),
+  );
+}
 
 function hasPendingTurn(turns: ChatTurn[] | undefined) {
   if (!turns || turns.length === 0) return false;
   return turns.some((t) => t.status === "QUEUED" || t.status === "RUNNING");
-}
-
-function paragraphs(md: string | null | undefined) {
-  const raw = md?.trim() ?? "";
-  if (!raw) return [];
-  return raw.split("\n\n").map((p) => p.trim()).filter(Boolean);
 }
 
 function extractCreatedSourceIds(turn: ChatTurn): string[] {
@@ -35,6 +70,65 @@ function extractCreatedSourceIds(turn: ChatTurn): string[] {
     if (Array.isArray(ids)) return ids.filter((x): x is string => typeof x === "string");
   }
   return [];
+}
+
+type UserTurnSourceOverlay = {
+  userTurnId: string;
+  optimisticUserIds: string[];
+  ids: string[];
+};
+
+function lastUserSourceIdsBeforeIndex(
+  items: ChatTurn[],
+  beforeIdx: number,
+): string[] {
+  for (let j = beforeIdx - 1; j >= 0; j--) {
+    if (String(items[j].role).toUpperCase() === "USER") {
+      return extractCreatedSourceIds(items[j]);
+    }
+  }
+  return [];
+}
+
+function mergeUserSourceOverlay(
+  items: ChatTurn[],
+  overlay: UserTurnSourceOverlay | null,
+): ChatTurn[] {
+  if (!overlay?.ids.length) return items;
+  return items.map((t) => {
+    const role = String(t.role).toUpperCase();
+    if (role !== "USER") return t;
+    const match =
+      t.id === overlay.userTurnId ||
+      overlay.optimisticUserIds.includes(t.id);
+    if (!match) return t;
+    return {
+      ...t,
+      contentJson: {
+        ...(t.contentJson ?? {}),
+        createdSourceIds: overlay.ids,
+      },
+    };
+  });
+}
+
+function readResearchModeForUserTurn(turn: ChatTurn): ApiResearchMode {
+  const rm = (turn.contentJson as { researchMode?: string } | null)
+    ?.researchMode;
+  if (rm === "QUICK" || rm === "STANDARD" || rm === "DEEP") return rm;
+  return "STANDARD";
+}
+
+function researchModeBeforeAssistantIndex(
+  turns: ChatTurn[],
+  asstIdx: number,
+): ApiResearchMode {
+  for (let j = asstIdx - 1; j >= 0; j--) {
+    if (String(turns[j].role).toUpperCase() === "USER") {
+      return readResearchModeForUserTurn(turns[j]);
+    }
+  }
+  return "STANDARD";
 }
 
 export function useSpaceChat(projectId: string, chatId: string | null) {
@@ -64,15 +158,119 @@ export function useSpaceChat(projectId: string, chatId: string | null) {
     },
   );
 
-  const turns = turnsRes?.items ?? [];
+  const apiTurns = turnsRes?.items ?? [];
+  const [userTurnSourceOverlay, setUserTurnSourceOverlay] =
+    useState<UserTurnSourceOverlay | null>(null);
 
+  const turns = useMemo(
+    () => mergeUserSourceOverlay(apiTurns, userTurnSourceOverlay),
+    [apiTurns, userTurnSourceOverlay],
+  );
+
+  const [isSending, setIsSending] = useState(false);
   const sendingRef = useRef(false);
+  const pollAbortRef = useRef(false);
+  const pendingAssistantTurnIdRef = useRef<string | null>(null);
+  const pendingChatIdRef = useRef<string | null>(null);
+
+  const stopGeneration = useCallback(async () => {
+    if (!sendingRef.current) return;
+    const tid = pendingAssistantTurnIdRef.current;
+    if (!tid) return;
+    pollAbortRef.current = true;
+    try {
+      await stopChatTurnGeneration(tid);
+    } catch {
+      /* still refresh */
+    }
+    try {
+      await mutateTurns();
+      const cid = pendingChatIdRef.current;
+      await mutateGlobal(["chats", projectId]);
+      await mutateGlobal(["sources", projectId]);
+      if (cid) await mutateGlobal(["chat-sources", cid]);
+    } catch {
+      /* ignore */
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+      pendingAssistantTurnIdRef.current = null;
+    }
+  }, [mutateGlobal, mutateTurns, projectId]);
+
+  const regenerateAssistant = useCallback(
+    async (turnId: string) => {
+      if (sendingRef.current) return;
+      const chatIdForMutate =
+        pendingChatIdRef.current ?? resolvedChatId ?? undefined;
+      if (!chatIdForMutate) return;
+
+      sendingRef.current = true;
+      setIsSending(true);
+      pollAbortRef.current = false;
+      pendingAssistantTurnIdRef.current = turnId;
+
+      try {
+        await regenerateAssistantTurn(turnId);
+        const deadline = Date.now() + 120_000;
+        let turn = await getChatTurn(turnId);
+        while (
+          turn.status !== "COMPLETED" &&
+          turn.status !== "FAILED" &&
+          Date.now() < deadline
+        ) {
+          if (pollAbortRef.current) break;
+          await mutateTurns();
+          await sleep(1200);
+          if (pollAbortRef.current) break;
+          turn = await getChatTurn(turnId);
+        }
+
+        if (!pollAbortRef.current) {
+          await mutateTurns();
+          await mutateGlobal(["chats", projectId]);
+          await mutateGlobal(["sources", projectId]);
+          await mutateGlobal(["chat-sources", chatIdForMutate]);
+        }
+      } catch (e) {
+        const msg = e instanceof ApiError ? e.message : "Could not regenerate.";
+        await mutateTurns(
+          (cur) => ({
+            items: (cur?.items ?? []).map((t) =>
+              t.id === turnId
+                ? {
+                    ...t,
+                    status: "FAILED" as const,
+                    contentMarkdown: msg,
+                    errorCode: null,
+                    errorMessage: msg,
+                  }
+                : t,
+            ),
+          }),
+          { revalidate: false },
+        );
+      } finally {
+        sendingRef.current = false;
+        setIsSending(false);
+        pendingAssistantTurnIdRef.current = null;
+      }
+    },
+    [mutateGlobal, mutateTurns, projectId, resolvedChatId],
+  );
 
   const onSend = useCallback(
     async (text: string, researchMode: ApiResearchMode) => {
       const trimmed = text.trim();
       if (!trimmed || sendingRef.current) return;
+      if (trimmed.length > MAX_USER_MESSAGE_CHARS) {
+        window.alert(
+          `Message is too long. Maximum length is ${MAX_USER_MESSAGE_CHARS.toLocaleString()} characters.`,
+        );
+        return;
+      }
       sendingRef.current = true;
+      setIsSending(true);
 
       let effectiveChatId = resolvedChatId;
       try {
@@ -88,8 +286,10 @@ export function useSpaceChat(projectId: string, chatId: string | null) {
           );
         }
 
+        pendingChatIdRef.current = effectiveChatId;
+
         const nowIso = new Date().toISOString();
-        const maxIdx = turns.reduce((m, t) => Math.max(m, t.turnIndex ?? 0), 0);
+        const maxIdx = apiTurns.reduce((m, t) => Math.max(m, t.turnIndex ?? 0), 0);
         const optimisticUserId = crypto.randomUUID();
         const optimisticAssistantId = crypto.randomUUID();
 
@@ -102,7 +302,7 @@ export function useSpaceChat(projectId: string, chatId: string | null) {
           intentType: null,
           detectedInputType: null,
           contentMarkdown: trimmed,
-          contentJson: null,
+          contentJson: { researchMode },
           errorCode: null,
           errorMessage: null,
           modelProvider: null,
@@ -131,7 +331,11 @@ export function useSpaceChat(projectId: string, chatId: string | null) {
 
         await mutateTurns(
           (cur) => ({
-            items: [...(cur?.items ?? turns), optimisticUserTurn, optimisticAssistantTurn],
+            items: [
+              ...(cur?.items ?? apiTurns),
+              optimisticUserTurn,
+              optimisticAssistantTurn,
+            ],
           }),
           { revalidate: false },
         );
@@ -145,61 +349,76 @@ export function useSpaceChat(projectId: string, chatId: string | null) {
 
         const assistantTurnId = sendRes.assistantTurnId;
         const createdSourceIds = sendRes.createdSourceIds ?? [];
+        const serverUserTurnId = sendRes.userTurnId;
 
-        // Poll the list endpoint; it's cheap and keeps ordering consistent.
-        const deadline = Date.now() + 60_000;
-        while (Date.now() < deadline) {
-          const latest = await mutateTurns();
-          const found = latest?.items?.find((t) => t.id === assistantTurnId);
-          const status = found?.status;
-          if (status === "COMPLETED" || status === "FAILED") {
-            if (found && createdSourceIds.length > 0) {
-              await mutateTurns(
-                (cur) => ({
-                  items: (cur?.items ?? []).map((t) =>
-                    t.id === assistantTurnId
-                      ? {
-                          ...t,
-                          contentJson: {
-                            ...(t.contentJson ?? {}),
-                            createdSourceIds,
-                          },
-                        }
-                      : t,
-                  ),
-                }),
-                { revalidate: false },
-              );
-            }
-            break;
-          }
-          // Keep the optimistic placeholder visible until the real assistant turn exists.
-          if (!found) {
-            await mutateTurns(
-              (cur) => ({
-                items: (cur?.items ?? []).map((t) =>
-                  t.id === optimisticAssistantId
-                    ? { ...t, status: "RUNNING" }
-                    : t,
-                ),
-              }),
-              { revalidate: false },
-            );
-          } else {
-            await mutateTurns(
-              (cur) => ({
-                items: (cur?.items ?? []).filter((t) => t.id !== optimisticAssistantId),
-              }),
-              { revalidate: false },
-            );
-          }
-          await new Promise((r) => setTimeout(r, 1500));
+        await mutateTurns(
+          (cur) => ({
+            items: (cur?.items ?? []).map((t) => {
+              if (t.id === optimisticUserId) return { ...t, id: serverUserTurnId };
+              if (t.id === optimisticAssistantId)
+                return { ...t, id: assistantTurnId };
+              return t;
+            }),
+          }),
+          { revalidate: false },
+        );
+
+        if (createdSourceIds.length > 0) {
+          setUserTurnSourceOverlay({
+            userTurnId: serverUserTurnId,
+            optimisticUserIds: [optimisticUserId],
+            ids: createdSourceIds,
+          });
+          await mutateTurns(
+            (cur) => ({
+              items: (cur?.items ?? []).map((t) =>
+                t.id === serverUserTurnId
+                  ? {
+                      ...t,
+                      contentJson: {
+                        ...(t.contentJson ?? {}),
+                        createdSourceIds,
+                      },
+                    }
+                  : t,
+              ),
+            }),
+            { revalidate: false },
+          );
         }
+
+        pollAbortRef.current = false;
+        pendingAssistantTurnIdRef.current = assistantTurnId;
+
+        const deadline = Date.now() + 120_000;
+        let turn = await getChatTurn(assistantTurnId);
+        while (
+          turn.status !== "COMPLETED" &&
+          turn.status !== "FAILED" &&
+          Date.now() < deadline
+        ) {
+          if (pollAbortRef.current) break;
+          await mutateTurns();
+          if (pollAbortRef.current) break;
+          await sleep(1200);
+          if (pollAbortRef.current) break;
+          turn = await getChatTurn(assistantTurnId);
+        }
+
+        if (pollAbortRef.current) {
+          await mutateTurns();
+          return;
+        }
+
+        await mutateTurns();
+        await mutateGlobal(["chats", projectId]);
+        await mutateGlobal(["sources", projectId]);
+        await mutateGlobal(["chat-sources", effectiveChatId]);
       } catch (e) {
         const msg = e instanceof ApiError ? e.message : "Could not send message.";
         await mutateTurns(
           (cur) => ({
-            items: (cur?.items ?? turns).map((t) =>
+            items: (cur?.items ?? apiTurns).map((t) =>
               t.role === "ASSISTANT" && (t.status === "QUEUED" || t.status === "RUNNING")
                 ? { ...t, status: "FAILED", contentMarkdown: msg }
                 : t,
@@ -209,17 +428,22 @@ export function useSpaceChat(projectId: string, chatId: string | null) {
         );
       } finally {
         sendingRef.current = false;
+        setIsSending(false);
+        pendingAssistantTurnIdRef.current = null;
       }
     },
-    [mutateGlobal, mutateTurns, projectId, resolvedChatId, turns],
+    [mutateGlobal, mutateTurns, projectId, resolvedChatId, apiTurns],
   );
 
   return {
     chat,
     turns,
     isLoading: chatsLoading || turnsLoading,
+    isSending,
     resolvedChatId,
     onSend,
+    stopGeneration,
+    regenerateAssistant,
   };
 }
 
@@ -233,10 +457,19 @@ export function SpaceChatPanel({
   onChatReady: (chatId: string) => void;
 }) {
   const { mutate: mutateGlobal } = useSWRConfig();
-  const { chat, turns, isLoading, resolvedChatId, onSend } = useSpaceChat(
-    projectId,
-    chatId,
+  const { data: canvas } = useSWR<Canvas>(["canvas", projectId], () =>
+    getProjectCanvas(projectId),
   );
+  const {
+    chat,
+    turns,
+    isLoading,
+    isSending,
+    resolvedChatId,
+    onSend,
+    stopGeneration,
+    regenerateAssistant,
+  } = useSpaceChat(projectId, chatId);
   const [isCreatingChat, setIsCreatingChat] = useState(false);
   const creatingChatRef = useRef(false);
 
@@ -291,6 +524,110 @@ export function SpaceChatPanel({
           0% { transform: scale(1); opacity: 0.6; }
           50% { transform: scale(1.45); opacity: 1; }
           100% { transform: scale(1); opacity: 0.6; }
+        }
+
+        .space-ai-markdown {
+          font-size: 12.5px;
+          line-height: 1.7;
+          color: ${T.black};
+          word-break: break-word;
+        }
+        .space-ai-markdown > *:first-child { margin-top: 0; }
+        .space-ai-markdown > *:last-child { margin-bottom: 0; }
+        .space-ai-markdown p {
+          margin: 0 0 0.85em;
+        }
+        .space-ai-markdown h1,
+        .space-ai-markdown h2,
+        .space-ai-markdown h3,
+        .space-ai-markdown h4,
+        .space-ai-markdown h5,
+        .space-ai-markdown h6 {
+          font-weight: 700;
+          color: ${T.black};
+          line-height: 1.35;
+          margin: 1.2em 0 0.5em;
+        }
+        .space-ai-markdown h1 { font-size: 18px; }
+        .space-ai-markdown h2 { font-size: 16px; }
+        .space-ai-markdown h3 { font-size: 14px; }
+        .space-ai-markdown h4,
+        .space-ai-markdown h5,
+        .space-ai-markdown h6 { font-size: 13px; }
+        .space-ai-markdown ul,
+        .space-ai-markdown ol {
+          margin: 0 0 0.85em;
+          padding-left: 1.4em;
+        }
+        .space-ai-markdown li {
+          margin: 0.2em 0;
+        }
+        .space-ai-markdown li > p {
+          margin: 0 0 0.35em;
+        }
+        .space-ai-markdown li > ul,
+        .space-ai-markdown li > ol {
+          margin-top: 0.3em;
+          margin-bottom: 0.3em;
+        }
+        .space-ai-markdown strong { font-weight: 700; color: ${T.black}; }
+        .space-ai-markdown em { font-style: italic; }
+        .space-ai-markdown a {
+          color: ${T.black};
+          text-decoration: underline;
+          text-underline-offset: 2px;
+        }
+        .space-ai-markdown a:hover { color: ${T.gray600}; }
+        .space-ai-markdown blockquote {
+          margin: 0.6em 0 0.85em;
+          padding: 0.2em 0 0.2em 12px;
+          border-left: 3px solid ${T.gray200};
+          color: ${T.gray600};
+        }
+        .space-ai-markdown code {
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+          font-size: 0.92em;
+          background: ${T.gray100};
+          border: 1px solid ${T.border};
+          border-radius: 4px;
+          padding: 1px 5px;
+        }
+        .space-ai-markdown pre {
+          margin: 0.6em 0 0.85em;
+          padding: 12px 14px;
+          background: ${T.gray100};
+          border: 1px solid ${T.border};
+          border-radius: 8px;
+          overflow-x: auto;
+          line-height: 1.55;
+        }
+        .space-ai-markdown pre code {
+          background: transparent;
+          border: none;
+          padding: 0;
+          font-size: 12px;
+        }
+        .space-ai-markdown hr {
+          border: 0;
+          border-top: 1px solid ${T.border};
+          margin: 1em 0;
+        }
+        .space-ai-markdown table {
+          border-collapse: collapse;
+          margin: 0.6em 0 0.85em;
+          font-size: 12px;
+          width: 100%;
+        }
+        .space-ai-markdown th,
+        .space-ai-markdown td {
+          border: 1px solid ${T.border};
+          padding: 6px 10px;
+          text-align: left;
+          vertical-align: top;
+        }
+        .space-ai-markdown th {
+          background: ${T.gray100};
+          font-weight: 600;
         }
       `}</style>
 
@@ -412,11 +749,12 @@ export function SpaceChatPanel({
           </div>
         ) : null}
 
-        {turns.map((t) => {
+        {turns.map((t, turnIdx) => {
           const role = String(t.role).toUpperCase();
           const isUser = role === "USER";
           const isAssistant = role === "ASSISTANT";
           if (isUser) {
+            const userSrcIds = extractCreatedSourceIds(t);
             return (
               <div
                 key={t.id}
@@ -428,19 +766,33 @@ export function SpaceChatPanel({
               >
                 <div
                   style={{
-                    background: T.userBubble,
-                    color: T.white,
-                    padding: "10px 14px",
-                    borderRadius: 12,
-                    fontFamily: T.fontSans,
-                    fontSize: 13,
-                    lineHeight: 1.6,
                     marginLeft: 20,
                     maxWidth: "92%",
-                    whiteSpace: "pre-wrap",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-end",
+                    minWidth: 0,
                   }}
                 >
-                  {t.contentMarkdown ?? ""}
+                  <div
+                    style={{
+                      background: T.userBubble,
+                      color: T.white,
+                      padding: "10px 14px",
+                      borderRadius: 12,
+                      fontFamily: T.fontSans,
+                      fontSize: 13,
+                      lineHeight: 1.6,
+                      maxWidth: "100%",
+                      whiteSpace: "pre-wrap",
+                    }}
+                  >
+                    {t.contentMarkdown ?? ""}
+                  </div>
+                  <InlineSourceChipsRow
+                    variant="user"
+                    sourceIds={userSrcIds}
+                  />
                 </div>
               </div>
             );
@@ -448,8 +800,22 @@ export function SpaceChatPanel({
 
           if (isAssistant) {
             const loading = t.status === "QUEUED" || t.status === "RUNNING";
-            const srcIds = extractCreatedSourceIds(t);
-            const text = t.contentMarkdown ?? "";
+            const fromTurn = extractCreatedSourceIds(t);
+            const srcIds =
+              fromTurn.length > 0
+                ? fromTurn
+                : lastUserSourceIdsBeforeIndex(turns, turnIdx);
+            const events = extractEvents(t);
+            const rawMd = t.contentMarkdown ?? "";
+            const parsed = parseAssistantReplyForDisplay(t, rawMd);
+            const displayMd = parsed.body;
+            const followUps = parsed.followUpQuestions;
+            const mentionedEntities = parsed.mentionedEntities;
+            const suggestedCanvasInsights = parsed.suggestedCanvasInsights;
+            const modeForFollowUp = researchModeBeforeAssistantIndex(
+              turns,
+              turnIdx,
+            );
             return (
               <div key={t.id} style={{ marginBottom: 14 }}>
                 <div
@@ -512,7 +878,11 @@ export function SpaceChatPanel({
                     lineHeight: 1.7,
                   }}
                 >
-                  {loading ? (
+                  <ResearchProgress events={events} loading={loading} />
+                  {srcIds.length > 0 ? (
+                    <InlineSourceChipsRow sourceIds={srcIds} />
+                  ) : null}
+                  {loading && events.length === 0 && !displayMd ? (
                     <div
                       style={{
                         display: "flex",
@@ -531,51 +901,90 @@ export function SpaceChatPanel({
                           flexShrink: 0,
                         }}
                       />
-                      {text || "Analyzing..."}
+                      Analyzing…
                     </div>
-                  ) : (
+                  ) : null}
+                  {!loading && displayMd ? (
                     <>
-                      {paragraphs(text).map((p, i) => (
-                        <p key={i} style={{ margin: i === 0 ? 0 : "0.85em 0 0" }}>
-                          {p}
-                        </p>
-                      ))}
-                      {srcIds.length > 0 ? (
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 6,
-                            marginTop: 12,
-                            flexWrap: "wrap",
-                          }}
+                      <div className="space-ai-markdown">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          rehypePlugins={[rehypeSanitize]}
                         >
-                          {srcIds.map((id, j) => (
-                            <div
-                              key={`${t.id}-src-${id}-${j}`}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 4,
-                                border: `1px solid ${T.border}`,
-                                borderRadius: 5,
-                                padding: "3px 8px",
-                                fontSize: 10,
-                                color: T.gray500,
-                                fontFamily: T.fontSans,
-                              }}
-                            >
-                              <Icon.Database
-                                width={12}
-                                height={12}
-                                style={{ flexShrink: 0 }}
-                              />
-                              [{j + 1}] {id.slice(0, 8)}
-                            </div>
-                          ))}
-                        </div>
+                          {displayMd}
+                        </ReactMarkdown>
+                      </div>
+                      {t.status === "COMPLETED" &&
+                      mentionedEntities.length > 0 ? (
+                        <MentionedEntitiesBlock entities={mentionedEntities} />
+                      ) : null}
+                      {t.status === "COMPLETED" &&
+                      suggestedCanvasInsights.length > 0 ? (
+                        <CanvasInsightSuggestions
+                          insights={suggestedCanvasInsights}
+                          canvasId={canvas?.id}
+                          disabled={isLoading || isSending}
+                        />
+                      ) : null}
+                      {t.status === "COMPLETED" && canvas?.id ? (
+                        <CandidateSuggestions
+                          assistantTurnId={t.id}
+                          canvasId={canvas.id}
+                        />
+                      ) : null}
+                      {t.status === "COMPLETED" && followUps.length > 0 ? (
+                        <FollowUpQuestionsBlock
+                          questions={followUps}
+                          onSelect={(q) => void onSend(q, modeForFollowUp)}
+                          disabled={isLoading || isSending}
+                        />
                       ) : null}
                     </>
-                  )}
+                  ) : null}
+                  {!loading &&
+                  !displayMd &&
+                  (t.status === "FAILED" ||
+                    Boolean(t.errorMessage?.trim())) ? (
+                    <div
+                      style={{
+                        color: T.gray500,
+                        fontSize: 13,
+                        fontFamily: T.fontSans,
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {t.errorMessage?.trim() ||
+                        t.contentMarkdown?.trim() ||
+                        "Something went wrong."}
+                    </div>
+                  ) : null}
+                  {!loading &&
+                  (t.status === "COMPLETED" || t.status === "FAILED") ? (
+                    <div style={{ marginTop: 12 }}>
+                      <button
+                        type="button"
+                        disabled={isLoading || isSending}
+                        onClick={() => void regenerateAssistant(t.id)}
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          padding: 0,
+                          cursor:
+                            isLoading || isSending
+                              ? "not-allowed"
+                              : "pointer",
+                          fontFamily: T.fontSans,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: T.gray500,
+                          textDecoration: "underline",
+                          textUnderlineOffset: 3,
+                        }}
+                      >
+                        Regenerate response
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             );
@@ -588,6 +997,8 @@ export function SpaceChatPanel({
 
       <ChatInputBar
         onSend={onSend}
+        isGenerating={isSending}
+        onStop={stopGeneration}
         placeholder="Ask, or paste a URL to research..."
         disabled={isLoading}
         containerBackground={T.white}

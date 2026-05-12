@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -10,6 +11,9 @@ from app.core.enums import ChatStatus, ProjectKind
 from app.core.errors import AppError
 from app.db.session import get_db
 from app.models.chat import Chat
+from app.models.chat_turn import ChatTurn
+from app.models.chat_turn_source import ChatTurnSource
+from app.models.source import Source
 from app.models.user import User
 from app.repositories.chat_repository import ChatRepository
 from app.repositories.project_repository import ProjectRepository
@@ -21,6 +25,7 @@ from app.schemas.chat import (
     CreateChatRequest,
     PatchChatRequest,
 )
+from app.schemas.source import SourceListResponse, SourceSummaryResponse
 from app.services.project_service import ProjectService
 
 
@@ -192,4 +197,68 @@ async def delete_chat(
             status_code=status.HTTP_403_FORBIDDEN,
         )
     await repo.delete(chat)
+
+
+def _source_origin(src: Source) -> str:
+    if isinstance(src.metadata_, dict):
+        origin = src.metadata_.get("origin")
+        if isinstance(origin, str) and origin:
+            return origin
+    if src.source_access_method == "WEB_SEARCH":
+        return "ai_web_search"
+    return "user"
+
+
+def _to_summary(src: Source) -> SourceSummaryResponse:
+    return SourceSummaryResponse(
+        id=src.id,
+        projectId=src.project_id,
+        sourceType=src.source_type,
+        sourceAccessMethod=src.source_access_method,
+        sourceAccessStatus=src.source_access_status,
+        normalizedUrl=src.normalized_url,
+        title=src.title,
+        publisher=src.publisher,
+        origin=_source_origin(src),
+        createdAt=src.created_at,
+    )
+
+
+@router.get("/chats/{chat_id}/sources", response_model=SourceListResponse)
+async def list_chat_sources(
+    chat_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SourceListResponse:
+    repo = ChatRepository(db)
+    chat = await repo.get_by_id(chat_id)
+    if chat is None:
+        raise AppError(
+            error_code="NOT_FOUND",
+            message="Chat not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    if chat.user_id != current_user.id:
+        raise AppError(
+            error_code="FORBIDDEN",
+            message="You do not have access to this chat",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+
+    # All distinct sources attached to any turn in this chat.
+    rows = list(
+        (
+            await db.execute(
+                select(Source)
+                .join(ChatTurnSource, ChatTurnSource.source_id == Source.id)
+                .join(ChatTurn, ChatTurn.id == ChatTurnSource.chat_turn_id)
+                .where(ChatTurn.chat_id == chat.id)
+                .order_by(Source.created_at.asc())
+            )
+        )
+        .scalars()
+        .unique()
+        .all()
+    )
+    return SourceListResponse(items=[_to_summary(s) for s in rows])
 

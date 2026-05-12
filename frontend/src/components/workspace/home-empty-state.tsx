@@ -9,11 +9,15 @@ import { T } from "@/styles/tokens";
 export type HomeEmptyStateProps = {
   onSend: (text: string, researchMode: ApiResearchMode) => void;
   inputDisabled?: boolean;
+  awaitingReply?: boolean;
+  onStopGeneration?: () => void;
 };
 
 export function HomeEmptyState({
   onSend,
   inputDisabled = false,
+  awaitingReply = false,
+  onStopGeneration,
 }: HomeEmptyStateProps) {
   return (
     <div
@@ -22,7 +26,7 @@ export function HomeEmptyState({
         display: "flex",
         flexDirection: "column",
         height: "100vh",
-        background: T.bgPanel,
+        background: T.white,
         fontFamily: T.fontSans,
       }}
     >
@@ -34,7 +38,7 @@ export function HomeEmptyState({
           justifyContent: "space-between",
           padding: "0 20px",
           borderBottom: `1px solid ${T.border}`,
-          background: T.bgPanel,
+          background: T.white,
           flexShrink: 0,
         }}
       >
@@ -119,7 +123,13 @@ export function HomeEmptyState({
         </div>
       </div>
 
-      <ChatInputBar onSend={onSend} disabled={inputDisabled} />
+      <ChatInputBar
+        onSend={onSend}
+        isGenerating={awaitingReply}
+        onStop={onStopGeneration}
+        disabled={inputDisabled}
+        containerBackground={T.white}
+      />
     </div>
   );
 }

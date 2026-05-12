@@ -15,12 +15,17 @@ from app.models.user import User
 from app.repositories.chat_repository import ChatRepository
 from app.repositories.chat_turn_repository import ChatTurnRepository
 from app.schemas.chat_turn import (
+    AssistantTurnActionResponse,
     ChatTurnListResponse,
     ChatTurnResponse,
     SendChatMessageRequest,
     SendChatMessageResponse,
 )
-from app.services.chat_turn_service import send_chat_message
+from app.services.chat_turn_service import (
+    regenerate_assistant_turn,
+    send_chat_message,
+    stop_assistant_generation,
+)
 
 
 router = APIRouter(tags=["chat_turns"])
@@ -94,6 +99,7 @@ async def post_chat_turn(
         chat_id=chat_id,
         content=data.content,
         source_ids=data.source_ids,
+        research_mode=data.research_mode,
         background_tasks=background_tasks,
         http_client=http_client,
     )
@@ -105,6 +111,50 @@ async def post_chat_turn(
         detectedIntentType=IntentType(intent_type),
         createdSourceIds=created_source_ids,
         requiresPreAnalysisWarning=False,
+    )
+
+
+@router.post(
+    "/chat-turns/{turn_id}/stop",
+    response_model=AssistantTurnActionResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def stop_chat_turn_generation(
+    turn_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AssistantTurnActionResponse:
+    turn = await stop_assistant_generation(
+        db=db,
+        current_user=current_user,
+        assistant_turn_id=turn_id,
+    )
+    return AssistantTurnActionResponse(
+        assistantTurnId=turn.id,
+        assistantStatus=ChatTurnStatus(turn.status),
+    )
+
+
+@router.post(
+    "/chat-turns/{turn_id}/regenerate",
+    response_model=AssistantTurnActionResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def regenerate_chat_turn(
+    turn_id: UUID,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AssistantTurnActionResponse:
+    turn = await regenerate_assistant_turn(
+        db=db,
+        current_user=current_user,
+        assistant_turn_id=turn_id,
+        background_tasks=background_tasks,
+    )
+    return AssistantTurnActionResponse(
+        assistantTurnId=turn.id,
+        assistantStatus=ChatTurnStatus(turn.status),
     )
 
 

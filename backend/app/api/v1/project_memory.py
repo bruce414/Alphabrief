@@ -3,17 +3,20 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.core.errors import AppError
 from app.db.session import get_db
 from app.models.user import User
 from app.repositories.project_memory_repository import ProjectMemoryRepository
 from app.repositories.project_repository import ProjectRepository
-from app.schemas.project_memory import PatchProjectMemoryRequest, ProjectMemoryResponse, RefreshProjectMemoryRequest
+from app.schemas.project_memory import (
+    PatchProjectMemoryRequest,
+    ProjectMemoryResponse,
+    RefreshProjectMemoryRequest,
+    RefreshProjectMemoryResponse,
+)
 from app.services.project_memory_service import ProjectMemoryService
 
 
@@ -84,33 +87,19 @@ async def patch_project_memory(
 @router.post("/projects/{project_id}/memory/refresh")
 async def refresh_project_memory(
     project_id: UUID,
-    _data: RefreshProjectMemoryRequest,
+    data: RefreshProjectMemoryRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> JSONResponse:
-    """Reserved for AI-backed refresh (API_SPEC §13); not implemented in v0.3."""
-
+) -> RefreshProjectMemoryResponse:
+    repo = ProjectMemoryRepository(db)
     project_repo = ProjectRepository(db)
-    project = await project_repo.get_by_id(project_id)
-    if project is None:
-        raise AppError(
-            error_code="NOT_FOUND",
-            message="Project not found",
-            status_code=status.HTTP_404_NOT_FOUND,
-        )
-    if project.user_id != current_user.id:
-        raise AppError(
-            error_code="FORBIDDEN",
-            message="You do not have access to this project",
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
-
-    return JSONResponse(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        content={
-            "error": {
-                "code": "NOT_IMPLEMENTED",
-                "message": "AI memory refresh is not available yet.",
-            },
-        },
+    svc = ProjectMemoryService(db=db, repo=repo, project_repo=project_repo)
+    result = await svc.refresh_from_activity(
+        user_id=current_user.id,
+        project_id=project_id,
+        max_activity_items=data.max_activity_items,
+    )
+    return RefreshProjectMemoryResponse(
+        memory_refresh_job_id=UUID(result["memoryRefreshJobId"]),
+        status=result["status"],
     )

@@ -15,6 +15,7 @@ ALLOWED_TAGS = [
     "li",
     "strong",
     "em",
+    "h1",
     "h2",
     "h3",
     "code",
