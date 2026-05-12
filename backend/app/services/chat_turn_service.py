@@ -6,10 +6,10 @@ from uuid import UUID
 
 import httpx
 from fastapi import BackgroundTasks, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.core.enums import ChatStatus, ChatTurnRole, ChatTurnStatus
+from app.core.enums import ChatStatus, ChatTurnRole, ChatTurnStatus, ResearchMode
 from app.core.errors import AppError
 from app.db.session import async_session_factory
 from app.models.chat import Chat
@@ -62,6 +62,7 @@ async def send_chat_message(
     source_ids: list[UUID] | None,
     background_tasks: BackgroundTasks,
     http_client: httpx.AsyncClient,
+    research_mode: ResearchMode | None = None,
     session_factory: SessionFactory | None = None,
 ) -> tuple[UUID, UUID, str, str, str, list[UUID]]:
     chat = (
@@ -169,6 +170,9 @@ async def send_chat_message(
     intent_val = detected.intent_type.value
     detected_type_val = detected.primary_input_type.value
 
+    effective_mode = research_mode or ResearchMode.STANDARD
+    user_turn_content_json: dict = {"researchMode": effective_mode.value}
+
     user_turn = ChatTurn(
         chat_id=chat.id,
         user_id=current_user.id,
@@ -176,7 +180,7 @@ async def send_chat_message(
         role=ChatTurnRole.USER.value,
         status=ChatTurnStatus.COMPLETED.value,
         content_markdown=cleaned,
-        content_json=None,
+        content_json=user_turn_content_json,
         model_provider=None,
         model_name=None,
         intent_type=intent_val,
@@ -221,3 +225,127 @@ async def send_chat_message(
         intent_val,
         created_source_ids,
     )
+
+
+async def stop_assistant_generation(
+    *,
+    db: AsyncSession,
+    current_user: User,
+    assistant_turn_id: UUID,
+) -> ChatTurn:
+    """Mark a generating assistant turn as failed so the user can move on."""
+    result = await db.execute(
+        select(ChatTurn)
+        .where(ChatTurn.id == assistant_turn_id)
+        .with_for_update(),
+    )
+    turn = result.scalar_one_or_none()
+    if turn is None:
+        raise AppError(
+            error_code="NOT_FOUND",
+            message="Chat turn not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    if turn.user_id != current_user.id:
+        raise AppError(
+            error_code="FORBIDDEN",
+            message="You do not have access to this chat turn",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+    if turn.role != ChatTurnRole.ASSISTANT.value:
+        raise AppError(
+            error_code="INVALID_INPUT",
+            message="Only assistant replies can be stopped.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if turn.status not in (ChatTurnStatus.QUEUED.value, ChatTurnStatus.RUNNING.value):
+        raise AppError(
+            error_code="INVALID_INPUT",
+            message="This reply is not generating.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    turn.status = ChatTurnStatus.FAILED.value
+    turn.error_code = "USER_STOPPED"
+    turn.error_message = "Generation stopped by user."
+    await db.commit()
+    await db.refresh(turn)
+    return turn
+
+
+async def regenerate_assistant_turn(
+    *,
+    db: AsyncSession,
+    current_user: User,
+    assistant_turn_id: UUID,
+    background_tasks: BackgroundTasks,
+    session_factory: SessionFactory | None = None,
+) -> ChatTurn:
+    """Re-queue assistant generation for the same user turn (new model reply)."""
+    result = await db.execute(
+        select(ChatTurn)
+        .where(ChatTurn.id == assistant_turn_id)
+        .with_for_update(),
+    )
+    turn = result.scalar_one_or_none()
+    if turn is None:
+        raise AppError(
+            error_code="NOT_FOUND",
+            message="Chat turn not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    if turn.user_id != current_user.id:
+        raise AppError(
+            error_code="FORBIDDEN",
+            message="You do not have access to this chat turn",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+    if turn.role != ChatTurnRole.ASSISTANT.value:
+        raise AppError(
+            error_code="INVALID_INPUT",
+            message="Only assistant replies can be regenerated.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if turn.status not in (ChatTurnStatus.COMPLETED.value, ChatTurnStatus.FAILED.value):
+        raise AppError(
+            error_code="INVALID_INPUT",
+            message="Wait for the current reply to finish, or stop it first.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    user_turn = (
+        await db.execute(
+            select(ChatTurn).where(
+                ChatTurn.chat_id == turn.chat_id,
+                ChatTurn.turn_index == turn.turn_index - 1,
+                ChatTurn.role == ChatTurnRole.USER.value,
+            )
+        )
+    ).scalar_one_or_none()
+    if user_turn is None:
+        raise AppError(
+            error_code="INVALID_INPUT",
+            message="Cannot regenerate without the paired user message.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    await db.execute(delete(ChatTurnSource).where(ChatTurnSource.chat_turn_id == turn.id))
+
+    turn.status = ChatTurnStatus.QUEUED.value
+    turn.content_markdown = None
+    turn.content_json = None
+    turn.error_code = None
+    turn.error_message = None
+    turn.input_tokens = None
+    turn.output_tokens = None
+    turn.cache_read_tokens = None
+    turn.cache_write_tokens = None
+    turn.model_provider = None
+    turn.model_name = None
+
+    await db.commit()
+    await db.refresh(turn)
+
+    sf = session_factory or _make_background_session_factory_from_bind(db)
+    background_tasks.add_task(generate_assistant_turn, turn.id, session_factory=sf)
+    return turn

@@ -16,6 +16,10 @@ import { sortChatsByRecent } from '@/lib/chatSort'
 import { useProjects } from '@/hooks/useProjects'
 import { T } from '@/styles/tokens'
 
+/** Minimum chat width so the research mode control stays on one line. */
+const CHAT_PANEL_MIN_PX = 468
+const CHAT_PANEL_MAX_PX = 560
+
 export function ResearchWorkspaceView() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
@@ -26,7 +30,9 @@ export function ResearchWorkspaceView() {
   const [loading, setLoading] = useState(true)
   const [aiIntelligenceOn, setAiIntelligenceOn] = useState(true)
   const [activeChatId, setActiveChatId] = useState<string | null>(null)
-  const [chatWidth, setChatWidth] = useState(420)
+  const [chatWidth, setChatWidth] = useState(() =>
+    Math.min(CHAT_PANEL_MAX_PX, Math.max(CHAT_PANEL_MIN_PX, 480)),
+  )
   const resizingRef = useRef<{
     startX: number
     startWidth: number
@@ -233,14 +239,14 @@ export function ResearchWorkspaceView() {
             ) : null}
           </div>
 
-          {/* Resizer */}
+          {/* Resizer (drag handle between main column and chat) */}
           <div
             role="separator"
             aria-orientation="vertical"
             style={{
               width: 10,
               cursor: 'col-resize',
-              background: 'transparent',
+              background: T.workspaceDashboard,
               flexShrink: 0,
               position: 'relative',
             }}
@@ -251,7 +257,9 @@ export function ResearchWorkspaceView() {
                 const s = resizingRef.current
                 if (!s) return
                 const next = s.startWidth + (s.startX - ev.clientX)
-                setChatWidth(Math.max(380, Math.min(560, next)))
+                setChatWidth(
+                  Math.max(CHAT_PANEL_MIN_PX, Math.min(CHAT_PANEL_MAX_PX, next)),
+                )
               }
               const onUp = () => {
                 resizingRef.current = null
@@ -261,9 +269,7 @@ export function ResearchWorkspaceView() {
               window.addEventListener('mousemove', onMove)
               window.addEventListener('mouseup', onUp)
             }}
-          >
-            {/* no visible divider; just a drag hit-area */}
-          </div>
+          ></div>
 
           {/* Chat panel */}
           <div
@@ -272,11 +278,12 @@ export function ResearchWorkspaceView() {
               display: 'flex',
               flexDirection: 'column',
               width: chatWidth,
-              minWidth: 380,
-              maxWidth: 560,
+              minWidth: CHAT_PANEL_MIN_PX,
+              maxWidth: CHAT_PANEL_MAX_PX,
               flexShrink: 0,
               height: '100%',
               minHeight: 0,
+              borderLeft: `1px solid ${T.border}`,
             }}
           >
             <SpaceChatPanel

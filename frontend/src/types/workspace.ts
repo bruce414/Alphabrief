@@ -20,6 +20,26 @@ export interface Chat {
   createdAt: string;
 }
 
+export type ResearchEventType = "search" | "read" | "thinking" | "text";
+
+export interface ResearchEvent {
+  type: ResearchEventType;
+  status?: "running" | "done";
+  query?: string | null;
+  url?: string | null;
+  title?: string | null;
+  publisher?: string | null;
+  text?: string | null;
+  snippet?: string | null;
+}
+
+export interface WebSearchResult {
+  url: string;
+  title: string | null;
+  publisher: string | null;
+  pageAge?: string | null;
+}
+
 export interface ChatTurn {
   id: string;
   chatId: string;
@@ -93,6 +113,7 @@ export interface CandidateElement {
   suggestedElementType: string;
   title: string | null;
   contentMarkdown: string | null;
+  contentJson: Record<string, unknown> | null;
   status: string;
 }
 
@@ -107,14 +128,29 @@ export interface ProjectMemory {
   updatedAt: string;
 }
 
+export type ProjectMemoryRefreshStatus =
+  | "QUEUED"
+  | "RUNNING"
+  | "COMPLETED"
+  | "FAILED"
+  | "NO_ACTIVITY";
+
+export interface ProjectMemoryRefreshResponse {
+  memoryRefreshJobId: string;
+  status: ProjectMemoryRefreshStatus;
+}
+
 export interface Source {
   id: string;
-  projectId?: string;
+  projectId?: string | null;
   title: string | null;
   publisher: string | null;
   sourceType: string;
+  sourceAccessMethod?: string;
   sourceAccessStatus: string;
   normalizedUrl: string | null;
+  origin?: "user" | "ai_web_search" | string | null;
+  createdAt?: string;
 }
 
 export interface ApiError {

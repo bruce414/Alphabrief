@@ -41,4 +41,4 @@ class RefreshProjectMemoryResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     memory_refresh_job_id: UUID = Field(alias="memoryRefreshJobId")
-    status: Literal["QUEUED", "RUNNING", "COMPLETED", "FAILED"]
+    status: Literal["QUEUED", "RUNNING", "COMPLETED", "FAILED", "NO_ACTIVITY"]

@@ -1,7 +1,24 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
+import { UrlPreviewChips } from "@/components/workspace/inline-source-chips";
 import { Icon } from "@/components/workspace/icons";
+import { MAX_USER_MESSAGE_CHARS } from "@/lib/chatLimits";
 import { T } from "@/styles/tokens";
+
+const URL_IN_TEXT = /https?:\/\/[^\s]+/g;
+
+function urlsInText(text: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const m of text.matchAll(URL_IN_TEXT)) {
+    const u = m[0];
+    if (!seen.has(u)) {
+      seen.add(u);
+      out.push(u);
+    }
+  }
+  return out;
+}
 
 export type ApiResearchMode = "QUICK" | "STANDARD" | "DEEP";
 
@@ -15,6 +32,9 @@ const MODE_VALUES: ApiResearchMode[] = ["STANDARD", "QUICK", "DEEP"];
 
 export type ChatInputBarProps = {
   onSend: (text: string, researchMode: ApiResearchMode) => void;
+  /** While the assistant is generating, show a stop control instead of send. */
+  isGenerating?: boolean;
+  onStop?: () => void;
   placeholder?: string;
   disabled?: boolean;
   containerBackground?: string;
@@ -22,6 +42,8 @@ export type ChatInputBarProps = {
 
 export function ChatInputBar({
   onSend,
+  isGenerating = false,
+  onStop,
   placeholder = "Ask, or paste a URL to research...",
   disabled = false,
   containerBackground = T.bgPanel,
@@ -32,7 +54,9 @@ export function ChatInputBar({
   const researchMode = MODE_VALUES[modeIndex];
 
   const trimmed = val.trim();
-  const canSend = trimmed.length > 0 && !disabled;
+  const canSend = trimmed.length > 0 && !disabled && !isGenerating;
+  const showStop = isGenerating && Boolean(onStop);
+  const previewUrls = useMemo(() => urlsInText(val), [val]);
 
   function handleSend() {
     if (!canSend) return;
@@ -56,9 +80,11 @@ export function ChatInputBar({
           overflow: "hidden",
         }}
       >
+        <UrlPreviewChips urls={previewUrls} />
         <textarea
           value={val}
-          disabled={disabled}
+          disabled={disabled || isGenerating}
+          maxLength={MAX_USER_MESSAGE_CHARS}
           onChange={(e) => setVal(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -151,37 +177,67 @@ export function ChatInputBar({
               border: `1px solid ${T.border}`,
               borderRadius: 8,
               background: T.white,
-              cursor: disabled ? "not-allowed" : "pointer",
+              cursor: disabled || isGenerating ? "not-allowed" : "pointer",
               fontFamily: T.fontSans,
               fontSize: 12,
               fontWeight: 500,
               color: T.black,
+              flexShrink: 0,
+              whiteSpace: "nowrap",
+              opacity: isGenerating ? 0.55 : 1,
             }}
           >
             {modeLabel}
             <Icon.ChevronDown />
           </button>
-          <button
-            type="button"
-            disabled={!canSend}
-            onClick={handleSend}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "8px 12px",
-              background: canSend ? T.black : T.gray300,
-              color: T.white,
-              border: "none",
-              borderRadius: 8,
-              cursor: canSend ? "pointer" : "not-allowed",
-              fontFamily: T.fontSans,
-              fontSize: 12,
-              fontWeight: 600,
-            }}
-          >
-            <Icon.Send />
-          </button>
+          {showStop ? (
+            <button
+              type="button"
+              aria-label="Stop generation"
+              title="Stop generation"
+              onClick={() => onStop?.()}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "8px 12px",
+                background: T.black,
+                color: T.white,
+                border: "none",
+                borderRadius: 8,
+                cursor: "pointer",
+                fontFamily: T.fontSans,
+                fontSize: 12,
+                fontWeight: 600,
+                flexShrink: 0,
+              }}
+            >
+              <Icon.Stop width={14} height={14} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={!canSend}
+              onClick={handleSend}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "8px 12px",
+                background: canSend ? T.black : T.gray300,
+                color: T.white,
+                border: "none",
+                borderRadius: 8,
+                cursor: canSend ? "pointer" : "not-allowed",
+                fontFamily: T.fontSans,
+                fontSize: 12,
+                fontWeight: 600,
+                flexShrink: 0,
+              }}
+            >
+              <Icon.Send />
+            </button>
+          )}
         </div>
       </div>
     </div>

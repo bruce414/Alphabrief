@@ -6,6 +6,8 @@ import os
 
 # Resolve Settings before the app imports the async engine.
 os.environ.setdefault("ENVIRONMENT", "test")
+# Keep tests deterministic and avoid importing Anthropic unless explicitly configured in CI.
+os.environ["AI_PROVIDER"] = "mock"
 
 import app.models  # noqa: F401 - register models on Base.metadata
 import pytest_asyncio
