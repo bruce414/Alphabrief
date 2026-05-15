@@ -1,34 +1,20 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 
 import { AlphaBriefLogo } from "@/components/workspace/logo";
 import type { CanvasQuickCreateKind } from "@/components/workspace/infinite-canvas";
 import { Icon } from "@/components/workspace/icons";
 import { useChats } from "@/hooks/useChats";
 import { sortChatsByRecent } from "@/lib/chatSort";
+import { formatRelativeTime } from "@/lib/relativeTime";
 import { T } from "@/styles/tokens";
 import type { Project } from "@/types/workspace";
 
-export type SpaceSidebarTab = "canvas" | "sources" | "memory";
+export type SpaceSidebarTab = "overview" | "canvas" | "sources" | "memory";
 
 export type CanvasSidebarCreateKind = Extract<
   CanvasQuickCreateKind,
   "STICKY_NOTE" | "MINDMAP_NODE" | "GROUP"
 >;
-
-function formatRelativeTime(iso: string | null): string {
-  if (!iso) return "";
-  const then = new Date(iso).getTime();
-  const now = Date.now();
-  const sec = Math.floor((now - then) / 1000);
-  if (sec < 60) return "Just now";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h`;
-  const day = Math.floor(hr / 24);
-  if (day < 7) return `${day}d`;
-  return new Date(iso).toLocaleDateString();
-}
 
 export type SpaceSidebarProps = {
   project: Project;
@@ -42,15 +28,55 @@ export type SpaceSidebarProps = {
   onCreateCanvasElement?: (kind: CanvasSidebarCreateKind) => void;
 };
 
+const SIDEBAR_WIDTH_EXPANDED = 280;
+const SIDEBAR_WIDTH_COLLAPSED = 56;
+
 const tabs: {
   id: SpaceSidebarTab;
   label: string;
   Icon: (typeof Icon)["Canvas"];
 }[] = [
-    { id: "canvas", label: "Canvas", Icon: Icon.Canvas },
-    { id: "sources", label: "Sources", Icon: Icon.Sources },
-    { id: "memory", label: "Memory", Icon: Icon.Memory },
-  ];
+  { id: "overview", label: "Overview", Icon: Icon.Overview },
+  { id: "canvas", label: "Canvas", Icon: Icon.Canvas },
+  { id: "sources", label: "Sources", Icon: Icon.Sources },
+  { id: "memory", label: "Memory", Icon: Icon.Memory },
+];
+
+const iconButtonBase: CSSProperties = {
+  width: 36,
+  height: 36,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  border: "none",
+  background: "transparent",
+  cursor: "pointer",
+  color: T.black,
+  borderRadius: 8,
+};
+
+function UserProfileAvatar({ size = 30 }: { size?: number }) {
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: T.black,
+        color: T.white,
+        fontSize: size <= 28 ? 10 : 11,
+        fontWeight: 700,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+      }}
+      aria-hidden
+    >
+      BZ
+    </div>
+  );
+}
 
 export function SpaceSidebar({
   project,
@@ -64,12 +90,17 @@ export function SpaceSidebar({
   const { chats } = useChats(project.id);
   const orderedChats = sortChatsByRecent(chats);
   const [toolsetsOpen, setToolsetsOpen] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
+
+  const sidebarWidth = collapsed
+    ? SIDEBAR_WIDTH_COLLAPSED
+    : SIDEBAR_WIDTH_EXPANDED;
 
   return (
     <aside
       style={{
-        width: 280,
-        minWidth: 280,
+        width: sidebarWidth,
+        minWidth: sidebarWidth,
         background: T.sidebar,
         borderRight: `1px solid ${T.border}`,
         display: "flex",
@@ -77,6 +108,8 @@ export function SpaceSidebar({
         height: "100vh",
         fontFamily: T.fontSans,
         color: T.black,
+        transition: "width 0.2s ease, min-width 0.2s ease",
+        overflow: "hidden",
       }}
     >
       {/* Top bar */}
@@ -84,61 +117,47 @@ export function SpaceSidebar({
         style={{
           display: "flex",
           alignItems: "center",
-          padding: "14px 16px",
+          justifyContent: collapsed ? "center" : "flex-start",
+          padding: collapsed ? "10px 0" : "14px 16px",
           borderBottom: `1px solid ${T.border}`,
           flexShrink: 0,
         }}
       >
+        {!collapsed ? (
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="Back to research spaces"
+            style={iconButtonBase}
+          >
+            <Icon.Back />
+          </button>
+        ) : null}
+        {!collapsed ? (
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              justifyContent: "center",
+              minWidth: 0,
+            }}
+          >
+            <AlphaBriefLogo size={22} />
+          </div>
+        ) : null}
         <button
           type="button"
-          onClick={onBack}
-          aria-label="Back to research spaces"
-          style={{
-            width: 36,
-            height: 36,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            border: "none",
-            background: "transparent",
-            cursor: "pointer",
-            color: T.black,
-            borderRadius: 8,
-          }}
-        >
-          <Icon.Back />
-        </button>
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            justifyContent: "center",
-            minWidth: 0,
-          }}
-        >
-          <AlphaBriefLogo size={22} />
-        </div>
-        <button
-          type="button"
-          aria-label="Toggle sidebar"
-          style={{
-            width: 36,
-            height: 36,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            border: "none",
-            background: "transparent",
-            cursor: "default",
-            color: T.black,
-            borderRadius: 8,
-          }}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!collapsed}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          onClick={() => setCollapsed((c) => !c)}
+          style={iconButtonBase}
         >
           <Icon.Sidebar />
         </button>
       </div>
 
-      {/* Space info */}
+      {!collapsed ? (
       <div style={{ padding: "20px 20px 16px", flexShrink: 0 }}>
         <div
           style={{
@@ -176,24 +195,34 @@ export function SpaceSidebar({
           </div>
         ) : null}
       </div>
+      ) : null}
 
-      {/* Tab nav */}
-      <nav style={{ flexShrink: 0 }}>
+      {/* Tab nav — always visible; icon-only when collapsed */}
+      <nav
+        style={{
+          flexShrink: 0,
+          flex: collapsed ? 1 : undefined,
+          paddingTop: collapsed ? 4 : 0,
+        }}
+      >
         {tabs.map(({ id, label, Icon: TabIcon }) => {
           const active = activeTab === id;
           return (
             <button
               key={id}
               type="button"
+              title={label}
+              aria-label={label}
               onClick={() => onTabChange(id)}
               style={{
                 width: "100%",
                 display: "flex",
                 alignItems: "center",
-                gap: 10,
-                padding: "9px 20px",
+                justifyContent: collapsed ? "center" : "flex-start",
+                gap: collapsed ? 0 : 10,
+                padding: collapsed ? "10px 0" : "9px 20px",
                 border: "none",
-                borderRadius: 0,
+                borderRadius: collapsed ? 8 : 0,
                 background: active ? T.gray100 : "transparent",
                 cursor: "pointer",
                 fontFamily: T.fontSans,
@@ -209,12 +238,34 @@ export function SpaceSidebar({
                   color: active ? T.black : T.gray400,
                 }}
               />
-              {label}
+              {!collapsed ? label : null}
             </button>
           );
         })}
       </nav>
 
+      {collapsed ? (
+        <div
+          style={{
+            flexShrink: 0,
+            padding: "12px 0",
+            borderTop: `1px solid ${T.border}`,
+            display: "flex",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            title="Bruce Zhang"
+            aria-label="Bruce Zhang"
+            style={{ display: "flex" }}
+          >
+            <UserProfileAvatar />
+          </div>
+        </div>
+      ) : null}
+
+      {!collapsed ? (
+      <>
       <div
         style={{
           height: 1,
@@ -544,23 +595,7 @@ export function SpaceSidebar({
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-            <div
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: "50%",
-                background: T.black,
-                color: T.white,
-                fontSize: 11,
-                fontWeight: 700,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              BZ
-            </div>
+            <UserProfileAvatar />
             <div style={{ minWidth: 0 }}>
               <div
                 style={{
@@ -602,6 +637,8 @@ export function SpaceSidebar({
           </button>
         </div>
       </div>
+      </>
+      ) : null}
     </aside>
   );
 }

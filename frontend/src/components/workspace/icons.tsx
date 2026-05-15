@@ -308,6 +308,27 @@ export function ArrowUpRight(props: IconProps) {
   );
 }
 
+export function Overview(props: IconProps) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  );
+}
+
 export function Canvas(props: IconProps) {
   return (
     <svg
@@ -686,6 +707,25 @@ export function Stop(props: IconProps) {
   );
 }
 
+export function Clock(props: IconProps) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12,7 12,12 15,14" />
+    </svg>
+  );
+}
+
 /** “Return” / submit cue for follow-up question chips. */
 export function ReplyReturn(props: IconProps) {
   return (
@@ -723,6 +763,7 @@ export const Icon = {
   Database,
   ChevronDown,
   ArrowUpRight,
+  Overview,
   Canvas,
   Sources,
   Memory,
@@ -744,4 +785,5 @@ export const Icon = {
   ReplyReturn,
   Trash,
   Stop,
+  Clock,
 };

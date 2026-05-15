@@ -11,6 +11,42 @@ export interface Project {
   updatedAt: string;
 }
 
+export interface ProjectOverviewStatus {
+  totalNodes: number;
+  totalSources: number;
+  openQuestionsCount: number;
+  unsupportedClaimsCount: number;
+  updatesAvailableCount: number;
+  lastCheckedAt: string | null;
+}
+
+export interface ProjectOverview {
+  id: string;
+  title: string;
+  description: string | null;
+  researchGoal: string | null;
+  researchType: string | null;
+  includedTopics: string[];
+  excludedTopics: string[];
+  targetEntities: string[];
+  timeHorizon: string | null;
+  createdAt: string;
+  updatedAt: string;
+  status: ProjectOverviewStatus;
+}
+
+export type PatchProjectOverview = Partial<
+  Pick<
+    ProjectOverview,
+    | "researchGoal"
+    | "researchType"
+    | "includedTopics"
+    | "excludedTopics"
+    | "targetEntities"
+    | "timeHorizon"
+  >
+>;
+
 export interface Chat {
   id: string;
   projectId: string;

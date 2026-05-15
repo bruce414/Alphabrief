@@ -5,7 +5,8 @@ import {
   InfiniteCanvas,
   type InfiniteCanvasHandle,
 } from '@/components/workspace/infinite-canvas'
-import { Icon } from '@/components/workspace/icons'
+import { CanvasStatusPill } from '@/components/workspace/canvas-status-pill'
+import { CanvasViewControls } from '@/components/workspace/canvas-view-controls'
 import { SpaceChatPanel } from '@/components/workspace/space-chat-panel'
 import {
   SpaceSidebar,
@@ -13,6 +14,7 @@ import {
 } from '@/components/workspace/space-sidebar'
 import { SpaceLoading } from '@/components/workspace/space-loading'
 import { WorkspaceMemoryPanel } from '@/components/workspace/workspace-memory-panel'
+import { WorkspaceOverviewPanel } from '@/components/workspace/workspace-overview-panel'
 import { WorkspaceSourcesPanel } from '@/components/workspace/workspace-sources-panel'
 import { useChats } from '@/hooks/useChats'
 import { sortChatsByRecent } from '@/lib/chatSort'
@@ -31,7 +33,6 @@ export function ResearchWorkspaceView() {
 
   const [activeTab, setActiveTab] = useState<SpaceSidebarTab>('canvas')
   const [loading, setLoading] = useState(true)
-  const [aiIntelligenceOn, setAiIntelligenceOn] = useState(true)
   const [activeChatId, setActiveChatId] = useState<string | null>(null)
   const [chatWidth, setChatWidth] = useState(() =>
     Math.min(CHAT_PANEL_MAX_PX, Math.max(CHAT_PANEL_MIN_PX, 480)),
@@ -161,6 +162,9 @@ export function ResearchWorkspaceView() {
               background: T.workspaceDashboard,
             }}
           >
+            {activeTab === 'overview' ? (
+              <WorkspaceOverviewPanel project={project} />
+            ) : null}
             {activeTab === 'canvas' ? (
               <div
                 style={{
@@ -172,69 +176,8 @@ export function ResearchWorkspaceView() {
                   width: '100%',
                 }}
               >
-                {/* Fixed overlays (do not move with canvas) */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 12,
-                    left: 12,
-                    zIndex: 20,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    background: T.workspaceTopBar,
-                    border: `1px solid ${T.border}`,
-                    borderRadius: 12,
-                    padding: '6px 14px',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
-                  }}
-                >
-                  <Icon.Agent style={{ color: T.black }} />
-                  <span
-                    style={{
-                      fontFamily: T.fontSans,
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: T.black,
-                    }}
-                  >
-                    AI Intelligence
-                  </span>
-                  <div
-                    style={{
-                      width: 32,
-                      height: 18,
-                      background: aiIntelligenceOn ? T.black : T.gray300,
-                      borderRadius: 10,
-                      position: 'relative',
-                      marginLeft: 4,
-                      cursor: 'pointer',
-                    }}
-                    role="switch"
-                    aria-checked={aiIntelligenceOn}
-                    tabIndex={0}
-                    onClick={() => setAiIntelligenceOn((v) => !v)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        setAiIntelligenceOn((v) => !v)
-                      }
-                    }}
-                  >
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: aiIntelligenceOn ? undefined : 2,
-                        right: aiIntelligenceOn ? 2 : undefined,
-                        top: 2,
-                        width: 14,
-                        height: 14,
-                        borderRadius: '50%',
-                        background: 'white',
-                      }}
-                    />
-                  </div>
-                </div>
+                <CanvasViewControls canvasRef={canvasRef} />
+                <CanvasStatusPill projectId={project.id} />
 
                 <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
                   <InfiniteCanvas ref={canvasRef} projectId={project.id} />

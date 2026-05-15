@@ -7,8 +7,10 @@ import type {
   Chat,
   ChatTurn,
   Project,
+  PatchProjectOverview,
   ProjectMemory,
   ProjectMemoryRefreshResponse,
+  ProjectOverview,
   SendMessageResponse,
   Source,
 } from "../types/workspace";
@@ -250,6 +252,20 @@ export function patchCanvasConnection(
 export function deleteCanvasConnection(connectionId: string): Promise<void> {
   return apiFetch(`/canvas-connections/${encodeURIComponent(connectionId)}`, {
     method: "DELETE",
+  });
+}
+
+export function getProjectOverview(projectId: string): Promise<ProjectOverview> {
+  return apiFetch(`/projects/${encodeURIComponent(projectId)}/overview`);
+}
+
+export function patchProjectOverview(
+  projectId: string,
+  patch: PatchProjectOverview,
+): Promise<ProjectOverview> {
+  return apiFetch(`/projects/${encodeURIComponent(projectId)}/overview`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
   });
 }
 

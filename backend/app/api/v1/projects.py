@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
@@ -18,11 +19,25 @@ from app.schemas.project import (
     ProjectListResponse,
     ProjectResponse,
 )
+from app.schemas.project_overview import (
+    OverviewResponse,
+    OverviewStatusResponse,
+    PatchOverviewRequest,
+)
 from app.schemas.source import SourceListResponse, SourceSummaryResponse
-from app.services.project_service import ProjectCounts, ProjectService
+from app.services.project_service import OverviewPatchFields, ProjectCounts, ProjectService
+from app.services.update_check_service import run_update_check
 
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+def _jsonb_str_list(raw: Any) -> list[str]:
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return [item for item in raw if isinstance(item, str)]
+    return []
 
 
 def _to_project_response(project, counts: ProjectCounts) -> ProjectResponse:
@@ -110,6 +125,88 @@ async def patch_project(
     )
     counts = await svc.counts_for_single_project(db=db, project_id=project.id)
     return _to_project_response(project, counts)
+
+
+def _to_overview_response(project, counts: ProjectCounts) -> OverviewResponse:
+    return OverviewResponse(
+        id=project.id,
+        title=project.title,
+        description=project.description,
+        researchGoal=project.research_goal,
+        researchType=project.research_type,
+        includedTopics=_jsonb_str_list(project.included_topics),
+        excludedTopics=_jsonb_str_list(project.excluded_topics),
+        targetEntities=_jsonb_str_list(project.target_entities),
+        timeHorizon=project.time_horizon,
+        createdAt=project.created_at,
+        updatedAt=project.updated_at,
+        status=OverviewStatusResponse(
+            totalNodes=counts.canvas_element_count,
+            totalSources=counts.source_count,
+            openQuestionsCount=0,
+            unsupportedClaimsCount=0,
+            updatesAvailableCount=project.updates_available_count,
+            lastCheckedAt=project.last_checked_at,
+        ),
+    )
+
+
+@router.get("/{project_id}/overview", response_model=OverviewResponse)
+async def get_project_overview(
+    project_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> OverviewResponse:
+    repo = ProjectRepository(db)
+    svc = ProjectService(repo)
+    project = await svc.get_project_or_forbidden(user=current_user, project_id=project_id)
+    counts = await svc.counts_for_single_project(db=db, project_id=project.id)
+    return _to_overview_response(project, counts)
+
+
+@router.post("/{project_id}/overview/check-updates", response_model=OverviewResponse)
+async def check_project_overview_updates(
+    project_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> OverviewResponse:
+    repo = ProjectRepository(db)
+    svc = ProjectService(repo)
+    await svc.get_project_or_forbidden(user=current_user, project_id=project_id)
+    project = await run_update_check(db, project_id)
+    counts = await svc.counts_for_single_project(db=db, project_id=project.id)
+    return _to_overview_response(project, counts)
+
+
+@router.patch("/{project_id}/overview", response_model=OverviewResponse)
+async def patch_project_overview(
+    project_id: UUID,
+    data: PatchOverviewRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> OverviewResponse:
+    repo = ProjectRepository(db)
+    svc = ProjectService(repo)
+
+    fields: OverviewPatchFields = {}
+    if "research_goal" in data.model_fields_set:
+        fields["research_goal"] = data.research_goal
+    if "research_type" in data.model_fields_set:
+        fields["research_type"] = data.research_type
+    if "included_topics" in data.model_fields_set:
+        fields["included_topics"] = data.included_topics
+    if "excluded_topics" in data.model_fields_set:
+        fields["excluded_topics"] = data.excluded_topics
+    if "target_entities" in data.model_fields_set:
+        fields["target_entities"] = data.target_entities
+    if "time_horizon" in data.model_fields_set:
+        fields["time_horizon"] = data.time_horizon
+
+    project = await svc.patch_overview(
+        user=current_user, project_id=project_id, fields=fields
+    )
+    counts = await svc.counts_for_single_project(db=db, project_id=project.id)
+    return _to_overview_response(project, counts)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

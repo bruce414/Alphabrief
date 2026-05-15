@@ -147,7 +147,35 @@ const ZOOM_MIN = 0.02;
 const ZOOM_MAX = 1.5;
 const ZOOM_DEFAULT = 1;
 const ZOOM_WHEEL_STEP = 0.004;
-const ZOOM_BUTTON_STEP = 0.05;
+
+const SEMANTIC_CLUSTER_TO_NODE = 0.65;
+const SEMANTIC_NODE_TO_CLUSTER = 0.55;
+
+type SemanticZoomLevel = "cluster" | "node";
+
+function countNodesInGroup(
+  group: CanvasElement,
+  elements: CanvasElement[],
+  dragPositions: Record<string, { x: number; y: number }>,
+  measuredHeights: Record<string, number>,
+): number {
+  const bounds = elementDisplayBounds(group, dragPositions, measuredHeights);
+  let n = 0;
+  for (const el of elements) {
+    const type = (el.elementType ?? "TEXT").toUpperCase();
+    if (type === "GROUP") continue;
+    const { cx, cy } = elementCenter(el, dragPositions, measuredHeights);
+    if (
+      cx >= bounds.x &&
+      cx <= bounds.x + bounds.w &&
+      cy >= bounds.y &&
+      cy <= bounds.y + bounds.h
+    ) {
+      n += 1;
+    }
+  }
+  return n;
+}
 
 export function useCanvas(projectId: string | undefined) {
   const canvasKey = projectId ? (["canvas", projectId] as const) : null;
@@ -298,6 +326,9 @@ export type CanvasQuickCreateKind = (typeof CREATION_TYPES)[number]["elementType
 
 export type InfiniteCanvasHandle = {
   createElement: (kind: CanvasQuickCreateKind) => void;
+  getZoom: () => number;
+  setZoom: (z: number) => void;
+  subscribeZoom: (cb: (z: number) => void) => () => void;
 };
 
 const CREATION_BY_KIND = new Map<CanvasQuickCreateKind, (typeof CREATION_TYPES)[number]>(
@@ -397,9 +428,55 @@ export const InfiniteCanvas = forwardRef<
   };
 
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(ZOOM_DEFAULT);
-  const [zoomPctDraft, setZoomPctDraft] = useState<string | null>(null);
+  const [zoom, setZoomState] = useState(ZOOM_DEFAULT);
+  const [semanticZoomLevel, setSemanticZoomLevel] =
+    useState<SemanticZoomLevel>("node");
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  const zoomListenersRef = useRef(new Set<(z: number) => void>());
   const [isPanning, setIsPanning] = useState(false);
+
+  const setZoom = useCallback((next: number | ((z: number) => number)) => {
+    setZoomState((z) => {
+      const resolved = typeof next === "function" ? next(z) : next;
+      return clamp(ZOOM_MIN, resolved, ZOOM_MAX);
+    });
+  }, []);
+
+  useEffect(() => {
+    zoomListenersRef.current.forEach((cb) => cb(zoom));
+  }, [zoom]);
+
+  useEffect(() => {
+    setSemanticZoomLevel((prev) => {
+      if (prev === "cluster" && zoom > SEMANTIC_CLUSTER_TO_NODE) return "node";
+      if (prev === "node" && zoom < SEMANTIC_NODE_TO_CLUSTER) return "cluster";
+      return prev;
+    });
+  }, [zoom]);
+
+  const visibleElements = useMemo(() => {
+    if (semanticZoomLevel === "node") return displayElements;
+    return displayElements.filter(
+      (e) => (e.elementType ?? "TEXT").toUpperCase() === "GROUP",
+    );
+  }, [displayElements, semanticZoomLevel]);
+
+  const visibleElementIds = useMemo(
+    () => new Set(visibleElements.map((e) => e.id)),
+    [visibleElements],
+  );
+
+  const visibleConnections = useMemo(
+    () =>
+      displayConnections.filter(
+        (c) =>
+          visibleElementIds.has(c.fromElementId) &&
+          visibleElementIds.has(c.toElementId),
+      ),
+    [displayConnections, visibleElementIds],
+  );
+
   const startPanRef = useRef<{
     mouseX: number;
     mouseY: number;
@@ -443,10 +520,7 @@ export const InfiniteCanvas = forwardRef<
       // Always prevent browser/page scrolling while interacting with canvas.
       e.preventDefault();
       if (e.ctrlKey || e.metaKey) {
-        setZoomPctDraft(null);
-        setZoom((z) =>
-          clamp(ZOOM_MIN, z - e.deltaY * ZOOM_WHEEL_STEP, ZOOM_MAX),
-        );
+        setZoom((z) => z - e.deltaY * ZOOM_WHEEL_STEP);
         return;
       }
       setPan((p) => ({ x: p.x - e.deltaX, y: p.y - e.deltaY }));
@@ -512,7 +586,7 @@ export const InfiniteCanvas = forwardRef<
       const targetId = findElementIdAtWorldPoint(
         wx,
         wy,
-        displayElements,
+        visibleElements,
         dragPositions,
         measuredHeights,
       );
@@ -532,7 +606,7 @@ export const InfiniteCanvas = forwardRef<
   }, [
     canvasId,
     connectingFromId,
-    displayElements,
+    visibleElements,
     dragPositions,
     mutateConnections,
     pan.x,
@@ -565,19 +639,6 @@ export const InfiniteCanvas = forwardRef<
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [deleteDialog]);
-
-  const zoomPct = Math.round(zoom * 100);
-  const zoomPctDisplay =
-    zoomPctDraft !== null ? zoomPctDraft : String(zoomPct);
-
-  function commitZoomPercentFromInput() {
-    const raw = (zoomPctDraft ?? "").trim();
-    const n = parseInt(raw, 10);
-    if (Number.isFinite(n)) {
-      setZoom(clamp(ZOOM_MIN, n / 100, ZOOM_MAX));
-    }
-    setZoomPctDraft(null);
-  }
 
   const worldCenter = useMemo(() => {
     const x = (viewport.w / 2 - pan.x) / zoom;
@@ -619,15 +680,24 @@ export const InfiniteCanvas = forwardRef<
         const spec = CREATION_BY_KIND.get(kind);
         if (spec) void onCreateElement(spec);
       },
+      getZoom: () => zoomRef.current,
+      setZoom: (z: number) => setZoom(z),
+      subscribeZoom(cb: (z: number) => void) {
+        zoomListenersRef.current.add(cb);
+        cb(zoomRef.current);
+        return () => {
+          zoomListenersRef.current.delete(cb);
+        };
+      },
     }),
-    [onCreateElement],
+    [onCreateElement, setZoom],
   );
 
   const elementById = useMemo(() => {
     const m = new Map<string, CanvasElement>();
-    for (const e of displayElements) m.set(e.id, e);
+    for (const e of visibleElements) m.set(e.id, e);
     return m;
-  }, [displayElements]);
+  }, [visibleElements]);
 
   const svgMarkerPrefix = useId().replace(/:/g, "");
   const markerArrow = `conn-arrow-${svgMarkerPrefix}`;
@@ -801,7 +871,7 @@ export const InfiniteCanvas = forwardRef<
               <polygon points="0 0, 7 3.5, 0 7" fill={T.black} />
             </marker>
           </defs>
-          {displayConnections.map((c) => {
+          {visibleConnections.map((c) => {
             const from = elementById.get(c.fromElementId);
             const to = elementById.get(c.toElementId);
             if (!from || !to) return null;
@@ -901,7 +971,7 @@ export const InfiniteCanvas = forwardRef<
           </p>
         </div>
 
-        {displayElements.length === 0 ? (
+        {visibleElements.length === 0 ? (
           <div
             style={{
               position: "absolute",
@@ -921,7 +991,7 @@ export const InfiniteCanvas = forwardRef<
           </div>
         ) : null}
 
-        {displayElements.map((el) => {
+        {visibleElements.map((el) => {
           const type = (el.elementType ?? "TEXT").toUpperCase();
           const dims = layoutDimensions(el, type);
           const w = dims.w;
@@ -1188,6 +1258,15 @@ export const InfiniteCanvas = forwardRef<
 
           if (type === "GROUP") {
             const title = el.title?.trim() || "Group";
+            const nodeCount =
+              semanticZoomLevel === "cluster"
+                ? countNodesInGroup(
+                    el,
+                    displayElements,
+                    dragPositions,
+                    measuredHeights,
+                  )
+                : 0;
             return (
               <div
                 key={el.id}
@@ -1200,10 +1279,33 @@ export const InfiniteCanvas = forwardRef<
                   ...outerStyle,
                   display: "flex",
                   flexDirection: "column",
+                  position: "relative",
                 }}
                 onMouseDown={onCardMouseDown}
               >
                 {trashBtn}
+                {semanticZoomLevel === "cluster" ? (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 8,
+                      right: 8,
+                      zIndex: 3,
+                      fontFamily: T.fontSans,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: T.black,
+                      background: T.white,
+                      border: `1px solid ${T.border}`,
+                      borderRadius: 999,
+                      padding: "4px 10px",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    {nodeCount} node{nodeCount === 1 ? "" : "s"}
+                  </div>
+                ) : null}
                 <div
                   style={{
                     padding: "8px 12px",
@@ -1340,140 +1442,6 @@ export const InfiniteCanvas = forwardRef<
             </div>
           );
         })}
-      </div>
-
-      {/* Zoom controls */}
-      <div
-        style={{
-          position: "absolute",
-          top: 16,
-          right: 16,
-          zIndex: 10,
-          background: T.white,
-          border: `1px solid ${T.border}`,
-          borderRadius: 8,
-          padding: 4,
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
-        }}
-      >
-        <button
-          type="button"
-          aria-label="Zoom out"
-          onClick={() => {
-            setZoomPctDraft(null);
-            setZoom((z) =>
-              clamp(ZOOM_MIN, z - ZOOM_BUTTON_STEP, ZOOM_MAX),
-            );
-          }}
-          style={{
-            border: "none",
-            background: "transparent",
-            cursor: "pointer",
-            padding: "6px 8px",
-            borderRadius: 6,
-            color: T.black,
-            fontFamily: T.fontSans,
-            fontSize: 14,
-            fontWeight: 700,
-          }}
-        >
-          −
-        </button>
-        <input
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          title="Zoom 2–150%"
-          aria-label="Zoom percent (2 to 150)"
-          value={zoomPctDisplay}
-          onChange={(e) => setZoomPctDraft(e.target.value)}
-          onFocus={() => setZoomPctDraft(String(zoomPct))}
-          onBlur={() => commitZoomPercentFromInput()}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              commitZoomPercentFromInput();
-              (e.target as HTMLInputElement).blur();
-            }
-            if (e.key === "Escape") {
-              setZoomPctDraft(null);
-              (e.target as HTMLInputElement).blur();
-            }
-          }}
-          style={{
-            fontFamily: T.fontSans,
-            fontSize: 12,
-            fontWeight: 700,
-            color: T.black,
-            width: 50,
-            textAlign: "center",
-            border: "none",
-            background: "transparent",
-            padding: "4px 2px",
-            outline: "none",
-            borderRadius: 4,
-          }}
-        />
-        <span
-          style={{
-            fontFamily: T.fontSans,
-            fontSize: 11,
-            fontWeight: 600,
-            color: T.gray500,
-            marginLeft: -4,
-            marginRight: 2,
-          }}
-        >
-          %
-        </span>
-        <button
-          type="button"
-          aria-label="Zoom in"
-          onClick={() => {
-            setZoomPctDraft(null);
-            setZoom((z) =>
-              clamp(ZOOM_MIN, z + ZOOM_BUTTON_STEP, ZOOM_MAX),
-            );
-          }}
-          style={{
-            border: "none",
-            background: "transparent",
-            cursor: "pointer",
-            padding: "6px 8px",
-            borderRadius: 6,
-            color: T.black,
-            fontFamily: T.fontSans,
-            fontSize: 14,
-            fontWeight: 700,
-          }}
-        >
-          +
-        </button>
-        <span style={{ color: T.gray300, padding: "0 2px" }}>|</span>
-        <button
-          type="button"
-          onClick={() => {
-            setPan({ x: 0, y: 0 });
-            setZoom(ZOOM_DEFAULT);
-            setZoomPctDraft(null);
-          }}
-          style={{
-            border: "none",
-            background: "transparent",
-            cursor: "pointer",
-            padding: "6px 10px",
-            borderRadius: 6,
-            color: T.gray500,
-            fontFamily: T.fontSans,
-            fontSize: 12,
-            fontWeight: 700,
-          }}
-        >
-          reset
-        </button>
       </div>
 
       {/* Bottom toolbar */}

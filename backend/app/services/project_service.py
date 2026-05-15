@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import TypedDict
 from uuid import UUID
 
 from fastapi import status
@@ -27,6 +28,15 @@ from app.services.project_memory_service import ProjectMemoryService
 
 def _now_utc() -> datetime:
     return datetime.now(UTC)
+
+
+class OverviewPatchFields(TypedDict, total=False):
+    research_goal: str | None
+    research_type: str | None
+    included_topics: list[str] | None
+    excluded_topics: list[str] | None
+    target_entities: list[str] | None
+    time_horizon: str | None
 
 
 @dataclass(frozen=True)
@@ -261,3 +271,27 @@ class ProjectService:
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
         await self._repo.delete(project)
+
+    async def patch_overview(
+        self,
+        *,
+        user: User,
+        project_id: UUID,
+        fields: OverviewPatchFields,
+    ) -> Project:
+        project = await self.get_project_or_forbidden(user=user, project_id=project_id)
+
+        if "research_goal" in fields:
+            project.research_goal = fields["research_goal"]
+        if "research_type" in fields:
+            project.research_type = fields["research_type"]
+        if "included_topics" in fields:
+            project.included_topics = fields["included_topics"] or []
+        if "excluded_topics" in fields:
+            project.excluded_topics = fields["excluded_topics"] or []
+        if "target_entities" in fields:
+            project.target_entities = fields["target_entities"] or []
+        if "time_horizon" in fields:
+            project.time_horizon = fields["time_horizon"]
+
+        return await self._repo.update(project)
