@@ -101,6 +101,8 @@ class ProvenanceKind(str, Enum):
     MANUAL = "MANUAL"
     CANDIDATE = "CANDIDATE"
     GENERATED = "GENERATED"
+    AI_ONBOARDING = "AI_ONBOARDING"
+    AI_AUTO_DIRECTION = "AI_AUTO_DIRECTION"
 
 
 class CanvasElementType(str, Enum):
@@ -117,6 +119,7 @@ class CanvasElementType(str, Enum):
     MINDMAP_NODE = "MINDMAP_NODE"
     GROUP = "GROUP"
     STICKY_NOTE = "STICKY_NOTE"
+    DIRECTION = "DIRECTION"
 
 
 class ConnectionType(str, Enum):

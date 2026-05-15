@@ -19,6 +19,7 @@ import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import useSWR from "swr";
 
+import { CandidateGhostLayer } from "@/components/workspace/canvas-ghost-layer";
 import { Icon } from "@/components/workspace/icons";
 import { useProjects } from "@/hooks/useProjects";
 import { apiFetch } from "@/lib/api";
@@ -179,7 +180,11 @@ function countNodesInGroup(
 
 export function useCanvas(projectId: string | undefined) {
   const canvasKey = projectId ? (["canvas", projectId] as const) : null;
-  const { data: canvas, mutate: mutateCanvas } = useSWR<Canvas>(
+  const {
+    data: canvas,
+    mutate: mutateCanvas,
+    isLoading: isCanvasLoading,
+  } = useSWR<Canvas>(
     canvasKey,
     async () => apiFetch<Canvas>(`/projects/${projectId}/canvas`),
   );
@@ -193,15 +198,16 @@ export function useCanvas(projectId: string | undefined) {
     ? (["canvasConnections", canvasId] as const)
     : null;
 
-  const { data: elementsRes, mutate: mutateElements } = useSWR<
-    ListResponse<CanvasElement>
-  >(elementsKey, async () =>
-    apiFetch<ListResponse<CanvasElement>>(`/canvases/${canvasId}/elements`),
-  );
+  const { data: elementsRes, mutate: mutateElements, isLoading: isElementsLoading } =
+    useSWR<ListResponse<CanvasElement>>(elementsKey, async () =>
+      apiFetch<ListResponse<CanvasElement>>(`/canvases/${canvasId}/elements`),
+    );
 
-  const { data: connections, mutate: mutateConnections } = useSWR<
-    CanvasConnection[]
-  >(connectionsKey, async () => {
+  const {
+    data: connections,
+    mutate: mutateConnections,
+    isLoading: isConnectionsLoading,
+  } = useSWR<CanvasConnection[]>(connectionsKey, async () => {
     if (!canvasId) return [];
     return listCanvasConnections(canvasId);
   });
@@ -213,10 +219,16 @@ export function useCanvas(projectId: string | undefined) {
     await Promise.all([mutateElements(), mutateConnections()]);
   };
 
+  const isLoading =
+    Boolean(projectId) &&
+    (isCanvasLoading ||
+      (Boolean(canvasId) && (isElementsLoading || isConnectionsLoading)));
+
   return {
     canvas: canvas ?? null,
     elements: elementsRes?.items ?? [],
     connections: connections ?? [],
+    isLoading,
     mutate,
     mutateConnections,
   };
@@ -329,6 +341,8 @@ export type InfiniteCanvasHandle = {
   getZoom: () => number;
   setZoom: (z: number) => void;
   subscribeZoom: (cb: (z: number) => void) => () => void;
+  getSemanticZoomLevel: () => SemanticZoomLevel;
+  subscribeSemanticZoom: (cb: (level: SemanticZoomLevel) => void) => () => void;
 };
 
 const CREATION_BY_KIND = new Map<CanvasQuickCreateKind, (typeof CREATION_TYPES)[number]>(
@@ -337,8 +351,8 @@ const CREATION_BY_KIND = new Map<CanvasQuickCreateKind, (typeof CREATION_TYPES)[
 
 export const InfiniteCanvas = forwardRef<
   InfiniteCanvasHandle,
-  { projectId: string }
->(function InfiniteCanvas({ projectId }, forwardedRef) {
+  { projectId: string; chatId?: string | null }
+>(function InfiniteCanvas({ projectId, chatId = null }, forwardedRef) {
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
   const { projects } = useProjects();
@@ -434,6 +448,11 @@ export const InfiniteCanvas = forwardRef<
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
   const zoomListenersRef = useRef(new Set<(z: number) => void>());
+  const semanticZoomRef = useRef(semanticZoomLevel);
+  semanticZoomRef.current = semanticZoomLevel;
+  const semanticZoomListenersRef = useRef(
+    new Set<(level: SemanticZoomLevel) => void>(),
+  );
   const [isPanning, setIsPanning] = useState(false);
 
   const setZoom = useCallback((next: number | ((z: number) => number)) => {
@@ -446,6 +465,12 @@ export const InfiniteCanvas = forwardRef<
   useEffect(() => {
     zoomListenersRef.current.forEach((cb) => cb(zoom));
   }, [zoom]);
+
+  useEffect(() => {
+    semanticZoomListenersRef.current.forEach((cb) =>
+      cb(semanticZoomLevel),
+    );
+  }, [semanticZoomLevel]);
 
   useEffect(() => {
     setSemanticZoomLevel((prev) => {
@@ -687,6 +712,14 @@ export const InfiniteCanvas = forwardRef<
         cb(zoomRef.current);
         return () => {
           zoomListenersRef.current.delete(cb);
+        };
+      },
+      getSemanticZoomLevel: () => semanticZoomRef.current,
+      subscribeSemanticZoom(cb: (level: SemanticZoomLevel) => void) {
+        semanticZoomListenersRef.current.add(cb);
+        cb(semanticZoomRef.current);
+        return () => {
+          semanticZoomListenersRef.current.delete(cb);
         };
       },
     }),
@@ -989,6 +1022,18 @@ export const InfiniteCanvas = forwardRef<
           >
             Your canvas is empty. Add an element using the toolbar above.
           </div>
+        ) : null}
+
+        {canvasId && chatId ? (
+          <CandidateGhostLayer
+            projectId={projectId}
+            chatId={chatId}
+            canvasId={canvasId}
+            semanticZoomLevel={semanticZoomLevel}
+            pan={pan}
+            zoom={zoom}
+            viewport={viewport}
+          />
         ) : null}
 
         {visibleElements.map((el) => {

@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Callable
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
@@ -27,6 +27,7 @@ from app.services.candidate_extraction_service import (
 )
 from app.services.chat_prompt_builder import build_chat_prompt
 from app.services.chat_validation_service import validate_chat_reply
+from app.services.onboarding_service import ensure_direction_for_canvas
 from app.services.reply_tail_sections import parse_reply_tail_sections
 
 logger = logging.getLogger(__name__)
@@ -318,6 +319,26 @@ async def _persist_web_search_sources(
     return out_ids
 
 
+async def _count_project_chats_with_auto_title(
+    *,
+    db: AsyncSession,
+    project_id: UUID,
+    exclude_chat_id: UUID | None = None,
+) -> int:
+    stmt = (
+        select(func.count())
+        .select_from(Chat)
+        .where(
+            Chat.project_id == project_id,
+            Chat.metadata_.contains({"auto_title_generated": True}),
+        )
+    )
+    if exclude_chat_id is not None:
+        stmt = stmt.where(Chat.id != exclude_chat_id)
+    result = await db.execute(stmt)
+    return int(result.scalar_one())
+
+
 async def _maybe_generate_title(
     *,
     db: AsyncSession,
@@ -332,6 +353,16 @@ async def _maybe_generate_title(
     meta = dict(chat.metadata_ or {})
     if meta.get("auto_title_generated"):
         return
+
+    is_first_project_auto_title = (
+        await _count_project_chats_with_auto_title(
+            db=db,
+            project_id=chat.project_id,
+            exclude_chat_id=chat.id,
+        )
+        == 0
+    )
+
     try:
         title = await ai_client.generate_chat_title(
             user_message=user_message,
@@ -350,6 +381,9 @@ async def _maybe_generate_title(
     chat.metadata_ = meta
     flag_modified(chat, "metadata_")
     await db.commit()
+
+    if is_first_project_auto_title:
+        await ensure_direction_for_canvas(db, chat.project_id, title)
 
 
 async def _mark_failed(*, asst_turn_id: UUID, db: AsyncSession, error_code: str) -> None:

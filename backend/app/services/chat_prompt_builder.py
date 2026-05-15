@@ -3,14 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.clients.ai_provider_client import ChatPrompt
+from app.core.config import settings
 from app.models.chat import Chat
 from app.models.project import Project
 from app.models.source import Source
 from app.models.chat_turn import ChatTurn
 
 
-# Inline constant per PR #9b prompt.
-PROMPT_MAX_CHARS = 80_000
+# Documented default; `build_chat_prompt` reads `settings.chat_prompt_max_chars`.
+PROMPT_MAX_CHARS = 200_000
 
 
 def _source_display_url(src: Source) -> str:
@@ -98,10 +99,12 @@ def build_chat_prompt(*, chat: Chat, project: Project, prior_turns: list[ChatTur
             len(h.get("role", "")) + len(h.get("content_markdown", "")) for h in p.history
         )
 
-    while prompt_len(prompt) > PROMPT_MAX_CHARS and prompt.history:
+    cap = settings.chat_prompt_max_chars
+
+    while prompt_len(prompt) > cap and prompt.history:
         prompt.history.pop(0)
 
-    if prompt_len(prompt) > PROMPT_MAX_CHARS and sources:
+    if prompt_len(prompt) > cap and sources:
         # Rebuild attached sources section with progressively smaller snippet budget.
         # Keep user message and source titles/URLs.
         for snippet_limit in (250, 120, 60, 0):
@@ -122,12 +125,12 @@ def build_chat_prompt(*, chat: Chat, project: Project, prior_turns: list[ChatTur
                 user=prompt.user,
                 attached_sources_section="\n".join(lines).strip(),
             )
-            if prompt_len(prompt) <= PROMPT_MAX_CHARS:
+            if prompt_len(prompt) <= cap:
                 break
 
-    if prompt_len(prompt) > PROMPT_MAX_CHARS:
+    if prompt_len(prompt) > cap:
         # Last resort: truncate user message (priority says keep it, but must obey hard cap).
-        budget = max(0, PROMPT_MAX_CHARS - (len(prompt.system) + len(prompt.attached_sources_section)))
+        budget = max(0, cap - (len(prompt.system) + len(prompt.attached_sources_section)))
         prompt = ChatPrompt(
             system=prompt.system,
             history=[],

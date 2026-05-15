@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { forwardRef, useMemo, useState } from "react";
 
 import { UrlPreviewChips } from "@/components/workspace/inline-source-chips";
 import { Icon } from "@/components/workspace/icons";
@@ -40,14 +40,18 @@ export type ChatInputBarProps = {
   containerBackground?: string;
 };
 
-export function ChatInputBar({
-  onSend,
-  isGenerating = false,
-  onStop,
-  placeholder = "Ask, or paste a URL to research...",
-  disabled = false,
-  containerBackground = T.bgPanel,
-}: ChatInputBarProps) {
+export const ChatInputBar = forwardRef<HTMLTextAreaElement, ChatInputBarProps>(
+  function ChatInputBar(
+    {
+      onSend,
+      isGenerating = false,
+      onStop,
+      placeholder = "Ask, or paste a URL to research...",
+      disabled = false,
+      containerBackground = T.bgPanel,
+    },
+    ref,
+  ) {
   const [val, setVal] = useState("");
   const [modeIndex, setModeIndex] = useState(0);
   const modeLabel = MODE_LABELS[modeIndex];
@@ -82,6 +86,7 @@ export function ChatInputBar({
       >
         <UrlPreviewChips urls={previewUrls} />
         <textarea
+          ref={ref}
           value={val}
           disabled={disabled || isGenerating}
           maxLength={MAX_USER_MESSAGE_CHARS}
@@ -242,4 +247,5 @@ export function ChatInputBar({
       </div>
     </div>
   );
-}
+  },
+);

@@ -1,10 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import {
   InfiniteCanvas,
+  useCanvas,
   type InfiniteCanvasHandle,
 } from '@/components/workspace/infinite-canvas'
+import {
+  OnboardingModal,
+  readOnboardingDismissed,
+  writeOnboardingDismissed,
+} from '@/components/workspace/onboarding-modal'
 import { CanvasStatusPill } from '@/components/workspace/canvas-status-pill'
 import { CanvasViewControls } from '@/components/workspace/canvas-view-controls'
 import { SpaceChatPanel } from '@/components/workspace/space-chat-panel'
@@ -17,6 +23,7 @@ import { WorkspaceMemoryPanel } from '@/components/workspace/workspace-memory-pa
 import { WorkspaceOverviewPanel } from '@/components/workspace/workspace-overview-panel'
 import { WorkspaceSourcesPanel } from '@/components/workspace/workspace-sources-panel'
 import { useChats } from '@/hooks/useChats'
+import { useProjectOverview } from '@/hooks/useProjectOverview'
 import { sortChatsByRecent } from '@/lib/chatSort'
 import { useProjects } from '@/hooks/useProjects'
 import { T } from '@/styles/tokens'
@@ -43,8 +50,15 @@ export function ResearchWorkspaceView() {
   } | null>(null)
 
   const canvasRef = useRef<InfiniteCanvasHandle>(null)
+  const chatInputRef = useRef<HTMLTextAreaElement>(null)
 
-  const { chats } = useChats(project?.id)
+  const { chats, isLoading: chatsLoading } = useChats(project?.id)
+  const { overview, isLoading: overviewLoading } = useProjectOverview(project?.id)
+  const { elements, isLoading: canvasDataLoading } = useCanvas(project?.id)
+
+  const [onboardingDismissed, setOnboardingDismissed] = useState(() =>
+    projectId ? readOnboardingDismissed(projectId) : true,
+  )
 
   /** Primary chat for chrome — most recently updated (matches sidebar order). */
   const mostRecentChatId = useMemo(() => {
@@ -55,7 +69,42 @@ export function ResearchWorkspaceView() {
 
   useEffect(() => {
     setActiveChatId(null)
+    setOnboardingDismissed(projectId ? readOnboardingDismissed(projectId) : true)
   }, [projectId])
+
+  const dismissOnboarding = useCallback(() => {
+    if (!projectId) return
+    writeOnboardingDismissed(projectId)
+    setOnboardingDismissed(true)
+  }, [projectId])
+
+  const focusChatInput = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      chatInputRef.current?.focus()
+    })
+  }, [])
+
+  const showOnboardingModal = useMemo(() => {
+    if (!projectId || onboardingDismissed || loading) return false
+    if (chatsLoading || overviewLoading || canvasDataLoading) return false
+    if (chats.length > 0) return false
+    if (elements.length > 0) return false
+    if (!overview) return false
+    if (overview.includedTopics.length > 0 || overview.targetEntities.length > 0) {
+      return false
+    }
+    return true
+  }, [
+    projectId,
+    onboardingDismissed,
+    loading,
+    chatsLoading,
+    overviewLoading,
+    canvasDataLoading,
+    chats.length,
+    elements.length,
+    overview,
+  ])
 
   useEffect(() => {
     if (!activeChatId && mostRecentChatId) setActiveChatId(mostRecentChatId)
@@ -176,11 +225,19 @@ export function ResearchWorkspaceView() {
                   width: '100%',
                 }}
               >
-                <CanvasViewControls canvasRef={canvasRef} />
+                <CanvasViewControls
+                  canvasRef={canvasRef}
+                  projectId={project.id}
+                  chatId={activeChatId}
+                />
                 <CanvasStatusPill projectId={project.id} />
 
                 <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-                  <InfiniteCanvas ref={canvasRef} projectId={project.id} />
+                  <InfiniteCanvas
+                    ref={canvasRef}
+                    projectId={project.id}
+                    chatId={activeChatId}
+                  />
                 </div>
               </div>
             ) : null}
@@ -242,11 +299,19 @@ export function ResearchWorkspaceView() {
             <SpaceChatPanel
               projectId={project.id}
               chatId={activeChatId}
+              chatInputRef={chatInputRef}
               onChatReady={(id) => setActiveChatId(id)}
             />
           </div>
         </div>
       </div>
+
+      <OnboardingModal
+        open={showOnboardingModal}
+        projectId={project.id}
+        onDismiss={dismissOnboarding}
+        onFocusChat={focusChatInput}
+      />
     </div>
   )
 }

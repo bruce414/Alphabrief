@@ -6,6 +6,7 @@ from app.models.chat import Chat
 from app.models.chat_turn import ChatTurn
 from app.models.project import Project
 from app.models.source import Source
+from app.core.config import settings
 from app.services.chat_prompt_builder import PROMPT_MAX_CHARS, build_chat_prompt
 
 
@@ -31,7 +32,8 @@ def test_prompt_builder_truncates_oldest_history_first_and_trims_source_snippets
 
     # 20 turns of big history + final user message.
     prior_turns: list[ChatTurn] = []
-    for i in range(20):
+    # Enough history to exceed chat_prompt_max_chars (200k default) so oldest turns drop.
+    for i in range(36):
         prior_turns.append(
             ChatTurn(
                 id=uuid.uuid4(),
@@ -51,7 +53,7 @@ def test_prompt_builder_truncates_oldest_history_first_and_trims_source_snippets
             id=uuid.uuid4(),
             chat_id=chat.id,
             user_id=chat.user_id,
-            turn_index=21,
+            turn_index=36,
             role="USER",
             status="COMPLETED",
             content_markdown="Final user message",
@@ -95,6 +97,7 @@ def test_prompt_builder_truncates_oldest_history_first_and_trims_source_snippets
     total = len(prompt.system) + len(prompt.user) + len(prompt.attached_sources_section) + sum(
         len(h["role"]) + len(h["content_markdown"]) for h in prompt.history
     )
+    assert total <= settings.chat_prompt_max_chars
     assert total <= PROMPT_MAX_CHARS
 
     # Oldest history should be dropped first when truncating.

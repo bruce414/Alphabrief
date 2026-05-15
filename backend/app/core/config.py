@@ -79,6 +79,17 @@ class Settings(BaseSettings):
         default="claude-sonnet-4-6",
         validation_alias="ANTHROPIC_MODEL",
     )
+    # Max output tokens for a single assistant chat reply (was 2048; too small for long briefs).
+    chat_max_output_tokens: int = Field(
+        default=16_384,
+        validation_alias="CHAT_MAX_OUTPUT_TOKENS",
+    )
+    # Total characters (system + history + sources + user) sent to the model per turn.
+    chat_prompt_max_chars: int = Field(
+        default=200_000,
+        validation_alias="CHAT_PROMPT_MAX_CHARS",
+    )
+    onboarding_use_mock: bool = Field(default=False, validation_alias="ONBOARDING_USE_MOCK")
 
     model_config = SettingsConfigDict(
         env_file=str(_BACKEND_ROOT / ".env"),

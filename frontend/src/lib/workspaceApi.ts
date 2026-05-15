@@ -11,8 +11,10 @@ import type {
   ProjectMemory,
   ProjectMemoryRefreshResponse,
   ProjectOverview,
+  ResearchDirection,
   SendMessageResponse,
   Source,
+  SuggestDirectionsResponse,
 } from "../types/workspace";
 
 export function listProjects(): Promise<{ items: Project[] }> {
@@ -257,6 +259,32 @@ export function deleteCanvasConnection(connectionId: string): Promise<void> {
 
 export function getProjectOverview(projectId: string): Promise<ProjectOverview> {
   return apiFetch(`/projects/${encodeURIComponent(projectId)}/overview`);
+}
+
+export function suggestResearchDirections(
+  projectId: string,
+  description: string,
+): Promise<SuggestDirectionsResponse> {
+  return apiFetch(
+    `/projects/${encodeURIComponent(projectId)}/onboarding/suggest-directions`,
+    {
+      method: "POST",
+      body: JSON.stringify({ description }),
+    },
+  );
+}
+
+export function applyResearchDirection(
+  projectId: string,
+  direction: ResearchDirection,
+): Promise<ProjectOverview> {
+  return apiFetch(
+    `/projects/${encodeURIComponent(projectId)}/onboarding/apply`,
+    {
+      method: "POST",
+      body: JSON.stringify({ direction }),
+    },
+  );
 }
 
 export function patchProjectOverview(

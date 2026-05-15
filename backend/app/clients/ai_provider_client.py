@@ -35,10 +35,15 @@ class ChatReply(TypedDict):
 
 
 class CandidateExtraction(TypedDict, total=False):
+    kind: str
     suggested_element_type: str
     title: str | None
+    body: str
     content_markdown: str
     suggested_position: dict[str, float] | None
+    # TODO: confidence/importance scoring removed from extraction contract; keep unset (NULL).
+    confidence: None
+    importance: None
 
 
 class MemoryRefresh(TypedDict, total=False):

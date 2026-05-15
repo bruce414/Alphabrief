@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.clients.ai_provider_client import AiProviderClient, get_ai_provider_client
 from app.core.enums import CandidateStatus, CanvasElementType
 from app.db.session import async_session_factory
+from app.models.canvas_element import CanvasElement
 from app.models.candidate_element import CandidateElement
 from app.models.chat import Chat
 from app.models.chat_turn import ChatTurn
@@ -23,6 +24,16 @@ from app.models.usage_event import UsageEvent
 logger = logging.getLogger(__name__)
 
 SessionFactory = Callable[[], AsyncSession]
+
+_ALLOWED_EXTRACTION_KINDS = frozenset(
+    {
+        CanvasElementType.CLAIM.value,
+        CanvasElementType.RISK.value,
+        CanvasElementType.EVIDENCE.value,
+        CanvasElementType.QUESTION.value,
+    }
+)
+_MAX_CANDIDATES_PER_TURN = 2
 
 
 ALLOWED_TAGS = [
@@ -38,6 +49,80 @@ ALLOWED_TAGS = [
     "blockquote",
     "a",
 ]
+
+
+def _normalize_title(title: str) -> str:
+    return " ".join((title or "").strip().lower().split())
+
+
+async def _existing_element_title_keys(db: AsyncSession, project_id: UUID) -> set[str]:
+    rows = (
+        await db.execute(
+            select(CanvasElement.title).where(
+                CanvasElement.project_id == project_id,
+                CanvasElement.title.is_not(None),
+            )
+        )
+    ).scalars().all()
+    keys: set[str] = set()
+    for title in rows:
+        if isinstance(title, str) and title.strip():
+            keys.add(_normalize_title(title))
+    return keys
+
+
+def _postprocess_extracted_candidates(
+    extracted: list[dict],
+    *,
+    existing_title_keys: set[str],
+) -> list[dict]:
+    """Filter kinds, cap count, and dedupe by normalized title against canvas elements."""
+    filtered: list[dict] = []
+    for raw in extracted:
+        if not isinstance(raw, dict):
+            continue
+        kind = (
+            raw.get("kind")
+            or raw.get("suggested_element_type")
+            or ""
+        )
+        kind = str(kind).strip().upper()
+        if kind not in _ALLOWED_EXTRACTION_KINDS:
+            continue
+        body = (raw.get("body") or raw.get("content_markdown") or "").strip()
+        if not body:
+            continue
+        title_raw = raw.get("title")
+        title = (
+            title_raw.strip()[:500]
+            if isinstance(title_raw, str) and title_raw.strip()
+            else None
+        )
+        filtered.append(
+            {
+                "suggested_element_type": kind,
+                "title": title,
+                "content_markdown": body,
+                "suggested_position": raw.get("suggested_position"),
+            }
+        )
+
+    capped = filtered[:_MAX_CANDIDATES_PER_TURN]
+
+    survivors: list[dict] = []
+    for candidate in capped:
+        title = candidate.get("title")
+        if isinstance(title, str) and title.strip():
+            key = _normalize_title(title)
+            if key in existing_title_keys:
+                logger.debug(
+                    "Dropping candidate with duplicate title %r (normalized %r)",
+                    title,
+                    key,
+                )
+                continue
+        survivors.append(candidate)
+    return survivors
 
 
 async def extract_candidates_for_turn_safe(
@@ -121,8 +206,14 @@ async def _extract(*, asst_turn_id: UUID, db: AsyncSession, ai_provider: AiProvi
         attached_sources=sources,
     )
 
+    existing_title_keys = await _existing_element_title_keys(db, chat.project_id)
+    candidates = _postprocess_extracted_candidates(
+        extracted,
+        existing_title_keys=existing_title_keys,
+    )
+
     created_count = 0
-    for c in extracted:
+    for c in candidates:
         element_type_raw = (c.get("suggested_element_type") or "").strip()
         content_raw = (c.get("content_markdown") or "").strip()
         title_raw = c.get("title")

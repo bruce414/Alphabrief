@@ -11,6 +11,7 @@ import {
   canvasPillDividerStyle,
 } from "@/components/workspace/canvas-pill-styles";
 import { Icon } from "@/components/workspace/icons";
+import { usePendingCanvasCandidates } from "@/hooks/usePendingCanvasCandidates";
 import { T } from "@/styles/tokens";
 
 const ZOOM_STEP = 0.05;
@@ -44,19 +45,36 @@ const zoomBtnStyle = {
 
 export function CanvasViewControls({
   canvasRef,
+  projectId,
+  chatId,
 }: {
   canvasRef: RefObject<InfiniteCanvasHandle | null>;
+  projectId: string;
+  chatId: string | null;
 }) {
   const [viewOpen, setViewOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("map");
   const [zoomPct, setZoomPct] = useState(100);
+  const [semanticZoomLevel, setSemanticZoomLevel] = useState<
+    "cluster" | "node"
+  >("node");
   const pillRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const { pendingCount } = usePendingCanvasCandidates(projectId, chatId, {
+    refreshInterval: chatId ? 4000 : 0,
+  });
 
   useEffect(() => {
     const handle = canvasRef.current;
     if (!handle) return;
     return handle.subscribeZoom((z) => setZoomPct(Math.round(z * 100)));
+  }, [canvasRef]);
+
+  useEffect(() => {
+    const handle = canvasRef.current;
+    if (!handle) return;
+    return handle.subscribeSemanticZoom(setSemanticZoomLevel);
   }, [canvasRef]);
 
   useEffect(() => {
@@ -219,6 +237,29 @@ export function CanvasViewControls({
       >
         +
       </button>
+
+      {semanticZoomLevel === "cluster" && pendingCount > 0 ? (
+        <>
+          <div style={canvasPillDividerStyle} aria-hidden />
+          <button
+            type="button"
+            onClick={() => canvasRef.current?.setZoom(1)}
+            style={{
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              padding: 0,
+              fontFamily: T.fontSans,
+              fontSize: 12,
+              fontWeight: 600,
+              color: T.black,
+              whiteSpace: "nowrap",
+            }}
+          >
+            • {pendingCount} suggestion{pendingCount === 1 ? "" : "s"}
+          </button>
+        </>
+      ) : null}
     </div>
   );
 }

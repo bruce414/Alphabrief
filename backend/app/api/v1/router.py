@@ -13,6 +13,7 @@ from app.api.v1.canvas_elements import router as canvas_elements_router
 from app.api.v1.canvases import router as canvases_router
 from app.api.v1.candidates import router as candidates_router
 from app.api.v1.project_memory import router as project_memory_router
+from app.api.v1.onboarding import router as onboarding_router
 
 router = APIRouter()
 
@@ -29,3 +30,4 @@ router.include_router(canvas_elements_router)
 router.include_router(canvas_connections_router)
 router.include_router(project_memory_router)
 router.include_router(candidates_router)
+router.include_router(onboarding_router)

@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type RefObject,
 } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
@@ -16,7 +17,6 @@ import {
   type ApiResearchMode,
 } from "@/components/workspace/chat-input-bar";
 import { MAX_USER_MESSAGE_CHARS } from "@/lib/chatLimits";
-import { CandidateSuggestions } from "@/components/workspace/candidate-suggestions";
 import { FollowUpQuestionsBlock } from "@/components/workspace/follow-up-questions";
 import { Icon } from "@/components/workspace/icons";
 import { InlineSourceChipsRow } from "@/components/workspace/inline-source-chips";
@@ -29,6 +29,7 @@ import { useChats } from "@/hooks/useChats";
 import { ApiError } from "@/lib/api";
 import { parseAssistantReplyForDisplay } from "@/lib/followUpQuestions";
 import { sortChatsByRecent } from "@/lib/chatSort";
+import { pendingCandidatesKey } from "@/lib/pendingCandidates";
 import {
   createChat,
   getChatTurn,
@@ -250,6 +251,7 @@ export function useSpaceChat(projectId: string, chatId: string | null) {
           await mutateGlobal(["chats", projectId]);
           await mutateGlobal(["sources", projectId]);
           await mutateGlobal(["chat-sources", chatIdForMutate]);
+          await mutateGlobal(pendingCandidatesKey(projectId, chatIdForMutate));
         }
       } catch (e) {
         const msg = e instanceof ApiError ? e.message : "Could not regenerate.";
@@ -433,6 +435,7 @@ export function useSpaceChat(projectId: string, chatId: string | null) {
         await mutateGlobal(["chats", projectId]);
         await mutateGlobal(["sources", projectId]);
         await mutateGlobal(["chat-sources", effectiveChatId]);
+        await mutateGlobal(pendingCandidatesKey(projectId, effectiveChatId));
       } catch (e) {
         const msg = e instanceof ApiError ? e.message : "Could not send message.";
         await mutateTurns(
@@ -471,10 +474,12 @@ export function SpaceChatPanel({
   projectId,
   chatId,
   onChatReady,
+  chatInputRef,
 }: {
   projectId: string;
   chatId: string | null;
   onChatReady: (chatId: string) => void;
+  chatInputRef?: RefObject<HTMLTextAreaElement | null>;
 }) {
   const { mutate: mutateGlobal } = useSWRConfig();
   const { data: canvas } = useSWR<Canvas>(["canvas", projectId], () =>
@@ -949,12 +954,6 @@ export function SpaceChatPanel({
                       disabled={isLoading || isSending}
                     />
                   ) : null}
-                  {!loading && t.status === "COMPLETED" && canvas?.id ? (
-                    <CandidateSuggestions
-                      assistantTurnId={t.id}
-                      canvasId={canvas.id}
-                    />
-                  ) : null}
                   {!loading &&
                   t.status === "COMPLETED" &&
                   followUps.length > 0 ? (
@@ -1019,6 +1018,7 @@ export function SpaceChatPanel({
       </div>
 
       <ChatInputBar
+        ref={chatInputRef}
         onSend={onSend}
         isGenerating={isSending || awaitingAssistant}
         onStop={stopGeneration}

@@ -194,3 +194,30 @@ export interface ApiError {
   message: string;
   details?: unknown;
 }
+
+export type StickyNoteKind = "CLAIM" | "RISK" | "EVIDENCE" | "QUESTION";
+
+export interface OnboardingStarterElement {
+  elementType: "STICKY_NOTE";
+  provenanceKind: "AI_ONBOARDING";
+  kind: StickyNoteKind;
+  title: string;
+  body: string;
+}
+
+export interface ResearchDirection {
+  key: string;
+  title: string;
+  summary: string;
+  researchGoal: string;
+  includedTopics: string[];
+  excludedTopics: string[];
+  targetEntities: string[];
+  timeHorizon: string | null;
+  starterElements: OnboardingStarterElement[];
+}
+
+export interface SuggestDirectionsResponse {
+  suggestionId: string;
+  directions: ResearchDirection[];
+}

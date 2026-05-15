@@ -98,7 +98,7 @@ class AnthropicClient(AiProviderClient):
 
         create_kwargs: dict[str, Any] = {
             "model": settings.anthropic_model,
-            "max_tokens": 2048,
+            "max_tokens": settings.chat_max_output_tokens,
             "system": system,
             "messages": messages,
         }
@@ -278,6 +278,7 @@ class AnthropicClient(AiProviderClient):
         assistant_reply: str,
         attached_sources: list[Source],
     ) -> list[CandidateExtraction]:
+        _ = attached_sources
         try:
             client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
@@ -288,39 +289,38 @@ class AnthropicClient(AiProviderClient):
                     "properties": {
                         "candidates": {
                             "type": "array",
+                            "maxItems": 2,
                             "items": {
                                 "type": "object",
                                 "properties": {
-                                    "suggested_element_type": {"type": "string"},
-                                    "title": {"type": ["string", "null"]},
-                                    "content_markdown": {"type": "string"},
-                                    "suggested_position": {
-                                        "type": "object",
-                                        "properties": {
-                                            "x": {"type": "number"},
-                                            "y": {"type": "number"},
-                                            "width": {"type": "number"},
-                                            "height": {"type": "number"},
-                                        },
-                                        "additionalProperties": True,
+                                    "kind": {
+                                        "type": "string",
+                                        "enum": ["CLAIM", "RISK", "EVIDENCE", "QUESTION"],
                                     },
+                                    "title": {"type": ["string", "null"]},
+                                    "body": {"type": "string"},
                                 },
-                                "required": ["suggested_element_type", "content_markdown"],
-                                "additionalProperties": True,
+                                "required": ["kind", "body"],
+                                "additionalProperties": False,
                             },
                         }
                     },
                     "required": ["candidates"],
-                    "additionalProperties": True,
+                    "additionalProperties": False,
                 },
             }
 
             system = (
-                "Extract 0 to 3 high-signal research insights from the assistant reply that would be useful "
-                "as visual canvas cards. Return only factual claims, key questions, or important themes — "
-                "not generic summaries. Valid element types: CLAIM, QUESTION, THEME, RISK, EVIDENCE. "
-                "Omit suggested_position (the frontend will place elements). If there is nothing worth "
-                "extracting, return an empty candidates array."
+                "Extract canvas card candidates from the conversation. "
+                "Return AT MOST 2 candidates. "
+                "Each candidate must be exactly one of: CLAIM, RISK, EVIDENCE, QUESTION. "
+                "Definitions: CLAIM = debatable statement that needs evidence. "
+                "RISK = a potential negative uncertainty or downside factor. "
+                "EVIDENCE = a specific source-backed data point. "
+                "QUESTION = an unresolved research gap. "
+                "If you cannot produce a CLEARLY worth-keeping candidate from the conversation, "
+                "return an empty list. Bias toward FEWER, BETTER candidates. "
+                "Output JSON shape: { candidates: [{ kind, title, body }] }."
             )
 
             user_content = f"User message:\n{user_message}\n\nAssistant reply:\n{assistant_reply}"
@@ -352,10 +352,141 @@ class AnthropicClient(AiProviderClient):
                 logger.warning("Anthropic candidate extraction tool input missing candidates array")
                 return []
 
-            return candidates  # type: ignore[return-value]
+            normalized: list[CandidateExtraction] = []
+            for raw in candidates:
+                if not isinstance(raw, dict):
+                    continue
+                kind = (raw.get("kind") or raw.get("suggested_element_type") or "").strip().upper()
+                body = (raw.get("body") or raw.get("content_markdown") or "").strip()
+                title_raw = raw.get("title")
+                title = (
+                    title_raw.strip()[:500]
+                    if isinstance(title_raw, str) and title_raw.strip()
+                    else None
+                )
+                if not kind or not body:
+                    continue
+                entry: CandidateExtraction = {
+                    "suggested_element_type": kind,
+                    "title": title,
+                    "content_markdown": body,
+                }
+                # TODO: legacy confidence/importance fields are no longer extracted; default NULL if reintroduced.
+                normalized.append(entry)
+            return normalized
         except Exception:
             logger.warning("Anthropic candidate extraction failed", exc_info=True)
             return []
+
+    async def suggest_research_directions(
+        self,
+        description: str,
+        *,
+        on_event: EventCallback = _noop_event_callback,
+    ) -> list[dict[str, Any]]:
+        _ = on_event
+        try:
+            client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+
+            starter_item_schema = {
+                "type": "object",
+                "properties": {
+                    "elementType": {"type": "string", "enum": ["STICKY_NOTE"]},
+                    "provenanceKind": {"type": "string", "enum": ["AI_ONBOARDING"]},
+                    "kind": {"type": "string", "enum": ["CLAIM", "RISK", "EVIDENCE", "QUESTION"]},
+                    "title": {"type": "string"},
+                    "body": {"type": "string"},
+                },
+                "required": ["elementType", "provenanceKind", "kind", "title", "body"],
+                "additionalProperties": False,
+            }
+
+            direction_schema = {
+                "type": "object",
+                "properties": {
+                    "key": {"type": "string"},
+                    "title": {"type": "string"},
+                    "summary": {"type": "string"},
+                    "researchGoal": {"type": "string"},
+                    "includedTopics": {"type": "array", "items": {"type": "string"}},
+                    "excludedTopics": {"type": "array", "items": {"type": "string"}},
+                    "targetEntities": {"type": "array", "items": {"type": "string"}},
+                    "timeHorizon": {"type": ["string", "null"]},
+                    "starterElements": {
+                        "type": "array",
+                        "minItems": 3,
+                        "maxItems": 5,
+                        "items": starter_item_schema,
+                    },
+                },
+                "required": [
+                    "key",
+                    "title",
+                    "summary",
+                    "researchGoal",
+                    "includedTopics",
+                    "excludedTopics",
+                    "targetEntities",
+                    "starterElements",
+                ],
+                "additionalProperties": False,
+            }
+
+            tool_schema = {
+                "name": "suggest_research_directions",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "directions": {
+                            "type": "array",
+                            "minItems": 3,
+                            "maxItems": 3,
+                            "items": direction_schema,
+                        }
+                    },
+                    "required": ["directions"],
+                    "additionalProperties": False,
+                },
+            }
+
+            system = (
+                "You help finance researchers pick a focused direction. Given a short intent, "
+                "return exactly 3 distinct research directions. Each direction needs a slug key, "
+                "concise title (≤70 chars), 1-2 sentence summary, researchGoal, topic/entity scope "
+                "lists, optional timeHorizon, and 3-5 starterElements (STICKY_NOTE with kind "
+                "CLAIM|RISK|EVIDENCE|QUESTION). Educational research framing only — no buy/sell advice."
+            )
+
+            response = await client.messages.create(
+                model=settings.anthropic_model,
+                max_tokens=4096,
+                system=system,
+                tools=[tool_schema],
+                tool_choice={"type": "tool", "name": "suggest_research_directions"},
+                messages=[{"role": "user", "content": description.strip()}],
+            )
+
+            tool_input: Any = None
+            for block in getattr(response, "content", []) or []:
+                if (
+                    getattr(block, "type", None) == "tool_use"
+                    and getattr(block, "name", None) == "suggest_research_directions"
+                ):
+                    tool_input = getattr(block, "input", None)
+                    break
+
+            if not isinstance(tool_input, dict):
+                logger.warning("Anthropic onboarding suggest returned no tool_use input")
+                raise ValueError("missing tool_use input")
+
+            directions = tool_input.get("directions")
+            if not isinstance(directions, list) or len(directions) != 3:
+                raise ValueError("expected exactly 3 directions")
+
+            return directions  # type: ignore[return-value]
+        except Exception:
+            logger.warning("Anthropic research direction suggestion failed", exc_info=True)
+            raise
 
     async def refresh_project_memory(
         self,
