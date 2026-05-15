@@ -1,12 +1,19 @@
+import { useState } from "react";
+
 import { AlphaBriefLogo } from "@/components/workspace/logo";
+import type { CanvasQuickCreateKind } from "@/components/workspace/infinite-canvas";
 import { Icon } from "@/components/workspace/icons";
 import { useChats } from "@/hooks/useChats";
 import { sortChatsByRecent } from "@/lib/chatSort";
-import { useProjectSources } from "@/hooks/useProjectSources";
 import { T } from "@/styles/tokens";
 import type { Project } from "@/types/workspace";
 
 export type SpaceSidebarTab = "canvas" | "sources" | "memory";
+
+export type CanvasSidebarCreateKind = Extract<
+  CanvasQuickCreateKind,
+  "STICKY_NOTE" | "MINDMAP_NODE" | "GROUP"
+>;
 
 function formatRelativeTime(iso: string | null): string {
   if (!iso) return "";
@@ -31,6 +38,8 @@ export type SpaceSidebarProps = {
   /** Highlights the active chat row (dashboard screenshot) */
   selectedChatId?: string | null;
   onSelectChat?: (chatId: string) => void;
+  /** Add canvas elements (same behavior as canvas surface; previews below). */
+  onCreateCanvasElement?: (kind: CanvasSidebarCreateKind) => void;
 };
 
 const tabs: {
@@ -50,10 +59,11 @@ export function SpaceSidebar({
   onBack,
   selectedChatId = null,
   onSelectChat,
+  onCreateCanvasElement,
 }: SpaceSidebarProps) {
-  const { sources } = useProjectSources(project.id);
   const { chats } = useChats(project.id);
   const orderedChats = sortChatsByRecent(chats);
+  const [toolsetsOpen, setToolsetsOpen] = useState(true);
 
   return (
     <aside
@@ -223,54 +233,176 @@ export function SpaceSidebar({
           padding: "0 0 12px",
         }}
       >
-        <div
+        <button
+          type="button"
+          onClick={() => setToolsetsOpen((o) => !o)}
+          aria-expanded={toolsetsOpen}
+          aria-controls="space-sidebar-toolsets"
+          id="space-sidebar-toolsets-toggle"
           style={{
-            fontSize: 10,
-            fontWeight: 600,
-            color: T.gray400,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            padding: "0 20px 8px",
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            padding: "6px 20px 8px",
+            border: "none",
+            background: "transparent",
+            cursor: "pointer",
+            fontFamily: T.fontSans,
+            textAlign: "left",
+            borderRadius: 0,
           }}
         >
-          Resources
-        </div>
-        <div style={{ padding: "0 12px" }}>
-          {sources.slice(0, 8).map((source) => {
-            const title = source.title?.trim() || "Untitled";
-            return (
-              <div
-                key={source.id}
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              color: T.gray400,
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+            }}
+          >
+            Toolsets
+          </span>
+          <Icon.ChevronDown
+            width={14}
+            height={14}
+            style={{
+              flexShrink: 0,
+              color: T.gray500,
+              transform: toolsetsOpen ? "rotate(0deg)" : "rotate(-90deg)",
+              transition: "transform 0.15s ease",
+            }}
+            aria-hidden
+          />
+        </button>
+        {toolsetsOpen ? (
+          <div
+            id="space-sidebar-toolsets"
+            role="region"
+            aria-labelledby="space-sidebar-toolsets-toggle"
+            style={{
+              padding: "0 14px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}
+          >
+            {(
+              [
+                {
+                  kind: "STICKY_NOTE" as const,
+                  label: "Sticky note",
+                  Preview: () => (
+                    <div
+                      aria-hidden
+                      style={{
+                        width: 88,
+                        height: 52,
+                        borderRadius: 6,
+                        background: "#fff8c5",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                        alignSelf: "center",
+                      }}
+                    />
+                  ),
+                },
+                {
+                  kind: "MINDMAP_NODE" as const,
+                  label: "Mindmap node",
+                  Preview: () => (
+                    <div
+                      aria-hidden
+                      style={{
+                        width: 100,
+                        height: 44,
+                        borderRadius: 22,
+                        background: T.white,
+                        border: `1px solid ${T.border}`,
+                        boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                        alignSelf: "center",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: T.gray500,
+                      }}
+                    >
+                      Topic
+                    </div>
+                  ),
+                },
+                {
+                  kind: "GROUP" as const,
+                  label: "Group",
+                  Preview: () => (
+                    <div
+                      aria-hidden
+                      style={{
+                        width: 100,
+                        height: 64,
+                        borderRadius: 8,
+                        border: `2px dashed ${T.gray300}`,
+                        background: "transparent",
+                        alignSelf: "center",
+                        overflow: "hidden",
+                        display: "flex",
+                        flexDirection: "column",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 600,
+                          color: T.gray500,
+                          padding: "5px 8px",
+                          borderBottom: `1px dashed ${T.gray300}`,
+                          background: "rgba(255,255,255,0.5)",
+                        }}
+                      >
+                        Group
+                      </div>
+                    </div>
+                  ),
+                },
+              ] as const
+            ).map(({ kind, label, Preview }) => (
+              <button
+                key={kind}
+                type="button"
+                disabled={!onCreateCanvasElement}
+                onClick={() => onCreateCanvasElement?.(kind)}
                 style={{
                   display: "flex",
-                  alignItems: "center",
+                  flexDirection: "column",
+                  alignItems: "stretch",
                   gap: 8,
-                  padding: "6px 8px",
+                  padding: "10px 10px 12px",
+                  borderRadius: 10,
+                  border: `1px solid ${T.border}`,
+                  background: T.white,
+                  cursor: onCreateCanvasElement ? "pointer" : "not-allowed",
+                  opacity: onCreateCanvasElement ? 1 : 0.55,
+                  fontFamily: T.fontSans,
+                  textAlign: "center",
                 }}
               >
-                <Icon.Sources
-                  style={{ flexShrink: 0, color: T.gray400 }}
-                  width={14}
-                  height={14}
-                />
+                <Preview />
                 <span
-                  title={title}
                   style={{
                     fontSize: 12,
-                    color: T.gray600,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    minWidth: 0,
-                    flex: 1,
+                    fontWeight: 600,
+                    color: T.black,
                   }}
                 >
-                  {title}
+                  {label}
                 </span>
-              </div>
-            );
-          })}
-        </div>
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         <div
           style={{

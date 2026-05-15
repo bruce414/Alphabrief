@@ -173,9 +173,28 @@ export function useSpaceChat(projectId: string, chatId: string | null) {
   const pendingAssistantTurnIdRef = useRef<string | null>(null);
   const pendingChatIdRef = useRef<string | null>(null);
 
+  const awaitingAssistant = useMemo(
+    () =>
+      turns.some(
+        (t) =>
+          String(t.role).toUpperCase() === "ASSISTANT" &&
+          (t.status === "QUEUED" || t.status === "RUNNING"),
+      ),
+    [turns],
+  );
+
   const stopGeneration = useCallback(async () => {
-    if (!sendingRef.current) return;
-    const tid = pendingAssistantTurnIdRef.current;
+    let tid = pendingAssistantTurnIdRef.current;
+    if (!tid) {
+      for (let i = turns.length - 1; i >= 0; i--) {
+        const t = turns[i];
+        if (String(t.role).toUpperCase() !== "ASSISTANT") continue;
+        if (t.status === "QUEUED" || t.status === "RUNNING") {
+          tid = t.id;
+          break;
+        }
+      }
+    }
     if (!tid) return;
     pollAbortRef.current = true;
     try {
@@ -196,7 +215,7 @@ export function useSpaceChat(projectId: string, chatId: string | null) {
       setIsSending(false);
       pendingAssistantTurnIdRef.current = null;
     }
-  }, [mutateGlobal, mutateTurns, projectId]);
+  }, [mutateGlobal, mutateTurns, projectId, turns]);
 
   const regenerateAssistant = useCallback(
     async (turnId: string) => {
@@ -440,6 +459,7 @@ export function useSpaceChat(projectId: string, chatId: string | null) {
     turns,
     isLoading: chatsLoading || turnsLoading,
     isSending,
+    awaitingAssistant,
     resolvedChatId,
     onSend,
     stopGeneration,
@@ -465,6 +485,7 @@ export function SpaceChatPanel({
     turns,
     isLoading,
     isSending,
+    awaitingAssistant,
     resolvedChatId,
     onSend,
     stopGeneration,
@@ -905,41 +926,43 @@ export function SpaceChatPanel({
                     </div>
                   ) : null}
                   {!loading && displayMd ? (
-                    <>
-                      <div className="space-ai-markdown">
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          rehypePlugins={[rehypeSanitize]}
-                        >
-                          {displayMd}
-                        </ReactMarkdown>
-                      </div>
-                      {t.status === "COMPLETED" &&
-                      mentionedEntities.length > 0 ? (
-                        <MentionedEntitiesBlock entities={mentionedEntities} />
-                      ) : null}
-                      {t.status === "COMPLETED" &&
-                      suggestedCanvasInsights.length > 0 ? (
-                        <CanvasInsightSuggestions
-                          insights={suggestedCanvasInsights}
-                          canvasId={canvas?.id}
-                          disabled={isLoading || isSending}
-                        />
-                      ) : null}
-                      {t.status === "COMPLETED" && canvas?.id ? (
-                        <CandidateSuggestions
-                          assistantTurnId={t.id}
-                          canvasId={canvas.id}
-                        />
-                      ) : null}
-                      {t.status === "COMPLETED" && followUps.length > 0 ? (
-                        <FollowUpQuestionsBlock
-                          questions={followUps}
-                          onSelect={(q) => void onSend(q, modeForFollowUp)}
-                          disabled={isLoading || isSending}
-                        />
-                      ) : null}
-                    </>
+                    <div className="space-ai-markdown">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[rehypeSanitize]}
+                      >
+                        {displayMd}
+                      </ReactMarkdown>
+                    </div>
+                  ) : null}
+                  {!loading &&
+                  t.status === "COMPLETED" &&
+                  mentionedEntities.length > 0 ? (
+                    <MentionedEntitiesBlock entities={mentionedEntities} />
+                  ) : null}
+                  {!loading &&
+                  t.status === "COMPLETED" &&
+                  suggestedCanvasInsights.length > 0 ? (
+                    <CanvasInsightSuggestions
+                      insights={suggestedCanvasInsights}
+                      canvasId={canvas?.id}
+                      disabled={isLoading || isSending}
+                    />
+                  ) : null}
+                  {!loading && t.status === "COMPLETED" && canvas?.id ? (
+                    <CandidateSuggestions
+                      assistantTurnId={t.id}
+                      canvasId={canvas.id}
+                    />
+                  ) : null}
+                  {!loading &&
+                  t.status === "COMPLETED" &&
+                  followUps.length > 0 ? (
+                    <FollowUpQuestionsBlock
+                      questions={followUps}
+                      onSelect={(q) => void onSend(q, modeForFollowUp)}
+                      disabled={isLoading || isSending}
+                    />
                   ) : null}
                   {!loading &&
                   !displayMd &&
@@ -997,7 +1020,7 @@ export function SpaceChatPanel({
 
       <ChatInputBar
         onSend={onSend}
-        isGenerating={isSending}
+        isGenerating={isSending || awaitingAssistant}
         onStop={stopGeneration}
         placeholder="Ask, or paste a URL to research..."
         disabled={isLoading}

@@ -1,4 +1,19 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import type {
+  CSSProperties,
+  MouseEventHandler,
+  ReactNode,
+} from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { flushSync } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
@@ -9,6 +24,7 @@ import { useProjects } from "@/hooks/useProjects";
 import { apiFetch } from "@/lib/api";
 import {
   createCanvasConnection,
+  createManualElement,
   deleteCanvasConnection,
   deleteCanvasElement,
   listCanvasConnections,
@@ -51,6 +67,23 @@ type CanvasConnection = {
   styleJson: Record<string, unknown>;
 };
 
+function layoutDimensions(
+  el: CanvasElement,
+  type: string,
+): { w: number; h?: number } {
+  switch (type) {
+    case "MINDMAP_NODE":
+      return { w: el.width ?? 160, h: el.height ?? 72 };
+    case "GROUP":
+      return { w: el.width ?? 360, h: el.height ?? 240 };
+    case "TEXT":
+    case "STICKY_NOTE":
+      return { w: el.width ?? 240, h: el.height ?? 140 };
+    default:
+      return { w: el.width ?? 220, h: undefined };
+  }
+}
+
 const DEFAULT_ELEMENT_HEIGHT = 100;
 
 function elementDisplayBounds(
@@ -58,11 +91,14 @@ function elementDisplayBounds(
   dragPositions: Record<string, { x: number; y: number }>,
   measuredHeights: Record<string, number>,
 ) {
-  const w = el.width ?? 220;
+  const type = (el.elementType ?? "TEXT").toUpperCase();
+  const dims = layoutDimensions(el, type);
+  const w = dims.w;
   const measured = measuredHeights[el.id];
+  const fallbackH = dims.h ?? DEFAULT_ELEMENT_HEIGHT;
   const h =
     measured ??
-    (el.height != null && el.height > 0 ? el.height : DEFAULT_ELEMENT_HEIGHT);
+    (el.height != null && el.height > 0 ? el.height : fallbackH);
   const drag = dragPositions[el.id];
   const x = drag?.x ?? el.x;
   const y = drag?.y ?? el.y;
@@ -158,10 +194,6 @@ export function useCanvas(projectId: string | undefined) {
   };
 }
 
-function elementTypeLabel(raw: string) {
-  return raw.replace(/_/g, " ");
-}
-
 function elementBodyText(el: CanvasElement) {
   const md = el.contentMarkdown?.trim();
   const title = el.title?.trim();
@@ -179,7 +211,103 @@ function dataDisplayValue(el: CanvasElement) {
   return m?.[0] ?? fromText;
 }
 
-export function InfiniteCanvas({ projectId }: { projectId: string }) {
+function imageUrlFromJson(el: CanvasElement): string | null {
+  const raw = (el.contentJson as { imageUrl?: unknown } | undefined)?.imageUrl;
+  return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+}
+
+function TypeBadge({
+  children,
+  color = T.black,
+  bg = T.gray100,
+}: {
+  children: ReactNode;
+  color?: string;
+  bg?: string;
+}) {
+  return (
+    <div
+      style={{
+        alignSelf: "flex-start",
+        fontSize: 9,
+        fontWeight: 800,
+        color,
+        background: bg,
+        textTransform: "uppercase",
+        letterSpacing: "0.06em",
+        padding: "3px 7px",
+        borderRadius: 4,
+        marginBottom: 8,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function ProvenanceFooter({ kind }: { kind: string }) {
+  return (
+    <div
+      style={{
+        marginTop: 12,
+        fontSize: 10,
+        fontWeight: 600,
+        color: T.gray400,
+        textTransform: "uppercase",
+        letterSpacing: "0.06em",
+        paddingBottom: 2,
+      }}
+    >
+      {kind}
+    </div>
+  );
+}
+
+const CREATION_TYPES = [
+  {
+    elementType: "TEXT",
+    label: "Text",
+    w: 240,
+    h: 140,
+    title: null as string | null,
+  },
+  {
+    elementType: "STICKY_NOTE",
+    label: "Sticky note",
+    w: 240,
+    h: 140,
+    title: null as string | null,
+  },
+  {
+    elementType: "MINDMAP_NODE",
+    label: "Mindmap node",
+    w: 160,
+    h: 72,
+    title: "Topic",
+  },
+  {
+    elementType: "GROUP",
+    label: "Group",
+    w: 360,
+    h: 240,
+    title: "Group",
+  },
+] as const;
+
+export type CanvasQuickCreateKind = (typeof CREATION_TYPES)[number]["elementType"];
+
+export type InfiniteCanvasHandle = {
+  createElement: (kind: CanvasQuickCreateKind) => void;
+};
+
+const CREATION_BY_KIND = new Map<CanvasQuickCreateKind, (typeof CREATION_TYPES)[number]>(
+  CREATION_TYPES.map((s) => [s.elementType, s]),
+);
+
+export const InfiniteCanvas = forwardRef<
+  InfiniteCanvasHandle,
+  { projectId: string }
+>(function InfiniteCanvas({ projectId }, forwardedRef) {
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
   const { projects } = useProjects();
@@ -191,6 +319,26 @@ export function InfiniteCanvas({ projectId }: { projectId: string }) {
   const { canvas, elements, connections, mutate, mutateConnections } =
     useCanvas(projectId);
   const canvasId = canvas?.id ?? null;
+
+  const [pendingRemovedElementIds, setPendingRemovedElementIds] = useState<
+    Record<string, true>
+  >({});
+  const [pendingRemovedConnectionIds, setPendingRemovedConnectionIds] =
+    useState<Record<string, true>>({});
+
+  useEffect(() => {
+    setPendingRemovedElementIds({});
+    setPendingRemovedConnectionIds({});
+  }, [canvasId]);
+
+  const displayElements = useMemo(
+    () => elements.filter((e) => !pendingRemovedElementIds[e.id]),
+    [elements, pendingRemovedElementIds],
+  );
+  const displayConnections = useMemo(
+    () => connections.filter((c) => !pendingRemovedConnectionIds[c.id]),
+    [connections, pendingRemovedConnectionIds],
+  );
 
   const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
   const [connectingFromId, setConnectingFromId] = useState<string | null>(null);
@@ -269,8 +417,11 @@ export function InfiniteCanvas({ projectId }: { projectId: string }) {
   const [dragPositions, setDragPositions] = useState<
     Record<string, { x: number; y: number }>
   >({});
+  const dragPositionsRef = useRef(dragPositions);
+  dragPositionsRef.current = dragPositions;
 
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
+  const [isCreatingElement, setIsCreatingElement] = useState(false);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -307,6 +458,7 @@ export function InfiniteCanvas({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     if (!draggingId) return;
+    const idCapture = draggingId;
     const onMove = (e: MouseEvent) => {
       if (!dragStartRef.current) return;
       e.preventDefault();
@@ -317,16 +469,17 @@ export function InfiniteCanvas({ projectId }: { projectId: string }) {
       const dy = dyPx / zoom;
       setDragPositions((cur) => ({
         ...cur,
-        [draggingId]: { x: s.elementX + dx, y: s.elementY + dy },
+        [idCapture]: { x: s.elementX + dx, y: s.elementY + dy },
       }));
     };
     const onUp = () => {
-      const id = draggingId;
-      const pos = dragPositions[id];
+      const pos = dragPositionsRef.current[idCapture];
       dragStartRef.current = null;
       setDraggingId(null);
       if (!pos) return;
-      void patchCanvasElement(id, { x: pos.x, y: pos.y }).then(() => mutate());
+      void patchCanvasElement(idCapture, { x: pos.x, y: pos.y }).then(() =>
+        mutate(),
+      );
     };
 
     window.addEventListener("mousemove", onMove, { passive: false });
@@ -335,7 +488,7 @@ export function InfiniteCanvas({ projectId }: { projectId: string }) {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [dragPositions, draggingId, mutate, zoom]);
+  }, [draggingId, mutate, zoom]);
 
   useEffect(() => {
     if (!connectingFromId) return;
@@ -359,7 +512,7 @@ export function InfiniteCanvas({ projectId }: { projectId: string }) {
       const targetId = findElementIdAtWorldPoint(
         wx,
         wy,
-        elements,
+        displayElements,
         dragPositions,
         measuredHeights,
       );
@@ -379,8 +532,8 @@ export function InfiniteCanvas({ projectId }: { projectId: string }) {
   }, [
     canvasId,
     connectingFromId,
+    displayElements,
     dragPositions,
-    elements,
     mutateConnections,
     pan.x,
     pan.y,
@@ -432,11 +585,49 @@ export function InfiniteCanvas({ projectId }: { projectId: string }) {
     return { x, y };
   }, [viewport.w, viewport.h, pan.x, pan.y, zoom]);
 
+  const onCreateElement = useCallback(
+    async (spec: (typeof CREATION_TYPES)[number]) => {
+      if (!canvasId || isCreatingElement) return;
+      setIsCreatingElement(true);
+      try {
+        const x = worldCenter.x - spec.w / 2;
+        const y = worldCenter.y - spec.h / 2;
+        await createManualElement(canvasId, {
+          elementType: spec.elementType,
+          title: spec.title,
+          contentMarkdown: spec.elementType === "MINDMAP_NODE" ? null : "",
+          contentJson: {},
+          x,
+          y,
+          width: spec.w,
+          height: spec.h,
+        });
+        await mutate();
+      } catch (e) {
+        console.error("Failed to create canvas element", e);
+      } finally {
+        setIsCreatingElement(false);
+      }
+    },
+    [canvasId, isCreatingElement, worldCenter.x, worldCenter.y, mutate],
+  );
+
+  useImperativeHandle(
+    forwardedRef,
+    () => ({
+      createElement(kind: CanvasQuickCreateKind) {
+        const spec = CREATION_BY_KIND.get(kind);
+        if (spec) void onCreateElement(spec);
+      },
+    }),
+    [onCreateElement],
+  );
+
   const elementById = useMemo(() => {
     const m = new Map<string, CanvasElement>();
-    for (const e of elements) m.set(e.id, e);
+    for (const e of displayElements) m.set(e.id, e);
     return m;
-  }, [elements]);
+  }, [displayElements]);
 
   const svgMarkerPrefix = useId().replace(/:/g, "");
   const markerArrow = `conn-arrow-${svgMarkerPrefix}`;
@@ -610,7 +801,7 @@ export function InfiniteCanvas({ projectId }: { projectId: string }) {
               <polygon points="0 0, 7 3.5, 0 7" fill={T.black} />
             </marker>
           </defs>
-          {connections.map((c) => {
+          {displayConnections.map((c) => {
             const from = elementById.get(c.fromElementId);
             const to = elementById.get(c.toElementId);
             if (!from || !to) return null;
@@ -710,7 +901,7 @@ export function InfiniteCanvas({ projectId }: { projectId: string }) {
           </p>
         </div>
 
-        {elements.length === 0 ? (
+        {displayElements.length === 0 ? (
           <div
             style={{
               position: "absolute",
@@ -726,22 +917,369 @@ export function InfiniteCanvas({ projectId }: { projectId: string }) {
               zIndex: 1,
             }}
           >
-            Your canvas is empty. Add an element using the toolbar below.
+            Your canvas is empty. Add an element using the toolbar above.
           </div>
         ) : null}
 
-        {elements.map((el) => {
-          const w = el.width ?? 220;
+        {displayElements.map((el) => {
+          const type = (el.elementType ?? "TEXT").toUpperCase();
+          const dims = layoutDimensions(el, type);
+          const w = dims.w;
           const minH =
-            el.height != null && el.height > 0 ? el.height : undefined;
-          const type = (el.elementType ?? "UNKNOWN").toUpperCase();
-          const label = elementTypeLabel(type);
+            el.height != null && el.height > 0 ? el.height : dims.h;
           const body = elementBodyText(el);
-          const isQuote = type === "QUOTE";
-          const isData = type === "DATA";
           const dragPos = dragPositions[el.id];
           const x = dragPos?.x ?? el.x;
           const y = dragPos?.y ?? el.y;
+
+          const isData = type === "DATA";
+          const isQuestion = type === "QUESTION";
+          const isAi = type === "AI_BLOCK";
+          const sticky = type === "STICKY_NOTE";
+          const isRisk = type === "RISK";
+
+          const badge =
+            type === "CLAIM" ? (
+              <TypeBadge>Claim</TypeBadge>
+            ) : type === "EVIDENCE" ? (
+              <TypeBadge>Evidence</TypeBadge>
+            ) : type === "DATA" ? (
+              <TypeBadge color={T.gray500} bg={T.gray200}>
+                Data
+              </TypeBadge>
+            ) : type === "QUESTION" ? (
+              <TypeBadge color={T.white} bg={T.black}>
+                ?
+              </TypeBadge>
+            ) : type === "RISK" ? (
+              <TypeBadge color={T.red500} bg={`${T.red500}22`}>
+                Risk
+              </TypeBadge>
+            ) : type === "CATALYST" ? (
+              <TypeBadge>Catalyst</TypeBadge>
+            ) : null;
+
+          const showProvenance = ![
+            "QUOTE",
+            "MINDMAP_NODE",
+            "GROUP",
+            "IMAGE",
+          ].includes(type);
+
+          const innerBodyStyle: CSSProperties = {
+            fontSize: isData ? 15 : 13,
+            fontWeight: isData ? 700 : isQuestion ? 700 : 500,
+            letterSpacing: isData ? "-0.02em" : undefined,
+            lineHeight: 1.5,
+            color: T.black,
+            fontStyle: "normal",
+            whiteSpace: "pre-wrap",
+            fontFamily: isData ? T.fontMono : T.fontSans,
+          };
+
+          const trashBtn =
+            selectedElementId === el.id ? (
+              <button
+                type="button"
+                aria-label="Remove block"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDraggingId(null);
+                  dragStartRef.current = null;
+                  setDragPositions((p) => {
+                    if (!(el.id in p)) return p;
+                    const { [el.id]: _, ...rest } = p;
+                    return rest;
+                  });
+                  setDeleteDialog({ kind: "block", elementId: el.id });
+                }}
+                style={{
+                  position: "absolute",
+                  top: 8,
+                  right: 8,
+                  zIndex: 4,
+                  width: 28,
+                  height: 28,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 6,
+                  border: `1px solid ${T.border}`,
+                  background: T.white,
+                  cursor: "pointer",
+                  padding: 0,
+                  color: T.gray600,
+                }}
+              >
+                <Icon.Trash width={14} height={14} />
+              </button>
+            ) : null;
+
+          const connectorHandle = (
+            <div
+              role="presentation"
+              aria-hidden
+              onMouseDown={(e) => {
+                if (e.button !== 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const rect = canvasRef.current?.getBoundingClientRect();
+                if (!rect) return;
+                const wx = (e.clientX - rect.left - pan.x) / zoom;
+                const wy = (e.clientY - rect.top - pan.y) / zoom;
+                setConnectingFromId(el.id);
+                setConnectPointerWorld({ x: wx, y: wy });
+              }}
+              style={{
+                position: "absolute",
+                right: -4,
+                top: "50%",
+                width: 8,
+                height: 8,
+                marginTop: -4,
+                borderRadius: 4,
+                background: T.black,
+                boxSizing: "border-box",
+                zIndex: 2,
+                opacity: hoveredElementId === el.id ? 1 : 0,
+                pointerEvents:
+                  hoveredElementId === el.id ? "auto" : "none",
+                cursor: "crosshair",
+              }}
+            />
+          );
+
+          let outerStyle: CSSProperties = {
+            position: "absolute",
+            left: x,
+            top: y,
+            width: w,
+            minHeight: minH,
+            boxSizing: "border-box",
+            cursor: draggingId === el.id ? "grabbing" : "grab",
+            zIndex: selectedElementId === el.id ? 2 : 1,
+            background: T.white,
+            border: `1px solid ${T.border}`,
+            borderRadius: 10,
+            padding: "14px 16px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+            display: "flex",
+            flexDirection: "column",
+          };
+
+          if (type === "QUOTE") {
+            outerStyle = {
+              ...outerStyle,
+              background: "transparent",
+              border: "none",
+              padding: "4px 0 4px 14px",
+              borderRadius: 0,
+              boxShadow: "none",
+              borderLeft: `3px solid ${T.gray300}`,
+            };
+          } else if (sticky) {
+            outerStyle = {
+              ...outerStyle,
+              background: "#fff8c5",
+              border: "none",
+              borderRadius: 6,
+              boxShadow: "0 3px 10px rgba(0,0,0,0.12)",
+            };
+          } else if (type === "MINDMAP_NODE") {
+            outerStyle = {
+              ...outerStyle,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 32,
+              padding: "8px 14px",
+              fontSize: 13,
+              fontWeight: 600,
+              textAlign: "center",
+            };
+          } else if (type === "GROUP") {
+            outerStyle = {
+              ...outerStyle,
+              background: "transparent",
+              border: `2px dashed ${T.gray300}`,
+              padding: 0,
+              overflow: "hidden",
+            };
+          } else if (isRisk) {
+            outerStyle = {
+              ...outerStyle,
+              boxShadow: `0 2px 8px rgba(0,0,0,0.06), inset 3px 0 0 0 ${T.red500}`,
+            };
+          }
+
+          const onCardMouseDown: MouseEventHandler<HTMLDivElement> = (e) => {
+            if (e.button !== 0) return;
+            if (e.altKey) return;
+            if (connectingFromId) return;
+            e.preventDefault();
+            e.stopPropagation();
+            setSelectedConnectionId(null);
+            setSelectedElementId(el.id);
+            setDraggingId(el.id);
+            dragStartRef.current = {
+              elementX: x,
+              elementY: y,
+              mouseX: e.clientX,
+              mouseY: e.clientY,
+            };
+          };
+
+          if (type === "QUOTE") {
+            return (
+              <div
+                key={el.id}
+                ref={getMeasureRef(el.id)}
+                onMouseEnter={() => setHoveredElementId(el.id)}
+                onMouseLeave={() =>
+                  setHoveredElementId((cur) => (cur === el.id ? null : cur))
+                }
+                style={outerStyle}
+                onMouseDown={onCardMouseDown}
+              >
+                {trashBtn}
+                <div
+                  className="canvas-md"
+                  style={{
+                    fontFamily: T.fontSans,
+                    fontSize: 13,
+                    fontStyle: "italic",
+                    color: T.gray600,
+                  }}
+                >
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeSanitize]}
+                  >
+                    {body || "—"}
+                  </ReactMarkdown>
+                </div>
+                {connectorHandle}
+              </div>
+            );
+          }
+
+          if (type === "MINDMAP_NODE") {
+            const labelText = (el.title?.trim() || body || "Node").slice(
+              0,
+              80,
+            );
+            return (
+              <div
+                key={el.id}
+                ref={getMeasureRef(el.id)}
+                onMouseEnter={() => setHoveredElementId(el.id)}
+                onMouseLeave={() =>
+                  setHoveredElementId((cur) => (cur === el.id ? null : cur))
+                }
+                style={outerStyle}
+                onMouseDown={onCardMouseDown}
+              >
+                {trashBtn}
+                <span style={{ color: T.black }}>{labelText}</span>
+                {connectorHandle}
+              </div>
+            );
+          }
+
+          if (type === "GROUP") {
+            const title = el.title?.trim() || "Group";
+            return (
+              <div
+                key={el.id}
+                ref={getMeasureRef(el.id)}
+                onMouseEnter={() => setHoveredElementId(el.id)}
+                onMouseLeave={() =>
+                  setHoveredElementId((cur) => (cur === el.id ? null : cur))
+                }
+                style={{
+                  ...outerStyle,
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+                onMouseDown={onCardMouseDown}
+              >
+                {trashBtn}
+                <div
+                  style={{
+                    padding: "8px 12px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: T.gray500,
+                    fontFamily: T.fontSans,
+                    borderBottom: `1px dashed ${T.gray300}`,
+                    background: "rgba(255,255,255,0.35)",
+                    flexShrink: 0,
+                  }}
+                >
+                  {title}
+                </div>
+                <div style={{ flex: 1, minHeight: 0 }} />
+                {connectorHandle}
+              </div>
+            );
+          }
+
+          if (type === "IMAGE") {
+            const url = imageUrlFromJson(el);
+            return (
+              <div
+                key={el.id}
+                ref={getMeasureRef(el.id)}
+                onMouseEnter={() => setHoveredElementId(el.id)}
+                onMouseLeave={() =>
+                  setHoveredElementId((cur) => (cur === el.id ? null : cur))
+                }
+                style={outerStyle}
+                onMouseDown={onCardMouseDown}
+              >
+                {trashBtn}
+                {url ? (
+                  <img
+                    src={url}
+                    alt={el.title ?? ""}
+                    style={{
+                      width: "100%",
+                      height: minH != null ? "calc(100% - 8px)" : "auto",
+                      maxHeight: minH != null ? "100%" : 320,
+                      objectFit: "contain",
+                      flex: 1,
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      fontFamily: T.fontSans,
+                      fontSize: 13,
+                      color: T.gray500,
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    {el.title?.trim() || "Image"}
+                  </div>
+                )}
+                {connectorHandle}
+              </div>
+            );
+          }
+
+          const markdownBlock = (
+            <div className="canvas-md" style={{ color: T.black }}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeSanitize]}
+              >
+                {body}
+              </ReactMarkdown>
+            </div>
+          );
+
           return (
             <div
               key={el.id}
@@ -750,148 +1288,55 @@ export function InfiniteCanvas({ projectId }: { projectId: string }) {
               onMouseLeave={() =>
                 setHoveredElementId((cur) => (cur === el.id ? null : cur))
               }
-              style={{
-                position: "absolute",
-                left: x,
-                top: y,
-                width: w,
-                minHeight: minH,
-                background: T.white,
-                border: `1px solid ${T.border}`,
-                borderRadius: 10,
-                padding: "14px 16px",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-                boxSizing: "border-box",
-                cursor: draggingId === el.id ? "grabbing" : "grab",
-                zIndex: selectedElementId === el.id ? 2 : 1,
-              }}
-              onMouseDown={(e) => {
-                if (e.button !== 0) return;
-                if (e.altKey) return;
-                if (connectingFromId) return;
-                e.preventDefault();
-                e.stopPropagation();
-                setSelectedConnectionId(null);
-                setSelectedElementId(el.id);
-                setDraggingId(el.id);
-                dragStartRef.current = {
-                  elementX: x,
-                  elementY: y,
-                  mouseX: e.clientX,
-                  mouseY: e.clientY,
-                };
-              }}
+              style={outerStyle}
+              onMouseDown={onCardMouseDown}
             >
-              {selectedElementId === el.id ? (
-                <button
-                  type="button"
-                  aria-label="Remove block"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDeleteDialog({ kind: "block", elementId: el.id });
-                  }}
+              {trashBtn}
+              {isAi ? (
+                <div
                   style={{
-                    position: "absolute",
-                    top: 8,
-                    right: 8,
-                    zIndex: 4,
-                    width: 28,
-                    height: 28,
                     display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRadius: 6,
-                    border: `1px solid ${T.border}`,
-                    background: T.white,
-                    cursor: "pointer",
-                    padding: 0,
-                    color: T.gray600,
+                    flex: 1,
+                    minHeight: 0,
+                    gap: 0,
                   }}
                 >
-                  <Icon.Trash width={14} height={14} />
-                </button>
-              ) : null}
-              <div
-                style={{
-                  fontSize: 9,
-                  fontWeight: 800,
-                  color: T.gray400,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.1em",
-                  marginBottom: 10,
-                }}
-              >
-                {label} • • • •
-              </div>
-              <div
-                style={{
-                  fontSize: isData ? 22 : 13,
-                  fontWeight: isData ? 800 : 500,
-                  letterSpacing: isData ? "-0.02em" : undefined,
-                  lineHeight: isData ? 1.2 : 1.5,
-                  color: isQuote ? T.gray600 : T.black,
-                  fontStyle: isQuote ? "italic" : "normal",
-                  whiteSpace: isData ? "pre-wrap" : undefined,
-                }}
-              >
-                {isData ? (
-                  dataDisplayValue(el)
-                ) : (
-                  <div className="canvas-md" style={{ color: isQuote ? T.gray600 : T.black }}>
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      rehypePlugins={[rehypeSanitize]}
-                    >
-                      {body}
-                    </ReactMarkdown>
+                  <div
+                    style={{
+                      width: 4,
+                      flexShrink: 0,
+                      background: T.black,
+                      borderRadius: 2,
+                      marginRight: 12,
+                      alignSelf: "stretch",
+                    }}
+                  />
+                  <div
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      display: "flex",
+                      flexDirection: "column",
+                    }}
+                  >
+                    {markdownBlock}
+                    {showProvenance ? (
+                      <ProvenanceFooter kind={el.provenanceKind} />
+                    ) : null}
                   </div>
-                )}
-              </div>
-              <div
-                style={{
-                  marginTop: 12,
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: T.gray400,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  paddingBottom: 2,
-                }}
-              >
-                {el.provenanceKind}
-              </div>
-              <div
-                role="presentation"
-                aria-hidden
-                onMouseDown={(e) => {
-                  if (e.button !== 0) return;
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const rect = canvasRef.current?.getBoundingClientRect();
-                  if (!rect) return;
-                  const wx = (e.clientX - rect.left - pan.x) / zoom;
-                  const wy = (e.clientY - rect.top - pan.y) / zoom;
-                  setConnectingFromId(el.id);
-                  setConnectPointerWorld({ x: wx, y: wy });
-                }}
-                style={{
-                  position: "absolute",
-                  right: -4,
-                  top: "50%",
-                  width: 8,
-                  height: 8,
-                  marginTop: -4,
-                  borderRadius: 4,
-                  background: T.black,
-                  boxSizing: "border-box",
-                  zIndex: 2,
-                  opacity: hoveredElementId === el.id ? 1 : 0,
-                  pointerEvents:
-                    hoveredElementId === el.id ? "auto" : "none",
-                  cursor: "crosshair",
-                }}
-              />
+                </div>
+              ) : (
+                <>
+                  {badge}
+                  <div style={innerBodyStyle}>
+                    {isData ? dataDisplayValue(el) : markdownBlock}
+                  </div>
+                  {showProvenance ? (
+                    <ProvenanceFooter kind={el.provenanceKind} />
+                  ) : null}
+                </>
+              )}
+              {connectorHandle}
             </div>
           );
         })}
@@ -1066,8 +1511,11 @@ export function InfiniteCanvas({ projectId }: { projectId: string }) {
           <button
             key={key}
             type="button"
-            disabled={disabled}
-            title={title}
+            disabled={disabled || (key === "text" && (!canvasId || isCreatingElement))}
+            title={
+              title ??
+              (key === "text" ? "Add text block at viewport center" : undefined)
+            }
             style={{
               border: "none",
               background: active ? "rgba(255,255,255,0.15)" : "transparent",
@@ -1076,11 +1524,21 @@ export function InfiniteCanvas({ projectId }: { projectId: string }) {
               borderRadius: 8,
               display: "flex",
               alignItems: "center",
-              cursor: disabled ? "not-allowed" : "pointer",
-              opacity: disabled ? 0.55 : 1,
+              cursor:
+                disabled || (key === "text" && (!canvasId || isCreatingElement))
+                  ? "not-allowed"
+                  : "pointer",
+              opacity:
+                disabled || (key === "text" && (!canvasId || isCreatingElement))
+                  ? 0.45
+                  : 1,
             }}
             onClick={() => {
-              // no-op for now (creating elements comes in a later iteration)
+              if (key === "text") {
+                const spec = CREATION_BY_KIND.get("TEXT");
+                if (spec) void onCreateElement(spec);
+                return;
+              }
             }}
           >
             <IconCmp width={16} height={16} />
@@ -1170,29 +1628,60 @@ export function InfiniteCanvas({ projectId }: { projectId: string }) {
               <button
                 type="button"
                 onClick={() => {
-                  if (deleteDialog.kind === "block") {
-                    const id = deleteDialog.elementId;
-                    void deleteCanvasElement(id).then(() => {
-                      setSelectedElementId((cur) =>
-                        cur === id ? null : cur,
-                      );
+                  const dialog = deleteDialog;
+                  if (dialog.kind === "block") {
+                    const id = dialog.elementId;
+                    flushSync(() => {
+                      setPendingRemovedElementIds((p) => ({ ...p, [id]: true }));
+                      setSelectedElementId((cur) => (cur === id ? null : cur));
+                      setDraggingId(null);
+                      dragStartRef.current = null;
+                      setDragPositions((p) => {
+                        if (!(id in p)) return p;
+                        const { [id]: _, ...rest } = p;
+                        return rest;
+                      });
                       setMeasuredHeights((p) => {
                         if (!(id in p)) return p;
                         const { [id]: _, ...rest } = p;
                         return rest;
                       });
                       setDeleteDialog(null);
-                      void mutate();
                     });
+                    void deleteCanvasElement(id)
+                      .then(async () => {
+                        await mutate();
+                      })
+                      .catch(() => {
+                        setPendingRemovedElementIds((p) => {
+                          if (!p[id]) return p;
+                          const { [id]: _, ...rest } = p;
+                          return rest;
+                        });
+                      });
                   } else {
-                    const cid = deleteDialog.connectionId;
-                    void deleteCanvasConnection(cid).then(() => {
+                    const cid = dialog.connectionId;
+                    flushSync(() => {
+                      setPendingRemovedConnectionIds((p) => ({
+                        ...p,
+                        [cid]: true,
+                      }));
                       setSelectedConnectionId((cur) =>
                         cur === cid ? null : cur,
                       );
                       setDeleteDialog(null);
-                      void mutateConnections();
                     });
+                    void deleteCanvasConnection(cid)
+                      .then(async () => {
+                        await mutateConnections();
+                      })
+                      .catch(() => {
+                        setPendingRemovedConnectionIds((p) => {
+                          if (!p[cid]) return p;
+                          const { [cid]: _, ...rest } = p;
+                          return rest;
+                        });
+                      });
                   }
                 }}
                 style={{
@@ -1217,5 +1706,5 @@ export function InfiniteCanvas({ projectId }: { projectId: string }) {
       ) : null}
     </div>
   );
-}
+});
 

@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
-import { InfiniteCanvas } from '@/components/workspace/infinite-canvas'
+import {
+  InfiniteCanvas,
+  type InfiniteCanvasHandle,
+} from '@/components/workspace/infinite-canvas'
 import { Icon } from '@/components/workspace/icons'
 import { SpaceChatPanel } from '@/components/workspace/space-chat-panel'
 import {
@@ -37,6 +40,8 @@ export function ResearchWorkspaceView() {
     startX: number
     startWidth: number
   } | null>(null)
+
+  const canvasRef = useRef<InfiniteCanvasHandle>(null)
 
   const { chats } = useChats(project?.id)
 
@@ -120,6 +125,11 @@ export function ResearchWorkspaceView() {
         onBack={() => navigate('/app/research')}
         selectedChatId={activeChatId}
         onSelectChat={(id) => setActiveChatId(id)}
+        onCreateCanvasElement={
+          activeTab === 'canvas'
+            ? (kind) => canvasRef.current?.createElement(kind)
+            : undefined
+        }
       />
 
       <div
@@ -227,7 +237,7 @@ export function ResearchWorkspaceView() {
                 </div>
 
                 <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-                  <InfiniteCanvas projectId={project.id} />
+                  <InfiniteCanvas ref={canvasRef} projectId={project.id} />
                 </div>
               </div>
             ) : null}

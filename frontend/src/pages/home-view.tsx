@@ -8,7 +8,7 @@ import {
 } from '@/components/workspace/home-chat-view'
 import { HomeEmptyState } from '@/components/workspace/home-empty-state'
 import { useHomeChat } from '@/hooks/useHomeChat'
-import { getProjectCanvas, listChatSources } from '@/lib/workspaceApi'
+import { listChatSources } from '@/lib/workspaceApi'
 import type { AppShellOutletContext } from '@/pages/app-shell'
 
 export function HomeView() {
@@ -25,16 +25,10 @@ export function HomeView() {
     stopGeneration,
     regenerateAssistant,
     chatId,
-    projectId,
   } = useHomeChat({
     selectedChatId: activeChatId,
     onChatCreated: setActiveChatId,
   })
-
-  const { data: projectCanvas } = useSWR(
-    projectId ? (['project-canvas', projectId] as const) : null,
-    () => getProjectCanvas(projectId as string),
-  )
 
   const [activeTab, setActiveTab] = useState<HomeChatTab>('chat')
 
@@ -73,7 +67,6 @@ export function HomeView() {
       onTabChange={setActiveTab}
       sources={sourcesData?.items ?? []}
       sourcesLoading={Boolean(chatId && sourcesLoading)}
-      canvasId={projectCanvas?.id ?? null}
     />
   ) : (
     <HomeEmptyState

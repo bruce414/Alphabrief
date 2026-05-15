@@ -20,5 +20,9 @@ export const T = {
   accent: "#1a1a1a",
   userBubble: "#1a1a1a",
   aiBubble: "#ffffff",
+  /** Accent for risk / warning states */
+  red500: "#c0392b",
   fontSans: "'DM Sans', system-ui, sans-serif",
+  fontMono:
+    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace",
 } as const;

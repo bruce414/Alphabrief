@@ -9,10 +9,7 @@ import {
 } from "@/components/workspace/chat-input-bar";
 import { FollowUpQuestionsBlock } from "@/components/workspace/follow-up-questions";
 import { Icon } from "@/components/workspace/icons";
-import {
-  CanvasInsightSuggestions,
-  MentionedEntitiesBlock,
-} from "@/components/workspace/reply-tail-blocks";
+import { MentionedEntitiesBlock } from "@/components/workspace/reply-tail-blocks";
 import { ResearchProgress } from "@/components/workspace/research-progress";
 import { T } from "@/styles/tokens";
 import type { SuggestedCanvasInsight } from "@/lib/followUpQuestions";
@@ -28,6 +25,7 @@ export type ChatMessage = {
   loading?: boolean;
   events?: ResearchEvent[];
   mentionedEntities?: string[];
+  /** Canvas insight cards — omitted on home chat (quick answers); kept for typing elsewhere. */
   suggestedCanvasInsights?: SuggestedCanvasInsight[];
   followUpQuestions?: string[];
 };
@@ -46,8 +44,6 @@ export type HomeChatViewProps = {
   onTabChange: (tab: HomeChatTab) => void;
   sources: Source[];
   sourcesLoading: boolean;
-  /** Catch-all project canvas; when set, "Add to canvas" is enabled for insight cards. */
-  canvasId?: string | null;
 };
 
 const TABS: { id: HomeChatTab; label: string }[] = [
@@ -262,7 +258,6 @@ export function HomeChatView({
   onTabChange,
   sources,
   sourcesLoading,
-  canvasId = null,
 }: HomeChatViewProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -680,14 +675,6 @@ export function HomeChatView({
                           {m.mentionedEntities &&
                           m.mentionedEntities.length > 0 ? (
                             <MentionedEntitiesBlock entities={m.mentionedEntities} />
-                          ) : null}
-                          {m.suggestedCanvasInsights &&
-                          m.suggestedCanvasInsights.length > 0 ? (
-                            <CanvasInsightSuggestions
-                              insights={m.suggestedCanvasInsights}
-                              canvasId={canvasId}
-                              disabled={inputDisabled || awaitingReply}
-                            />
                           ) : null}
                           {m.followUpQuestions && m.followUpQuestions.length > 0 ? (
                             <FollowUpQuestionsBlock

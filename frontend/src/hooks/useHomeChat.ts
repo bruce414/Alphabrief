@@ -146,9 +146,7 @@ export function useHomeChat(options: UseHomeChatOptions) {
               loading: pending,
               events: extractEvents(t),
               mentionedEntities: pending ? undefined : parsed.mentionedEntities,
-              suggestedCanvasInsights: pending
-                ? undefined
-                : parsed.suggestedCanvasInsights,
+              suggestedCanvasInsights: undefined,
               followUpQuestions: pending ? undefined : parsed.followUpQuestions,
             });
           }
@@ -278,7 +276,7 @@ export function useHomeChat(options: UseHomeChatOptions) {
                     text: parsed.body || "_No content_",
                     events: finalEvents,
                     mentionedEntities: parsed.mentionedEntities,
-                    suggestedCanvasInsights: parsed.suggestedCanvasInsights,
+                    suggestedCanvasInsights: undefined,
                     followUpQuestions: parsed.followUpQuestions,
                   }
                 : m,
@@ -448,7 +446,7 @@ export function useHomeChat(options: UseHomeChatOptions) {
                     sources: domains.length > 0 ? domains : undefined,
                     events: finalEvents,
                     mentionedEntities: parsed.mentionedEntities,
-                    suggestedCanvasInsights: parsed.suggestedCanvasInsights,
+                    suggestedCanvasInsights: undefined,
                     followUpQuestions: parsed.followUpQuestions,
                   }
                 : m,

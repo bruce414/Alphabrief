@@ -24,6 +24,16 @@ export function normalizeReplyTailCanvasElementType(
   return ALLOWED_REPLY_TAIL_CANVAS_TYPES.has(et) ? et : null;
 }
 
+/**
+ * Maps model-only labels (e.g. THEME) to a valid canvas element type for UI + POST /elements.
+ */
+export function coerceCanvasInsightElementType(raw: string): string {
+  const et = raw.trim().toUpperCase().replace(/\s+/g, "_");
+  if (ALLOWED_REPLY_TAIL_CANVAS_TYPES.has(et)) return et;
+  if (et === "THEME") return "AI_BLOCK";
+  return "AI_BLOCK";
+}
+
 const HEADER_ENTITIES = /^#{1,6}\s*Key entities\s*$/i;
 const HEADER_CANVAS = /^#{1,6}\s*Canvas insight cards\s*$/i;
 const HEADER_FOLLOW = /^#{1,6}\s*Follow[- ]up questions?\s*$/i;
@@ -67,22 +77,64 @@ function readStringArray(raw: unknown): string[] {
     .map((s) => s.trim());
 }
 
+function parseInsightRecord(
+  o: Record<string, unknown>,
+): SuggestedCanvasInsight | null {
+  const etRaw = String(o.elementType ?? o.element_type ?? "").trim();
+  const title = String(o.title ?? "").trim();
+  const contentMarkdown = String(
+    o.contentMarkdown ?? o.content_markdown ?? "",
+  ).trim();
+  if (!contentMarkdown) return null;
+  const elementType = coerceCanvasInsightElementType(etRaw);
+  return { elementType, title, contentMarkdown };
+}
+
 function readCanvasInsights(raw: unknown): SuggestedCanvasInsight[] {
   if (!Array.isArray(raw)) return [];
   const out: SuggestedCanvasInsight[] = [];
   for (const item of raw) {
+    if (typeof item === "string") {
+      const s = item.trim();
+      if (!s.startsWith("{")) continue;
+      try {
+        const parsed = JSON.parse(s) as unknown;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          const one = parseInsightRecord(parsed as Record<string, unknown>);
+          if (one) out.push(one);
+        }
+      } catch {
+        /* skip */
+      }
+      continue;
+    }
     if (!item || typeof item !== "object") continue;
-    const o = item as Record<string, unknown>;
-    const etRaw = String(o.elementType ?? o.element_type ?? "").trim();
-    const elementType = normalizeReplyTailCanvasElementType(etRaw);
-    const title = String(o.title ?? "").trim();
-    const contentMarkdown = String(
-      o.contentMarkdown ?? o.content_markdown ?? "",
-    ).trim();
-    if (!elementType || !contentMarkdown) continue;
-    out.push({ elementType, title, contentMarkdown });
+    const one = parseInsightRecord(item as Record<string, unknown>);
+    if (one) out.push(one);
   }
   return out.slice(0, 8);
+}
+
+/** Removes standalone JSON lines the model emitted as canvas rows (not fenced code). */
+function stripStandaloneCanvasInsightJsonLines(markdown: string): string {
+  return markdown
+    .split("\n")
+    .filter((line) => {
+      const t = line.trim();
+      if (!t.startsWith("{") || !t.endsWith("}")) return true;
+      if (!/"elementType"\s*:/.test(t) && !/"element_type"\s*:/.test(t))
+        return true;
+      try {
+        const d = JSON.parse(t) as Record<string, unknown>;
+        const md = String(
+          d.contentMarkdown ?? d.content_markdown ?? "",
+        ).trim();
+        return !md;
+      } catch {
+        return true;
+      }
+    })
+    .join("\n");
 }
 
 /** Backend stores parsed follow-ups under camelCase in contentJson. */
@@ -99,7 +151,7 @@ export function parseReplyTailMarkdown(markdown: string): ParsedAssistantReply {
   if (segments.length < 2) {
     const single = (segments[0] ?? "").trim();
     return {
-      body: single,
+      body: stripStandaloneCanvasInsightJsonLines(single),
       mentionedEntities: [],
       suggestedCanvasInsights: [],
       followUpQuestions: [],
@@ -149,14 +201,13 @@ export function parseReplyTailMarkdown(markdown: string): ParsedAssistantReply {
             const etRaw = String(
               d.elementType ?? d.element_type ?? "",
             ).trim();
-            const elementType = normalizeReplyTailCanvasElementType(etRaw);
-            const title = String(d.title ?? "").trim();
             const contentMarkdown = String(
               d.contentMarkdown ?? d.content_markdown ?? "",
             ).trim();
-            if (elementType && contentMarkdown) {
+            const title = String(d.title ?? "").trim();
+            if (etRaw && contentMarkdown) {
               suggestedCanvasInsights.push({
-                elementType,
+                elementType: coerceCanvasInsightElementType(etRaw),
                 title,
                 contentMarkdown,
               });
@@ -168,12 +219,11 @@ export function parseReplyTailMarkdown(markdown: string): ParsedAssistantReply {
         } else {
           const parts = payload.split("::").map((p) => p.trim());
           if (parts.length >= 3) {
-            const elementType = normalizeReplyTailCanvasElementType(parts[0]);
             const title = parts[1];
             const contentMarkdown = parts.slice(2).join("::").trim();
-            if (elementType && contentMarkdown) {
+            if (parts[0] && contentMarkdown) {
               suggestedCanvasInsights.push({
-                elementType,
+                elementType: coerceCanvasInsightElementType(parts[0]),
                 title,
                 contentMarkdown,
               });
@@ -204,7 +254,10 @@ export function parseReplyTailMarkdown(markdown: string): ParsedAssistantReply {
     }
   }
 
-  const body = mainChunks.join("\n\n").trim();
+  let body = mainChunks.join("\n\n").trim();
+  if (suggestedCanvasInsights.length > 0) {
+    body = stripStandaloneCanvasInsightJsonLines(body);
+  }
 
   return {
     body,
@@ -212,6 +265,131 @@ export function parseReplyTailMarkdown(markdown: string): ParsedAssistantReply {
     suggestedCanvasInsights: suggestedCanvasInsights.slice(0, 6),
     followUpQuestions: followUpQuestions.slice(0, 8),
   };
+}
+
+function harvestInlineCanvasJsonRows(markdown: string): {
+  body: string;
+  extra: SuggestedCanvasInsight[];
+} {
+  const lines = markdown.split("\n");
+  const kept: string[] = [];
+  const extra: SuggestedCanvasInsight[] = [];
+  for (const line of lines) {
+    const t = line.trim();
+    if (
+      t.startsWith("{") &&
+      t.endsWith("}") &&
+      (/"elementType"\s*:/.test(t) || /"element_type"\s*:/.test(t))
+    ) {
+      try {
+        const d = JSON.parse(t) as Record<string, unknown>;
+        const one = parseInsightRecord(d);
+        if (one) {
+          extra.push(one);
+          continue;
+        }
+      } catch {
+        /* keep line */
+      }
+    }
+    kept.push(line);
+  }
+  return { body: kept.join("\n").trim(), extra };
+}
+
+/** Pulls pretty-printed `{ ... }` canvas rows embedded in prose. */
+function harvestBalancedJsonCanvasObjects(markdown: string): {
+  body: string;
+  extra: SuggestedCanvasInsight[];
+} {
+  const extra: SuggestedCanvasInsight[] = [];
+  const out: string[] = [];
+  let i = 0;
+  while (i < markdown.length) {
+    const ch = markdown[i];
+    if (ch !== "{") {
+      out.push(ch);
+      i++;
+      continue;
+    }
+    const head = markdown.slice(i, Math.min(markdown.length, i + 500));
+    if (!/"elementType"\s*:|"element_type"\s*:/.test(head)) {
+      out.push(ch);
+      i++;
+      continue;
+    }
+    let depth = 0;
+    let k = i;
+    let inStr = false;
+    let esc = false;
+    for (; k < markdown.length; k++) {
+      const c = markdown[k];
+      if (esc) {
+        esc = false;
+        continue;
+      }
+      if (c === "\\" && inStr) {
+        esc = true;
+        continue;
+      }
+      if (c === '"' && !esc) {
+        inStr = !inStr;
+        continue;
+      }
+      if (!inStr) {
+        if (c === "{") depth++;
+        else if (c === "}") {
+          depth--;
+          if (depth === 0) {
+            k++;
+            break;
+          }
+        }
+      }
+    }
+    if (depth !== 0 || k <= i) {
+      out.push(ch);
+      i++;
+      continue;
+    }
+    const blob = markdown.slice(i, k);
+    try {
+      const d = JSON.parse(blob) as Record<string, unknown>;
+      const one = parseInsightRecord(d);
+      if (one) {
+        extra.push(one);
+        i = k;
+        while (markdown[i] === "\n" || markdown[i] === "\r") i++;
+        continue;
+      }
+    } catch {
+      /* fallthrough */
+    }
+    out.push(ch);
+    i++;
+  }
+  return {
+    body: out.join("").replace(/\n{3,}/g, "\n\n").trim(),
+    extra,
+  };
+}
+
+function mergeCanvasInsights(
+  body: string,
+  existing: SuggestedCanvasInsight[],
+): { body: string; insights: SuggestedCanvasInsight[] } {
+  let b = body;
+  let list = [...existing];
+  const h1 = harvestInlineCanvasJsonRows(b);
+  b = h1.body;
+  list.push(...h1.extra);
+  const h2 = harvestBalancedJsonCanvasObjects(b);
+  b = h2.body;
+  list.push(...h2.extra);
+  if (list.length > 0) {
+    b = stripStandaloneCanvasInsightJsonLines(b);
+  }
+  return { body: b.trim(), insights: list.slice(0, 8) };
 }
 
 /** Prefer server-parsed contentJson; otherwise parse trailing markdown sections. */
@@ -223,22 +401,38 @@ export function parseAssistantReplyForDisplay(
   const mentionedEntities = readStringArray(cj?.mentionedEntities);
   const suggestedCanvasInsights = readCanvasInsights(cj?.suggestedCanvasInsights);
   const followUpQuestions = readFollowUpQuestionsFromTurn(turn);
+  let result: ParsedAssistantReply;
   if (
     mentionedEntities.length > 0 ||
     suggestedCanvasInsights.length > 0 ||
     followUpQuestions.length > 0
   ) {
-    return {
-      body: clampAssistantMarkdownForDisplay(markdown),
+    let body = clampAssistantMarkdownForDisplay(markdown);
+    if (suggestedCanvasInsights.length > 0) {
+      body = stripStandaloneCanvasInsightJsonLines(body);
+    }
+    result = {
+      body,
       mentionedEntities,
       suggestedCanvasInsights,
       followUpQuestions,
     };
+  } else {
+    const parsed = parseReplyTailMarkdown(markdown);
+    result = {
+      ...parsed,
+      body: clampAssistantMarkdownForDisplay(parsed.body),
+    };
   }
-  const parsed = parseReplyTailMarkdown(markdown);
+
+  const merged = mergeCanvasInsights(
+    result.body,
+    result.suggestedCanvasInsights,
+  );
   return {
-    ...parsed,
-    body: clampAssistantMarkdownForDisplay(parsed.body),
+    ...result,
+    body: merged.body,
+    suggestedCanvasInsights: merged.insights,
   };
 }
 
