@@ -1,0 +1,28 @@
+export const T = {
+  /** Research workspace main canvas — matches design screenshot */
+  workspaceDashboard: "#ffffff",
+  workspaceTopBar: "#ffffff",
+  workspaceChatPanel: "#ffffff",
+  workspaceFloatingBar: "#3a3a3a",
+  bg: "#ffffff",
+  bgPanel: "#ffffff",
+  sidebar: "#ffffff",
+  white: "#ffffff",
+  black: "#1a1a1a",
+  blackSoft: "#111111",
+  gray100: "#f7f5f2",
+  gray200: "#e8e5e0",
+  gray300: "#d4d0ca",
+  gray400: "#b0ab9f",
+  gray500: "#7a7570",
+  gray600: "#5a5550",
+  border: "#dddad4",
+  accent: "#1a1a1a",
+  userBubble: "#1a1a1a",
+  aiBubble: "#ffffff",
+  /** Accent for risk / warning states */
+  red500: "#c0392b",
+  fontSans: "'DM Sans', system-ui, sans-serif",
+  fontMono:
+    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace",
+} as const;

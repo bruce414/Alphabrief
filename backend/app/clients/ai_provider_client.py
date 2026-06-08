@@ -1,0 +1,341 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Awaitable, Callable, Protocol, TypedDict
+
+from app.core.enums import ResearchMode
+from app.models.source import Source
+
+
+@dataclass(frozen=True, slots=True)
+class ChatPrompt:
+    system: str
+    history: list[dict[str, str]]  # {role, content_markdown} oldest→newest
+    user: str
+    attached_sources_section: str
+
+
+# A single research-process event emitted while the assistant is thinking.
+# Shape examples:
+#   {"type": "search", "query": "gold market 2026", "status": "running"}
+#   {"type": "search", "query": "gold market 2026", "status": "done", "resultCount": 5}
+#   {"type": "read", "url": "https://ft.com/...", "title": "Gold spot prices", "snippet": "..."}
+#   {"type": "thinking", "text": "Considering supply vs demand..."}
+ResearchEvent = dict[str, Any]
+EventCallback = Callable[[ResearchEvent], Awaitable[None]]
+
+
+class ChatReply(TypedDict):
+    content_markdown: str
+    content_json: dict
+    input_tokens: int
+    output_tokens: int
+    # Each entry: {"url": str, "title": str | None, "snippet": str | None, "publisher": str | None}
+    web_search_results: list[dict]
+
+
+class ExistingCanvasElement(TypedDict):
+    title: str
+    element_type: str
+
+
+class ProposedEdgeExtraction(TypedDict):
+    edge_type: str
+    target_title: str
+
+
+class CandidateExtraction(TypedDict, total=False):
+    kind: str
+    suggested_element_type: str
+    title: str | None
+    body: str
+    content_markdown: str
+    suggested_position: dict[str, float] | None
+    proposed_edge: ProposedEdgeExtraction | None
+    # TODO: confidence/importance scoring removed from extraction contract; keep unset (NULL).
+    confidence: None
+    importance: None
+
+
+class MemoryRefresh(TypedDict, total=False):
+    summary_markdown: str
+    entities: list[str]
+    themes: list[str]
+    open_questions: list[str]
+    conclusions: list[str]
+
+
+async def _noop_event_callback(event: ResearchEvent) -> None:  # pragma: no cover - default
+    return None
+
+
+class AiProviderClient(Protocol):
+    async def generate_chat_reply(
+        self,
+        prompt: ChatPrompt,
+        *,
+        research_mode: ResearchMode = ResearchMode.STANDARD,
+        on_event: EventCallback = _noop_event_callback,
+    ) -> ChatReply: ...
+
+    async def generate_chat_title(
+        self,
+        *,
+        user_message: str,
+        assistant_reply: str,
+    ) -> str: ...
+
+    async def extract_candidates(
+        self,
+        *,
+        user_message: str,
+        assistant_reply: str,
+        attached_sources: list[Source],
+        existing_canvas_elements: list[ExistingCanvasElement] | None = None,
+    ) -> list[CandidateExtraction]: ...
+
+    async def refresh_project_memory(
+        self,
+        *,
+        project_title: str,
+        current_memory_summary: str | None,
+        recent_turns_markdown: list[str],
+    ) -> MemoryRefresh: ...
+
+    async def generate_quick_chat_analysis_json(
+        self,
+        *,
+        system: str,
+        user_content: str,
+        prior_assistant_content: str | None = None,
+        follow_up_user_content: str | None = None,
+    ) -> str: ...
+
+
+class MockAiProviderClient:
+    async def generate_chat_reply(
+        self,
+        prompt: ChatPrompt,
+        *,
+        research_mode: ResearchMode = ResearchMode.STANDARD,
+        on_event: EventCallback = _noop_event_callback,
+    ) -> ChatReply:
+        titles: list[str] = []
+        for line in prompt.attached_sources_section.splitlines():
+            if line.startswith("- "):
+                # "- Title (url): snippet"
+                title = line[2:].split(" (", 1)[0].strip()
+                if title:
+                    titles.append(title)
+
+        user_stub = (prompt.user or "").strip().replace("\n", " ")[:120]
+        titles_stub = ", ".join(titles) if titles else "none"
+
+        # Emit a couple of synthetic events so the UI can be exercised against the mock.
+        if research_mode != ResearchMode.QUICK:
+            await on_event({"type": "search", "query": user_stub[:60] or "context", "status": "running"})
+            await on_event({"type": "search", "query": user_stub[:60] or "context", "status": "done", "resultCount": 0})
+
+        content_markdown = (
+            "## Mock reply\n\n"
+            f"User message: {user_stub}\n\n"
+            f"Attached sources: {titles_stub}\n\n"
+            "This is a deterministic mock response (no real LLM call).\n\n"
+            "---\n\n"
+            "### Key entities\n"
+            "- MOCK_CO (MOCK)\n"
+            "- Example Index (XLK)\n\n"
+            "---\n\n"
+            "### Canvas insight cards\n"
+            '- {"elementType":"CLAIM","title":"Mock claim","contentMarkdown":"Mock insight from the reply."}\n'
+            '- {"elementType":"QUESTION","title":"","contentMarkdown":"What would validate this next?"}\n\n'
+            "---\n\n"
+            "### Follow-up questions\n"
+            "- What angle should we explore next?\n"
+            "- Which risk factor matters most for this topic?\n"
+        ).strip()
+
+        # Cheap deterministic token estimates (stable for tests).
+        input_tokens = max(1, len((prompt.system + prompt.user + prompt.attached_sources_section)) // 4)
+        output_tokens = max(1, len(content_markdown) // 4)
+
+        return {
+            "content_markdown": content_markdown,
+            "content_json": {"provider": "mock", "echo": {"user": user_stub, "source_titles": titles}},
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "web_search_results": [],
+        }
+
+    async def generate_chat_title(
+        self,
+        *,
+        user_message: str,
+        assistant_reply: str,
+    ) -> str:
+        words = (user_message or "").strip().split()
+        if not words:
+            return "New chat"
+        title = " ".join(words[:6])
+        # Title-case but preserve common acronyms by only touching lowercase-only tokens.
+        return title[:60].strip(" .,;:!?-") or "New chat"
+
+    async def extract_candidates(
+        self,
+        *,
+        user_message: str,
+        assistant_reply: str,
+        attached_sources: list[Source],
+        existing_canvas_elements: list[ExistingCanvasElement] | None = None,
+    ) -> list[CandidateExtraction]:
+        elements = existing_canvas_elements or []
+
+        def _mock_proposed_edge(idx: int) -> ProposedEdgeExtraction | None:
+            if idx != 0 or not elements:
+                return None
+            direction = next(
+                (e for e in elements if e.get("element_type") == "DIRECTION"),
+                None,
+            )
+            target = direction or elements[0]
+            title = (target.get("title") or "").strip()
+            if not title:
+                return None
+            return {"edge_type": "supports", "target_title": title}
+
+        # Deterministic test heuristic:
+        # - one CLAIM per "### " header in assistant_reply (max 2)
+        # - else: if assistant_reply > 200 chars, return 1 CLAIM titled by first 60 chars; otherwise empty
+        reply = (assistant_reply or "").strip()
+        if not reply:
+            return []
+
+        headers: list[str] = []
+        for line in reply.splitlines():
+            if line.startswith("### "):
+                h = line[4:].strip()
+                if h:
+                    headers.append(h)
+
+        def _build_mock_candidate(
+            *,
+            idx: int,
+            element_type: str,
+            title: str | None,
+            content_markdown: str,
+        ) -> CandidateExtraction:
+            candidate: CandidateExtraction = {
+                "suggested_element_type": element_type,
+                "title": title,
+                "content_markdown": content_markdown,
+                "suggested_position": {
+                    "x": 320.0 + 360.0 * idx,
+                    "y": 240.0,
+                    "width": 320.0,
+                    "height": 180.0,
+                },
+            }
+            edge = _mock_proposed_edge(idx)
+            if edge:
+                candidate["proposed_edge"] = edge
+            return candidate
+
+        candidates: list[CandidateExtraction] = []
+        if headers:
+            for idx, h in enumerate(headers[:2]):
+                element_type = "CLAIM" if idx == 0 else "QUESTION"
+                candidates.append(
+                    _build_mock_candidate(
+                        idx=idx,
+                        element_type=element_type,
+                        title=h[:120],
+                        content_markdown=f"{h}",
+                    )
+                )
+            return candidates
+
+        if len(reply) > 200:
+            title = reply.replace("\n", " ")[:60].strip() or None
+            return [
+                _build_mock_candidate(
+                    idx=0,
+                    element_type="CLAIM",
+                    title=title,
+                    content_markdown=reply[:400].strip() or reply,
+                )
+            ]
+
+        return []
+
+    async def refresh_project_memory(
+        self,
+        *,
+        project_title: str,
+        current_memory_summary: str | None,
+        recent_turns_markdown: list[str],
+    ) -> MemoryRefresh:
+        _ = current_memory_summary
+        _ = recent_turns_markdown
+        return {
+            "summary_markdown": f"Mock memory summary for {project_title}",
+            "entities": ["MOCK"],
+            "themes": ["mock-theme"],
+            "open_questions": ["What is the next milestone?"],
+            "conclusions": [],
+        }
+
+    async def generate_quick_chat_analysis_json(
+        self,
+        *,
+        system: str,
+        user_content: str,
+        prior_assistant_content: str | None = None,
+        follow_up_user_content: str | None = None,
+    ) -> str:
+        _ = system
+        _ = prior_assistant_content
+        _ = follow_up_user_content
+        stub = (user_content or "")[:80]
+        return (
+            '{"analysis":{"summary":"Mock summary for '
+            + stub.replace('"', "'")
+            + '","why_it_matters":"Mock importance","market_impact":"Mock impact",'
+            '"risks_and_uncertainties":"Mock risks","watch_next":["Mock follow-up"]},'
+            '"market_map":{"nodes":['
+            '{"id":"event_1","type":"main_event","label":"Mock event","description":"d",'
+            '"linked_section":"summary","confidence":"high"},'
+            '{"id":"co_1","type":"company","label":"Co","description":"d",'
+            '"linked_section":"market_impact","confidence":"medium"},'
+            '{"id":"co_2","type":"company","label":"Co2","description":"d",'
+            '"linked_section":"market_impact","confidence":"medium"},'
+            '{"id":"sec_1","type":"sector_theme","label":"Sec","description":"d",'
+            '"linked_section":"market_impact","confidence":"medium"},'
+            '{"id":"imp_1","type":"market_impact","label":"Imp","description":"d",'
+            '"linked_section":"market_impact","confidence":"medium"},'
+            '{"id":"risk_1","type":"risk_uncertainty","label":"Risk","description":"d",'
+            '"linked_section":"risks_and_uncertainties","confidence":"low"},'
+            '{"id":"watch_1","type":"watch_next","label":"Watch","description":"d",'
+            '"linked_section":"watch_next","confidence":"high"},'
+            '{"id":"watch_2","type":"watch_next","label":"Watch2","description":"d",'
+            '"linked_section":"watch_next","confidence":"medium"}],'
+            '"edges":['
+            '{"id":"e1","source":"event_1","target":"co_1","label":"affects","confidence":"high"},'
+            '{"id":"e2","source":"event_1","target":"co_2","label":"may benefit","confidence":"medium"},'
+            '{"id":"e3","source":"co_1","target":"imp_1","label":"creates uncertainty around","confidence":"medium"},'
+            '{"id":"e4","source":"imp_1","target":"risk_1","label":"increases risk for","confidence":"medium"},'
+            '{"id":"e5","source":"event_1","target":"sec_1","label":"linked to","confidence":"high"},'
+            '{"id":"e6","source":"sec_1","target":"co_2","label":"affects","confidence":"medium"},'
+            '{"id":"e7","source":"risk_1","target":"watch_1","label":"watch next","confidence":"high"},'
+            '{"id":"e8","source":"co_1","target":"watch_2","label":"watch next","confidence":"medium"}'
+            "]}}"
+        )
+
+
+def get_ai_provider_client() -> AiProviderClient:
+    from app.core.config import settings  # local import to avoid circular deps
+
+    if settings.ai_provider == "anthropic" and settings.anthropic_api_key:
+        from app.clients.anthropic_client import AnthropicClient
+
+        return AnthropicClient()
+    return MockAiProviderClient()

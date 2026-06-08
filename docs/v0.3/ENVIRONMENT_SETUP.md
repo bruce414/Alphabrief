@@ -197,7 +197,7 @@ Example root-level `docker-compose.yml`:
 ```yaml
 services:
   postgres:
-    image: postgres:16
+    image: postgres:17
     container_name: alphabrief-postgres
     environment:
       POSTGRES_DB: alphabrief

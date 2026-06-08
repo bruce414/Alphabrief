@@ -1,0 +1,188 @@
+from __future__ import annotations
+
+from enum import Enum
+
+
+class ProjectKind(str, Enum):
+    CATCHALL = "CATCHALL"
+    COVERAGE = "COVERAGE"
+    THESIS = "THESIS"
+    EVENT = "EVENT"
+    THEME = "THEME"
+    DECISION = "DECISION"
+
+
+class ResearchScope(str, Enum):
+    USER_PROVIDED_ONLY = "USER_PROVIDED_ONLY"
+    RECOMMENDED_CONTEXT = "RECOMMENDED_CONTEXT"
+
+
+class ResearchMode(str, Enum):
+    QUICK = "QUICK"
+    STANDARD = "STANDARD"
+    DEEP = "DEEP"
+
+
+class CompletionStrategy(str, Enum):
+    STRICT_REQUESTED_MODE = "STRICT_REQUESTED_MODE"
+    OPTIMIZE_RESEARCH = "OPTIMIZE_RESEARCH"
+
+
+class CoverageMode(str, Enum):
+    FULL_SOURCE = "FULL_SOURCE"
+    SELECTED_TOPICS = "SELECTED_TOPICS"
+    SELECTED_ENTITIES = "SELECTED_ENTITIES"
+    CUSTOM_QUESTION = "CUSTOM_QUESTION"
+
+
+class AnalysisIntent(str, Enum):
+    QUICK_SUMMARY = "QUICK_SUMMARY"
+    MARKET_IMPACT = "MARKET_IMPACT"
+    COMPANY_ANALYSIS = "COMPANY_ANALYSIS"
+    LEARNING_MODE = "LEARNING_MODE"
+    STRUCTURED_BRIEF = "STRUCTURED_BRIEF"
+    INSIDER_ACTIVITY = "INSIDER_ACTIVITY"
+
+
+class ResearchItemStatus(str, Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class GenerationJobStatus(str, Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class AnalysisRunStatus(str, Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class AnalysisSegmentStatus(str, Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class AnalysisMode(str, Enum):
+    SOURCE_BRIEF = "SOURCE_BRIEF"
+    CONTEXT_BRIEF = "CONTEXT_BRIEF"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
+
+
+class ChatStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"
+
+
+class ChatTurnRole(str, Enum):
+    USER = "USER"
+    ASSISTANT = "ASSISTANT"
+
+
+class ChatTurnStatus(str, Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class ProvenanceKind(str, Enum):
+    CHAT_TURN = "CHAT_TURN"
+    SOURCE = "SOURCE"
+    MANUAL = "MANUAL"
+    CANDIDATE = "CANDIDATE"
+    GENERATED = "GENERATED"
+    AI_ONBOARDING = "AI_ONBOARDING"
+    AI_AUTO_DIRECTION = "AI_AUTO_DIRECTION"
+
+
+class CanvasElementType(str, Enum):
+    TEXT = "TEXT"
+    AI_BLOCK = "AI_BLOCK"
+    CLAIM = "CLAIM"
+    EVIDENCE = "EVIDENCE"
+    QUOTE = "QUOTE"
+    DATA = "DATA"
+    IMAGE = "IMAGE"
+    QUESTION = "QUESTION"
+    RISK = "RISK"
+    CATALYST = "CATALYST"
+    MINDMAP_NODE = "MINDMAP_NODE"
+    GROUP = "GROUP"
+    STICKY_NOTE = "STICKY_NOTE"
+    DIRECTION = "DIRECTION"
+
+
+class ConnectionType(str, Enum):
+    SUPPORTS = "SUPPORTS"
+    CONTRADICTS = "CONTRADICTS"
+    CAUSES = "CAUSES"
+    DEPENDS_ON = "DEPENDS_ON"
+    RELATED_TO = "RELATED_TO"
+    CUSTOM = "CUSTOM"
+
+
+class MemoryUpdatedBy(str, Enum):
+    USER = "USER"
+    AI = "AI"
+    SYSTEM = "SYSTEM"
+
+
+class InputType(str, Enum):
+    QUESTION = "QUESTION"
+    ARTICLE_URL = "ARTICLE_URL"
+    YOUTUBE_URL = "YOUTUBE_URL"
+    PDF_FILE = "PDF_FILE"
+    BROWSER_PAGE = "BROWSER_PAGE"
+    FILING_URL = "FILING_URL"
+    IMAGE_FILE = "IMAGE_FILE"
+    MIXED = "MIXED"
+
+
+class IntentType(str, Enum):
+    GENERAL_ASK = "GENERAL_ASK"
+    SOURCE_ANALYSIS = "SOURCE_ANALYSIS"
+    ARTICLE_ANALYSIS = "ARTICLE_ANALYSIS"
+    YOUTUBE_ANALYSIS = "YOUTUBE_ANALYSIS"
+    PDF_ANALYSIS = "PDF_ANALYSIS"
+    FILING_ANALYSIS = "FILING_ANALYSIS"
+    BRIEF_GENERATION = "BRIEF_GENERATION"
+    CANVAS_ACTION = "CANVAS_ACTION"
+    COMPARISON = "COMPARISON"
+
+
+class CandidateStatus(str, Enum):
+    PENDING = "PENDING"
+    PROMOTED = "PROMOTED"
+    DISMISSED = "DISMISSED"
+
+
+class BriefType(str, Enum):
+    COMPANY_RESEARCH = "COMPANY_RESEARCH"
+    EARNINGS_BREAKDOWN = "EARNINGS_BREAKDOWN"
+    SOURCE_SUMMARY = "SOURCE_SUMMARY"
+    MARKET_EVENT_EXPLAINER = "MARKET_EVENT_EXPLAINER"
+    THESIS_MEMO = "THESIS_MEMO"
+
+
+class BriefStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"
+
+
+class BriefVersionStatus(str, Enum):
+    QUEUED = "QUEUED"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    ARCHIVED = "ARCHIVED"
+

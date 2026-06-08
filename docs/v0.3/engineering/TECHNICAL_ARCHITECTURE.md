@@ -1,318 +1,395 @@
-# Alphabrief v0.3 Technical Architecture
+# AlphaBrief v0.3 Technical Architecture
 
 ## Version
 
-`v0.3 MVP`
+`v0.3 First Milestone — One Ask Box → Smart Source Detection → Freeform Canvas → On-demand Briefs`
 
 ## Status
 
-Draft for MVP implementation.
-
----
-
-## 1. Overview
-
-Alphabrief is an AI-powered summarisation and investment research assistant for retail investors and finance-minded users.
-
-Users can submit a financial source, such as a YouTube video, finance article, earnings commentary, market update, or pasted text. Alphabrief extracts the important information, identifies relevant financial entities, retrieves relevant context, and produces a structured investor-friendly brief.
-
-For the free tier, Alphabrief focuses mainly on:
-
-- The submitted source itself
-- Directly mentioned companies/tickers/entities
-- Basic company/entity context
-- Source-specific risks and takeaways
-
-For the Pro tier, Alphabrief goes deeper by adding broader context around:
-
-- Industry trends
-- Competitor dynamics
-- Macro factors
-- Political/regulatory factors
-- Market sentiment
-- Earnings or valuation context where available
-
-The v0.3 architecture should be simple enough to build quickly, but structured enough that the system can grow into a more advanced financial intelligence product later.
-
----
-
-## 2. Product Goals
-
-The v0.3 MVP should prove three things:
-
-1. Users can submit financial content from multiple input types.
-2. Alphabrief can generate a useful, structured investor brief.
-3. The product can clearly separate free-tier and Pro-tier insight depth.
-
-The MVP does not need to become a full portfolio platform, brokerage product, or institutional research terminal.
-
-The main goal is:
+This architecture reflects AlphaBrief's latest direction:
 
 ```text
-Turn messy finance content into a clear, structured investor brief.
+Market learning + research workspace
+Projects as top-level containers
+Threads/chats as focused explorations inside projects
+One universal Ask box with smart source detection
+Sources attached to chats and projects
+Canvas as a freeform editable visual thinking space
+Memory as explicit project-level understanding
+Briefs as on-demand generated outputs from selected context
+Chrome Extension-ready source ingestion
+Adaptive external-source research architecture
 ```
+
+The earlier architecture treated Canvas as the source of truth for formal brief generation. The updated architecture makes Canvas the **middle visual understanding workspace**, while brief generation uses explicit selected context:
+
+```text
+current thread
+selected sources
+project memory
+selected Canvas elements or cluster
+full project context when requested
+```
+
+This is better for v0.3 because users can paste a link and ask for analysis without first turning their Canvas into a sacred database shrine. Progress, somehow.
 
 ---
 
-## 3. Recommended Stack
+# 1. Product Goal
 
-### Frontend
+AlphaBrief v0.3 should prove this loop:
+
+```text
+Ask naturally or paste a source
+→ AlphaBrief detects source/intent
+→ analyze inside a project thread
+→ AI suggests useful Canvas candidates
+→ user builds understanding in a freeform Canvas
+→ project Memory captures durable understanding
+→ user generates briefs on demand from chosen context
+→ user keeps researching over time
+```
+
+The Chrome extension strengthens source capture:
+
+```text
+Read article/video page
+→ click AlphaBrief extension
+→ create Source
+→ attach Source to project chat
+→ promote useful insights/images/quotes to Canvas
+```
+
+AlphaBrief is not only a one-click report generator. The core product bet is that users need a workspace to build understanding over time, not just another AI answer that evaporates into chat sludge.
+
+---
+
+# 2. Recommended Stack
+
+## Frontend Web App
 
 ```text
 React
 TypeScript
-Vite
+Vite or Next.js
 TailwindCSS
-shadcn/ui or similar component library
+shadcn/ui or similar component system
+react-router v6 if Vite
 ```
 
-### Backend
+## Freeform Canvas Layer
+
+Recommended options:
+
+```text
+React Flow        # good for nodes/edges/mind-map-like structures
+Konva / react-konva # good for freeform canvas and shapes
+Tldraw SDK        # strong whiteboard behavior, heavier dependency
+Custom absolute-positioned div canvas # simplest first implementation
+```
+
+v0.3 pragmatic recommendation:
+
+```text
+Start with a custom absolute-positioned CanvasElement layer.
+Add React Flow or a graph library only if connectors/mind-map behavior becomes painful.
+```
+
+## Chrome Extension
+
+```text
+Chrome Extension Manifest V3
+TypeScript
+React optional for popup UI
+Content script
+Service worker
+activeTab permission where possible
+```
+
+## Backend
 
 ```text
 Python
 FastAPI
-SQLAlchemy 2.x
+SQLAlchemy 2.x async
 Alembic
 Pydantic
 PostgreSQL
 ```
 
-### Background Processing
+## Background Processing
 
-For early v0.3, brief generation can start synchronously if needed.
-
-However, the architecture should be designed so it can move to async/background processing.
-
-Recommended later options:
+For early v0.3:
 
 ```text
-Celery + Redis
+FastAPI BackgroundTasks
+```
+
+For later scale:
+
+```text
 RQ + Redis
+Celery + Redis
 Arq + Redis
-FastAPI BackgroundTasks for very simple local MVP usage
 ```
 
-### External Services
-
-Possible external services:
-
-```text
-AI model provider
-Article extraction provider
-YouTube transcript provider
-Market/company data provider
-News/search provider
-```
+Do not start with distributed-worker theater until the simple version actually hurts.
 
 ---
 
-## 4. High-Level Architecture
-
-Recommended v0.3 shape:
+# 3. High-Level Architecture
 
 ```text
-React/Vite Frontend
+React/TypeScript Workspace App
         ↓
-FastAPI Backend
+FastAPI API Layer
         ↓
 Service Layer
         ↓
-SQLAlchemy Repositories
+Repository Layer
         ↓
 PostgreSQL
+
+Chrome Extension
+        ↓
+Source ingestion API
+        ↓
+Same Source / Chat / Canvas pipeline
 ```
 
-AI and data-provider calls should be isolated behind service/client classes:
+External services should sit behind client classes:
 
 ```text
 AI Provider Client
 Article Extraction Client
-Transcript Client
-Market Data Client
-News/Search Client
+YouTube Transcript/Metadata Client
+PDF Extraction Client
+Company Data Client optional lightweight
+Market/News API Client optional lightweight
+Object Storage Client
 ```
-
-The backend should own:
-
-- Authentication
-- Authorization
-- Brief orchestration
-- Source extraction
-- Entity detection
-- Context retrieval
-- AI generation
-- Subscription entitlement checks
-- Promo-code redemption
-- Usage limits
-- Persistence
-
-The frontend should own:
-
-- Source input UI
-- Brief generation status UI
-- Brief result display
-- Brief history
-- Login/signup screens
-- Subscription/promo-code page
-- Locked premium sections
-- Error and loading states
 
 ---
 
-## 5. Core User Flow
+# 4. Client Surfaces
 
-### 5.1 Free User Flow
-
-```text
-User submits source
-        ↓
-Backend validates source type and usage limit
-        ↓
-System extracts raw content
-        ↓
-System cleans content
-        ↓
-System identifies financial entities
-        ↓
-System retrieves basic company/entity context
-        ↓
-AI generates structured basic brief
-        ↓
-Backend stores brief and entity insights
-        ↓
-User views summary, key takeaways, entity insights, and risks
-```
-
-### 5.2 Pro User Flow
-
-```text
-User submits source
-        ↓
-Backend validates source type and Pro entitlement
-        ↓
-System extracts raw content
-        ↓
-System cleans content
-        ↓
-System identifies financial entities
-        ↓
-System retrieves company-level context
-        ↓
-System retrieves broader context:
-    - Industry trends
-    - Competitor movement
-    - Macro factors
-    - Regulatory/political factors
-    - Market sentiment
-        ↓
-AI generates deeper investment brief
-        ↓
-Backend stores brief, entity insights, and external context items
-        ↓
-User views richer entity analysis and environment-level insights
-```
-
-### 5.3 Promo Code Flow
-
-```text
-User enters promo code
-        ↓
-Backend normalizes and hashes code
-        ↓
-Backend validates code status, expiry, and redemption limits
-        ↓
-Backend creates user entitlement
-        ↓
-Backend records promo code redemption
-        ↓
-User receives Pro access
-```
-
-Promo codes should not bypass backend authorization. They should create an entitlement, and Pro-only features should check active entitlements.
-
----
-
-## 6. Frontend Architecture
-
-### Recommended Stack
-
-- React
-- TypeScript
-- Vite
-- TailwindCSS
-- shadcn/ui or similar component library
-
-### Key Pages
-
-| Page | Purpose |
+| Client Surface | Purpose |
 |---|---|
-| Landing page | Explain Alphabrief and its value proposition |
-| Sign in / Sign up | Basic authentication |
-| Dashboard | Show recent briefs and main input box |
-| New Brief page | Submit URL or pasted text |
-| Brief Detail page | Display generated brief |
-| Brief History page | List previous briefs |
-| Subscription page | Show current plan and promo-code input |
-| Pricing page | Explain Free vs Pro behavior |
+| Web App | Main research workspace: Projects, Agent chat, Canvas, Sources, Memory, Briefs |
+| Chrome Extension | User-initiated page capture and source creation from current browser page |
 
-### Frontend Responsibilities
+## Web App Core Areas
 
-- Collect source input
-- Display validation errors
-- Call backend APIs
-- Poll brief status if generation is async
-- Display generated brief sections
-- Show locked Pro sections for free users
-- Display user subscription status
-- Submit promo codes
-- Handle loading and error states
-
-### Recommended Frontend Structure
-
-```text
-frontend/src/
-├── api/
-├── components/
-├── features/
-│   ├── auth/
-│   ├── briefs/
-│   ├── subscription/
-│   └── layout/
-├── pages/
-├── routes/
-├── types/
-└── main.tsx
-```
+| Area | Purpose |
+|---|---|
+| Project Sidebar | Top-level navigation; Catchall pinned; user projects and threads below |
+| Center Canvas | Freeform editable thinking workspace |
+| Agent Panel | Ask box, source analysis, AI replies, add-to-Canvas actions |
+| Sources Tab | Evidence library for project/thread |
+| Memory Tab | Explicit accumulated project understanding |
+| Brief View | Generated brief versions and history |
 
 ---
 
-## 7. Backend Architecture
+# 5. Workspace UI Architecture
 
-### Recommended Stack
+## 5.1 Layout
 
-- Python
-- FastAPI
-- SQLAlchemy 2.x
-- Alembic
-- Pydantic
-- PostgreSQL
-- Uvicorn
+Recommended MVP layout based on the latest design:
 
-### Backend Responsibilities
+```text
+Left sidebar: Projects + threads
+Center pane: Freeform Canvas
+Right pane: Agent chat
+Top tabs: Canvas | Sources | Memory
+Top action: Generate brief
+```
 
-- User and auth management
-- Source submission
-- Brief orchestration
-- AI pipeline coordination
-- Entity extraction persistence
-- Entitlement-based subscription enforcement
-- Promo-code redemption
-- Usage limit enforcement
-- Brief history storage
-- API response formatting
-- Error handling
+This is different from the previous left-chat/right-canvas layout.
 
-### Recommended Backend Structure
+The Canvas should feel central. The Agent should feel like the assistant beside the user's thinking board.
+
+## 5.2 Project Sidebar
+
+Responsibilities:
+
+```text
+- Show brand/date/user area if desired
+- Show Catchall or active projects
+- Show threads inside selected project
+- Create new thread
+- Search projects/threads
+- Navigate to /workspace/projects/:projectId/threads/:chatId
+```
+
+## 5.3 Center Canvas
+
+Responsibilities:
+
+```text
+- Render freeform Canvas elements
+- Support text elements
+- Support AI-imported blocks
+- Support image/screenshot elements
+- Support simple mind-map nodes
+- Support connector lines
+- Support group/frame elements
+- Drag/move/resize elements
+- Edit text directly or through a side/popover editor
+- Preserve source/chat provenance
+- Allow selected area actions
+```
+
+Minimum v0.3 Canvas operations:
+
+```text
+create text
+create image
+create node
+move
+resize
+edit
+delete/archive
+duplicate
+connect elements
+group selected
+add AI answer to Canvas
+add source quote/note to Canvas
+```
+
+## 5.4 Agent Panel
+
+Responsibilities:
+
+```text
+- One Ask box
+- Allow paste URL / YouTube / source / question naturally
+- Detect source type after send
+- Show assistant answer cards
+- Show source chips/citations
+- Show candidate Canvas suggestions
+- Provide Add to Canvas actions
+- Trigger brief generation when requested
+```
+
+Recommended placeholder:
+
+```text
+Ask, paste a URL, or upload a source to research...
+```
+
+## 5.5 Sources Tab
+
+Responsibilities:
+
+```text
+- List sources for project/thread
+- Show extraction status
+- Show metadata-only/full-text status
+- Show linked Canvas elements and chat turns
+- Allow source re-analysis
+- Allow Add quote/note to Canvas
+```
+
+## 5.6 Memory Tab
+
+Responsibilities:
+
+```text
+- Show project summary
+- Show entities/tickers/themes
+- Show open questions
+- Show current conclusions
+- Allow user edits
+- Later: AI refresh from recent project activity
+```
+
+## 5.7 Brief View
+
+Responsibilities:
+
+```text
+- Create brief series
+- Generate new version from selected context
+- Show context used for generation
+- Show version history
+- Show what changed between versions
+```
+
+Brief generation should not assume Canvas is the only source. Let users choose context because apparently agency is useful.
+
+---
+
+# 6. Chrome Extension Architecture
+
+The Chrome extension is a lightweight source capture layer.
+
+```text
+extension/
+├── manifest.json
+├── popup/
+│   ├── popup.html
+│   └── popup.tsx
+├── content/
+│   └── content-script.ts
+├── background/
+│   └── service-worker.ts
+├── lib/
+│   ├── extractArticle.ts
+│   ├── apiClient.ts
+│   └── auth.ts
+└── assets/
+```
+
+## Extension Responsibilities
+
+```text
+1. Run only after explicit user action
+2. Read current active tab when permitted
+3. Extract page/video metadata
+4. Extract readable text when available
+5. Show preview/status to user
+6. Send source payload to backend
+7. Open source or workspace in web app
+```
+
+## Extension Non-Responsibilities
+
+```text
+1. No broad background crawling
+2. No paywall bypass
+3. No CAPTCHA bypass
+4. No login-wall bypass positioning
+5. No hidden browsing-history collection
+6. No permanent local archive of article text
+```
+
+## Extension Auth for v0.3
+
+Recommended initial auth:
+
+```text
+1. User logs into web app.
+2. User generates extension token from settings.
+3. Extension stores token in chrome.storage.
+4. Extension sends Authorization: Bearer <extension_token>.
+5. Backend maps token to user and applies ownership rules.
+```
+
+Preferred permissions:
+
+```json
+{
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["https://api.alphabrief.com/*"]
+}
+```
+
+Avoid `<all_urls>` unless truly needed later.
+
+---
+
+# 7. Backend Package Structure
 
 ```text
 backend/app/
@@ -321,14 +398,29 @@ backend/app/
 │   └── v1/
 │       ├── auth.py
 │       ├── users.py
+│       ├── projects.py
+│       ├── chats.py
+│       ├── chat_turns.py
+│       ├── sources.py
+│       ├── source_scans.py
+│       ├── source_segments.py
+│       ├── canvases.py
+│       ├── canvas_elements.py
+│       ├── canvas_connections.py
+│       ├── candidate_elements.py
+│       ├── project_memory.py
 │       ├── briefs.py
-│       ├── entities.py
-│       ├── subscription.py
+│       ├── brief_versions.py
+│       ├── tags.py
+│       ├── companies.py
+│       ├── activity.py
+│       ├── allowance.py
 │       └── health.py
 │
 ├── core/
 │   ├── config.py
 │   ├── security.py
+│   ├── enums.py
 │   ├── errors.py
 │   └── logging.py
 │
@@ -338,1000 +430,910 @@ backend/app/
 │
 ├── models/
 │   ├── user.py
-│   ├── plan.py
-│   ├── user_entitlement.py
-│   ├── promo_code.py
-│   ├── promo_code_redemption.py
+│   ├── project.py
+│   ├── chat.py
+│   ├── chat_turn.py
+│   ├── chat_turn_source.py
 │   ├── source.py
+│   ├── source_scan.py
+│   ├── source_segment.py
+│   ├── canvas.py
+│   ├── canvas_element.py
+│   ├── canvas_connection.py
+│   ├── candidate_element.py
+│   ├── project_memory.py
 │   ├── brief.py
-│   ├── brief_generation_job.py
-│   ├── financial_entity.py
-│   ├── brief_entity_insight.py
-│   ├── external_context_item.py
-│   └── user_usage_daily.py
+│   ├── brief_version.py
+│   ├── brief_context_snapshot.py
+│   ├── tag.py
+│   ├── company.py
+│   ├── research_activity.py
+│   └── usage_event.py
 │
 ├── schemas/
 │   ├── auth.py
+│   ├── user.py
+│   ├── project.py
+│   ├── chat.py
+│   ├── chat_turn.py
+│   ├── source.py
+│   ├── extension_source.py
+│   ├── source_scan.py
+│   ├── source_segment.py
+│   ├── canvas.py
+│   ├── canvas_element.py
+│   ├── canvas_connection.py
+│   ├── candidate_element.py
+│   ├── project_memory.py
 │   ├── brief.py
-│   ├── entity.py
-│   ├── subscription.py
+│   ├── brief_version.py
+│   ├── tag.py
+│   ├── company.py
+│   ├── activity.py
+│   ├── allowance.py
 │   └── common.py
 │
 ├── repositories/
 │   ├── user_repository.py
+│   ├── project_repository.py
+│   ├── chat_repository.py
+│   ├── chat_turn_repository.py
+│   ├── chat_turn_source_repository.py
+│   ├── source_repository.py
+│   ├── source_scan_repository.py
+│   ├── source_segment_repository.py
+│   ├── canvas_repository.py
+│   ├── canvas_element_repository.py
+│   ├── canvas_connection_repository.py
+│   ├── candidate_element_repository.py
+│   ├── project_memory_repository.py
 │   ├── brief_repository.py
-│   ├── entitlement_repository.py
-│   ├── promo_code_repository.py
+│   ├── brief_version_repository.py
+│   ├── brief_context_snapshot_repository.py
+│   ├── tag_repository.py
+│   ├── company_repository.py
+│   ├── activity_repository.py
 │   └── usage_repository.py
 │
 ├── services/
 │   ├── auth_service.py
-│   ├── access_service.py
-│   ├── promo_code_service.py
-│   ├── usage_limit_service.py
+│   ├── project_service.py
+│   ├── chat_service.py
+│   ├── chat_turn_service.py
+│   ├── input_detection_service.py
+│   ├── chat_turn_orchestrator.py
+│   ├── chat_prompt_builder.py
+│   ├── chat_validation_service.py
+│   ├── source_service.py
 │   ├── source_extraction_service.py
-│   ├── entity_detection_service.py
+│   ├── browser_extension_source_service.py
 │   ├── context_retrieval_service.py
-│   ├── brief_generation_service.py
-│   └── ai_output_validation_service.py
+│   ├── source_scan_service.py
+│   ├── source_segmentation_service.py
+│   ├── research_allowance_service.py
+│   ├── canvas_service.py
+│   ├── canvas_element_service.py
+│   ├── canvas_connection_service.py
+│   ├── candidate_extraction_service.py
+│   ├── project_memory_service.py
+│   ├── brief_version_service.py
+│   ├── brief_context_service.py
+│   ├── brief_prompt_builder.py
+│   ├── brief_validation_service.py
+│   ├── activity_service.py
+│   └── usage_tracking_service.py
 │
 ├── clients/
 │   ├── ai_provider_client.py
+│   ├── anthropic_client.py
 │   ├── article_extraction_client.py
 │   ├── transcript_client.py
-│   ├── market_data_client.py
-│   └── news_search_client.py
+│   ├── pdf_extraction_client.py
+│   ├── company_data_client.py
+│   ├── market_news_client.py
+│   └── object_storage_client.py
 │
 └── main.py
 ```
 
-### Backend Layering Rule
+---
 
-Route handlers should stay thin.
+# 8. Core Services
 
-Recommended flow:
+## `InputDetectionService`
+
+Responsibilities:
 
 ```text
-API route
-→ Service
-→ Repository
-→ Database
+- Detect URLs in user message
+- Classify source type: article, YouTube, PDF, filing, unknown
+- Detect intent: general ask, source analysis, brief generation, Canvas action, comparison
+- Return routing decision to ChatTurnService
 ```
 
-External API calls should go through client classes.
+## `ProjectService`
 
-AI prompting should live in services, not route handlers.
+Responsibilities:
+
+```text
+- Create/update/archive/delete projects
+- Ensure Catchall project exists
+- Ensure default Canvas exists for project
+- Ensure ProjectMemory row exists for project
+- Reject user-created Catchall
+- Enforce Catchall immutability
+- Later: project accumulation detection
+```
+
+## `ChatService`
+
+Responsibilities:
+
+```text
+- Create/list/update/delete chats
+- Enforce project ownership
+- Archive/unarchive chats
+- Update last_turn_at
+```
+
+## `ChatTurnService`
+
+Responsibilities:
+
+```text
+- Validate chat state and source refs
+- Use InputDetectionService
+- Create/reuse sources for detected URLs
+- Create user + assistant turn pair
+- Attach sources
+- Schedule background generation
+- Return assistant turn for polling
+```
+
+## `ChatTurnOrchestrator`
+
+Responsibilities:
+
+```text
+- Run assistant generation in background
+- Open fresh DB session
+- Lock queued assistant turn
+- Build prompt based on route
+- Call AI provider
+- Validate response
+- Persist response and usage
+- Trigger candidate extraction as best effort
+- Mark orphaned turns failed on startup sweep
+```
+
+## `ChatPromptBuilder`
+
+Responsibilities:
+
+```text
+- Build prompt from route, project, chat history, current message, sources, Memory, and selected Canvas context
+- Cap prompt size
+- Truncate oldest history first
+- Trim source snippets
+- Add educational/not-advice rules
+- Avoid fabricated source claims
+```
+
+## `CanvasService`
+
+Responsibilities:
+
+```text
+- Create/get default project Canvas
+- Persist viewport state if needed
+- Enforce project ownership
+```
+
+## `CanvasElementService`
+
+Responsibilities:
+
+```text
+- Create manual text/image/node/group elements
+- Promote from chat turns
+- Promote from sources
+- Promote candidate elements
+- Edit/move/resize/archive/delete elements
+- Preserve provenance
+```
+
+## `CanvasConnectionService`
+
+Responsibilities:
+
+```text
+- Create/update/delete connections between Canvas elements
+- Validate both elements belong to same Canvas
+- Support simple relationship types
+```
+
+## `CandidateExtractionService`
+
+Responsibilities:
+
+```text
+- Ask AI provider for candidate Canvas elements
+- Validate candidate element types/content
+- Persist PENDING candidates
+- Fail safely without breaking assistant turn
+```
+
+## `ProjectMemoryService`
+
+Responsibilities:
+
+```text
+- Get/update visible project memory
+- Summarize entities/themes/open questions
+- Refresh memory from recent project activity when requested
+- Avoid hidden uncontrolled memory behavior
+```
+
+## `BriefContextService`
+
+Responsibilities:
+
+```text
+- Build explicit context snapshots for brief generation
+- Support current thread, selected sources, project memory, selected Canvas elements, Canvas clusters, and full project context
+- Store exact snapshot_json used for generation
+```
+
+## `BriefVersionService`
+
+Responsibilities:
+
+```text
+- Create brief series
+- Create BriefContextSnapshot from selected context
+- Generate BriefVersion from snapshot
+- Compare with previous version when requested
+- Persist sections and summary_of_changes
+- Update current_version_id
+```
+
+## `SourceService`
+
+Responsibilities:
+
+```text
+- Create URL, YouTube, PDF, image, filing, and browser-extension sources
+- Normalize URLs and metadata
+- Track access method and status
+- Coordinate extraction services
+- Decide whether source supports source analysis or context analysis
+```
+
+## `SourceScanService`
+
+Responsibilities:
+
+```text
+- Run cheap pre-analysis scans
+- Detect length, entities, topics, complexity
+- Estimate allowance impact
+- Recommend research mode/completion strategy
+- Trigger segmentation when needed
+```
+
+## `UsageTrackingService`
+
+Responsibilities:
+
+```text
+- Persist token/cost events for chat turns, candidates, scans, memory refreshes, and brief versions
+- Track cache read/write tokens when provider supports it
+```
 
 ---
 
-## 8. Database Architecture
-
-Recommended database:
+# 9. Data Flow: Unified Ask
 
 ```text
-PostgreSQL
+Frontend AgentComposer
+   ↓ POST /chats/{chatId}/turns
+FastAPI chat_turns route
+   ↓
+ChatTurnService
+   ↓
+InputDetectionService
+   ↓ create/reuse sources if needed
+   ↓ validate chat + source ownership
+   ↓ create user turn + queued assistant turn
+   ↓ attach sources
+   ↓ schedule background task
+Return assistantTurnId + detectedInputType + detectedIntentType
 ```
 
-Recommended migration tool:
+Background:
 
 ```text
-Alembic
+Background task
+   ↓ fresh DB session
+ChatTurnOrchestrator
+   ↓ ChatPromptBuilder
+AiProviderClient
+   ↓ ChatValidationService
+ChatTurnRepository
+   ↓ UsageTrackingService
+   ↓ CandidateExtractionService best effort
 ```
 
-Recommended ORM:
+---
+
+# 10. Data Flow: Source Attachment
 
 ```text
-SQLAlchemy 2.x
+User pastes URL in Ask box
+   ↓
+InputDetectionService detects source
+   ↓
+SourceService creates Source
+   ↓ extraction / metadata fallback
+   ↓ source attaches to ChatTurn
 ```
 
-### Database Responsibilities
-
-- Store users
-- Store submitted sources
-- Store generated briefs
-- Store brief generation jobs
-- Store detected financial entities
-- Store brief/entity relationships
-- Store external context used for generation
-- Store plans and user entitlements
-- Store promo codes and redemptions
-- Store usage limits
-
-### Core Tables
-
-Required for v0.3:
+Manual SourcePicker flow remains available:
 
 ```text
-users
-plans
-user_entitlements
-promo_codes
-promo_code_redemptions
+Frontend SourcePicker
+   ↓ POST /sources or GET /sources
+SourceService
+   ↓ extraction / metadata fallback
+SourceRepository
+   ↓ source appears attachable when FULL_TEXT_EXTRACTED or METADATA_ONLY
+```
+
+---
+
+# 11. Data Flow: Candidate Elements
+
+```text
+Assistant turn completed
+   ↓
+CandidateExtractionService
+   ↓ AiProviderClient.extract_candidates
+   ↓ validate candidates
+   ↓ persist candidate_elements(PENDING)
+Frontend loads candidates
+   ↓ user promotes or dismisses
+CanvasElementService creates CanvasElement on promote
+```
+
+Candidate extraction must be non-critical:
+
+```text
+AI reply success + candidate extraction failure = reply still succeeds.
+```
+
+---
+
+# 12. Data Flow: Freeform Canvas
+
+```text
+Frontend Canvas
+   ↓ GET /projects/{projectId}/canvas
+CanvasService
+   ↓ returns default Canvas
+```
+
+Elements:
+
+```text
+Frontend Canvas
+   ↓ GET /canvases/{canvasId}/elements
+CanvasElementService
+   ↓ CanvasElementRepository
+```
+
+Manual element:
+
+```text
+User adds text/image/node
+   ↓ POST /canvases/{canvasId}/elements
+CanvasElementService
+   ↓ persist element with x/y/width/height
+```
+
+Move/resize:
+
+```text
+User drags/resizes element
+   ↓ PATCH /canvas-elements/{elementId}
+CanvasElementService
+   ↓ persist x/y/width/height/zIndex
+```
+
+Connection:
+
+```text
+User draws connector
+   ↓ POST /canvases/{canvasId}/connections
+CanvasConnectionService
+   ↓ validate same Canvas
+   ↓ persist connection
+```
+
+---
+
+# 13. Data Flow: Project Memory
+
+```text
+Frontend Memory tab
+   ↓ GET /projects/{projectId}/memory
+ProjectMemoryService
+   ↓ ProjectMemoryRepository
+```
+
+Manual update:
+
+```text
+User edits memory
+   ↓ PATCH /projects/{projectId}/memory
+ProjectMemoryService
+   ↓ persist visible memory
+```
+
+AI refresh:
+
+```text
+User clicks Refresh Memory
+   ↓ POST /projects/{projectId}/memory/refresh
+ProjectMemoryService
+   ↓ load recent activity / high-signal turns / sources / selected Canvas elements
+   ↓ AiProviderClient
+   ↓ validate and persist memory update
+```
+
+---
+
+# 14. Data Flow: Brief Version Generation
+
+```text
+Frontend GenerateBriefDialog
+   ↓ user selects context:
+      current thread / selected sources / selected Canvas / project memory / full project
+   ↓ POST /briefs/{briefId}/versions
+BriefVersionService
+   ↓ BriefContextService creates BriefContextSnapshot
+   ↓ BriefPromptBuilder
+   ↓ AiProviderClient
+   ↓ BriefValidationService
+   ↓ persist BriefVersion
+   ↓ update Brief.current_version_id
+   ↓ UsageTrackingService + ActivityService
+```
+
+Important:
+
+```text
+Do not force every brief through Canvas.
+Do not feed the entire raw project history by default.
+Use explicit selected context snapshots.
+```
+
+---
+
+# 15. Prompt Caching / AI Provider Strategy
+
+The AI provider client should expose:
+
+```python
+class AiProviderClient(Protocol):
+    async def generate_chat_reply(self, prompt: ChatPrompt) -> ChatReply: ...
+    async def extract_candidates(self, *, user_message: str, assistant_reply: str, attached_sources: list[Source]) -> list[CandidateExtraction]: ...
+    async def generate_brief_version(self, prompt: BriefPrompt) -> BriefReply: ...
+    async def refresh_project_memory(self, prompt: MemoryPrompt) -> MemoryReply: ...
+```
+
+Provider selection:
+
+```text
+AI_PROVIDER=mock       → MockAiProviderClient
+AI_PROVIDER=anthropic  → AnthropicClient if API key exists, else mock + warning
+```
+
+Keep the real model configurable. Do not hardcode a specific provider model name into business logic.
+
+Prompt caching should be considered for repeated turns inside the same chat:
+
+```text
+Stable prefix:
+- system role
+- compliance rules
+- output schema/tool schema
+- style guide
+
+Variable suffix:
+- project context summary
+- recent turns
+- current user message
+- attached sources
+- selected Canvas context if relevant
+```
+
+---
+
+# 16. Validation and Safety
+
+## Chat Validation
+
+Validate:
+
+```text
+- content_markdown non-empty
+- markdown sanitized
+- source markers reference actual attached sources
+- no personalized investment advice phrases
+- no fabricated source claims
+- if source metadata-only, response says full source text was unavailable
+```
+
+## Candidate Validation
+
+Validate:
+
+```text
+- allowed CanvasElementType
+- non-empty title/content where applicable
+- no unsupported source-specific claims
+- no personalized advice
+```
+
+## Canvas Validation
+
+Validate:
+
+```text
+- element belongs to user/project/canvas
+- image/file references are owned by user
+- connector endpoints belong to same Canvas
+- element dimensions/coordinates are sane
+- source quotes are short and source-linked
+```
+
+## Memory Validation
+
+Validate:
+
+```text
+- memory is visible and user-editable
+- no unsupported claims from inaccessible sources
+- no personalized investment advice
+- memory refresh cites or links back to project artifacts where possible
+```
+
+## Brief Validation
+
+Validate:
+
+```text
+- required sections exist
+- disclaimer exists
+- output generated from BriefContextSnapshot
+- generated-from note exists
+- no fabricated source claims
+- no personalized investment recommendation
+- what-changed summary present for v2+ when requested
+```
+
+Repair once. On second failure, mark entity failed and return a safe message.
+
+---
+
+# 17. Frontend Implementation Slices
+
+## PR #12: Workspace Shell
+
+Build:
+
+```text
+WorkspaceShell
+ProjectSidebar
+CenterCanvasStub
+AgentPanelStub
+Canvas/Sources/Memory tabs
+/workspace routes
+```
+
+## PR #13: Unified Agent Panel
+
+Build:
+
+```text
+One Ask composer
+Turn list / answer cards
+URL paste support
+Detected source chips
+Assistant polling
+Add-to-Canvas action placeholders
+```
+
+## PR #14: Freeform Canvas MVP
+
+Build:
+
+```text
+Canvas viewport
+CanvasElement rendering
+Text element creation
+Image element creation
+Move/resize/edit/delete
+Basic selection
+```
+
+## PR #15: Canvas Connections + Mind Map Basics
+
+Build:
+
+```text
+Mind-map node element
+Connector line creation
+Connection labels
+Group/frame element
+```
+
+## PR #16: Sources Tab
+
+Build:
+
+```text
+Project source list
+Extraction status
+Source detail drawer
+Linked chat/canvas counts
+Add quote/note to Canvas
+```
+
+## PR #17: Memory Tab
+
+Build:
+
+```text
+Project memory display
+Entities/themes/open questions
+Manual edit
+AI refresh placeholder
+```
+
+## PR #18: Brief View
+
+Build:
+
+```text
+Brief series creation
+Generate from selected context
+Version history
+Context-used summary
+Compare versions
+```
+
+---
+
+# 18. Backend Implementation Slices
+
+## PR #7: Projects
+
+```text
+projects table
+ProjectKind enum
+auto Catchall
+auto default Canvas
+auto ProjectMemory row
+project endpoints
+```
+
+## PR #8: Chats
+
+```text
+chats table
+ChatStatus enum
+chat endpoints
+```
+
+## PR #9: Unified Ask + Chat Turns
+
+```text
+chat_turns
+chat_turn_sources
+InputDetectionService
+send endpoint
+mock provider
+background orchestrator
+polling endpoints
+orphan sweep
+```
+
+## PR #10: Sources
+
+```text
 sources
+source extraction status
+article / YouTube / PDF routes
+metadata-only fallback
+browser-extension source route
+```
+
+## PR #11: Freeform Canvas
+
+```text
+canvases
+canvas_elements
+manual create
+promote from turn/source
+edit/move/resize/archive/delete
+```
+
+## PR #12: Canvas Connections
+
+```text
+canvas_connections
+mind-map node support
+relationship labels
+same-canvas validation
+```
+
+## PR #13: Candidate Elements
+
+```text
+candidate_elements
+AI extraction
+promote/dismiss
+```
+
+## PR #14: Project Memory
+
+```text
+project_memories
+get/update
+AI refresh job optional
+```
+
+## PR #15: Real LLM
+
+```text
+Anthropic or configured provider client
+structured outputs
+tighter validation
+cache token tracking
+```
+
+## Next Batch: Brief Versions
+
+```text
 briefs
-brief_generation_jobs
-financial_entities
-brief_entity_insights
-external_context_items
-user_usage_daily
-```
-
-### Shared Columns
-
-Most core tables should include:
-
-```text
-id
-created_at
-updated_at
-```
-
-In code, these should be represented using shared SQLAlchemy mixins.
-
-Example concept:
-
-```python
-class UUIDPrimaryKeyMixin:
-    id = mapped_column(UUID(as_uuid=True), primary_key=True)
-
-class TimestampMixin:
-    created_at = mapped_column(DateTime(timezone=True), nullable=False)
-    updated_at = mapped_column(DateTime(timezone=True), nullable=False)
-```
-
-Individual database tables should still list these columns clearly in `DATA_MODEL.md`.
-
----
-
-## 9. Subscription and Entitlement Architecture
-
-Alphabrief should not rely on a single `subscription_tier` field on the user as the source of truth.
-
-Instead, access should be calculated from active entitlements.
-
-### Access Model
-
-```text
-Plan = what product tier exists
-UserEntitlement = what access the user currently has
-PromoCode = one possible way to create entitlement
-Payment = another possible way to create entitlement later
-```
-
-### Required Plans
-
-```text
-FREE
-PRO
-ADMIN
-```
-
-### Entitlement Sources
-
-```text
-FREE_DEFAULT
-PROMO_CODE
-PAID_SUBSCRIPTION
-ADMIN_GRANT
-TRIAL
-```
-
-### Access Check
-
-A user has Pro access if they have an active entitlement where:
-
-```text
-user_id = current user
-plan_code in ('PRO', 'ADMIN')
-status = ACTIVE
-starts_at <= now
-ends_at is null OR ends_at > now
-```
-
-### Promo Code Redemption
-
-Promo-code redemption should be transactional:
-
-```text
-Start transaction
-Lock promo code row
-Validate redemption availability
-Create entitlement
-Create redemption record
-Increment current_redemptions
-Commit transaction
-```
-
-This prevents two users from redeeming the final available promo-code slot at the same time.
-
----
-
-## 10. AI Provider Layer
-
-The AI provider should be wrapped behind an internal client/service abstraction.
-
-Example concept:
-
-```python
-class AiProviderClient:
-    async def generate_brief(self, request: BriefGenerationRequest) -> BriefGenerationResult:
-        ...
-```
-
-This matters because:
-
-- AI providers can be changed later.
-- Service logic can be tested without always calling the AI API.
-- Prompt templates stay isolated.
-- Cost and usage monitoring becomes cleaner.
-- Output validation can be handled consistently.
-
-### Prompting Rule
-
-The system should avoid building prompts directly inside route handlers.
-
-Preferred flow:
-
-```text
-BriefGenerationService
-→ builds request
-→ ContextRetrievalService adds supporting context
-→ AiProviderClient calls model
-→ AiOutputValidationService validates output
-→ BriefRepository persists result
+brief_context_snapshots
+brief_versions
+generate from selected context
+what-changed comparison
 ```
 
 ---
 
-## 11. External Data Providers
+# 19. Pre-flight Cleanup Guidance
 
-For v0.3, Alphabrief may need data from:
+Before applying the new PR sequence, check for leftovers from abandoned earlier plans.
 
-- Article URL extraction provider
-- YouTube transcript extraction provider
-- Market data provider
-- Company profile provider
-- News/search provider
-- AI model provider
-
-These should be isolated behind client classes:
+Recommended approach:
 
 ```text
-ArticleExtractionClient
-TranscriptClient
-MarketDataClient
-CompanyProfileClient
-NewsSearchClient
-AiProviderClient
+1. Create a fresh branch.
+2. Run tests before cleanup.
+3. Search imports/usages before deleting files.
+4. Remove abandoned files only if they are not referenced.
+5. Remove matching abandoned migrations/tests carefully.
+6. Run tests again.
+7. Confirm alembic heads has exactly one head.
 ```
 
-This prevents the core app from becoming tangled with third-party APIs.
+Do not blindly delete files from the previous plan if they were already completed and referenced by current source pipelines.
 
----
-
-## 12. Core Domains
-
-### User
-
-Represents a registered user.
-
-Main fields:
+Load-bearing pieces to preserve:
 
 ```text
-id
-email
-password_hash
-display_name
-role
-created_at
-updated_at
+sources
+source_scans
+source_segments
+source_fetch_policies
+source_fetch_log
+EDGAR client
+enrichment service
+source extraction / validation services
 ```
 
-User access should be determined through `user_entitlements`, not through `users.subscription_tier`.
-
----
-
-### Plan
-
-Represents a product access tier.
-
-Plan examples:
+Things to rename or replace from the previous Canvas-first plan:
 
 ```text
-FREE
-PRO
-ADMIN
-```
-
-Main fields:
-
-```text
-id
-code
-name
-description
-active
-created_at
-updated_at
+CanvasBlock → CanvasElement
+CanvasSnapshot → BriefContextSnapshot
+canvas_blocks endpoints → canvas_elements endpoints
+Brief from Canvas only → Brief from selected context
+URL Mode / YouTube Mode as visible modes → one Ask box with internal routing
 ```
 
 ---
 
-### User Entitlement
+# 20. Key Architecture Concerns
 
-Represents the access a user currently has.
+## 20.1 One Ask Box vs Internal Modes
 
-Main fields:
+The user should see one Ask box. The backend can route internally.
 
-```text
-id
-user_id
-plan_code
-source_type
-source_id
-status
-starts_at
-ends_at
-created_at
-updated_at
-```
-
-Entitlements allow Alphabrief to support:
+Recommendation:
 
 ```text
-Free users
-Paid Pro users
-Promo-code Pro users
-Trial users
-Admin-granted Pro users
-Future student discounts
+Do not expose separate hard modes for Analyze Video / Analyze News / Ask.
+Use source chips and detected context UI after input is parsed.
 ```
+
+## 20.2 Freeform Canvas Can Become Messy
+
+Canvas needs freedom plus lightweight helper actions.
+
+Recommendation:
+
+```text
+Support group, connect, summarize selected area, and find contradictions.
+Do not enforce a report outline.
+```
+
+## 20.3 Canvas Is Optional Brief Context
+
+If the user built a useful Canvas, it should be usable for a brief. But if they want a quick source brief from a thread, they should not need Canvas first.
+
+Recommendation:
+
+```text
+Generate briefs from explicit selected context snapshots.
+```
+
+## 20.4 Candidate Extraction Should Not Block Replies
+
+The assistant reply is the primary user-visible result. Candidate extraction is enhancement.
+
+Recommendation:
+
+```text
+Complete and show assistant turn first.
+Then extract candidates best-effort.
+```
+
+## 20.5 Avoid Recreating `ResearchItem` Ambiguity
+
+Do not rebuild a universal `ResearchItem` abstraction unless search/log views require it. The new architecture has clearer nouns.
+
+## 20.6 Do Not Overbuild Miro
+
+Canvas needs editable research thinking, not a full whiteboard startup inside your startup.
+
+MVP Canvas:
+
+```text
+text
+AI block
+image
+mind-map node
+connector
+group/frame
+move/resize/edit/delete
+provenance
+```
+
+That is enough for v0.3. No multiplayer, comments, complex vector tooling, backlinks, embedded spreadsheets, or block-level agents yet. Please let the MVP breathe.
 
 ---
 
-### Promo Code
+# 21. MVP Success Definition
 
-Represents a code that can grant temporary or open-ended access.
-
-Main fields:
+v0.3 succeeds if a user can say:
 
 ```text
-id
-code_hash
-display_code_suffix
-plan_code
-duration_days
-max_redemptions
-current_redemptions
-max_redemptions_per_user
-starts_at
-expires_at
-active
-created_by
-created_at
-updated_at
+I pasted sources and asked questions naturally, used the Canvas to visually build my understanding, tracked important sources and memory, and generated a useful brief when I needed one.
 ```
 
----
-
-### Source
-
-Represents the original user input.
-
-Supported v0.3 source types:
-
-```text
-ARTICLE_URL
-YOUTUBE_URL
-PASTED_TEXT
-```
-
-Main fields:
-
-```text
-id
-user_id
-source_type
-original_input
-normalized_url
-title
-raw_text
-extraction_status
-extraction_error
-content_hash
-created_at
-updated_at
-```
-
----
-
-### Brief
-
-Represents the final AI-generated output.
-
-Main fields:
-
-```text
-id
-user_id
-source_id
-title
-brief_status
-plan_code_used
-requested_depth
-source_summary
-key_takeaways
-risks
-opportunities
-investor_questions
-disclaimer
-model_provider
-model_name
-prompt_version
-generation_error
-generated_at
-created_at
-updated_at
-```
-
----
-
-### Brief Generation Job
-
-Tracks the async or step-by-step generation process for a brief.
-
-Main fields:
-
-```text
-id
-brief_id
-user_id
-status
-current_step
-retry_count
-max_retries
-error_code
-error_message
-started_at
-completed_at
-created_at
-updated_at
-```
-
-This is useful for status polling, retries, debugging, and future background workers.
-
----
-
-### Financial Entity
-
-Represents a company, ticker, sector, asset, index, or macro entity detected in the source.
-
-Entity types:
-
-```text
-COMPANY
-TICKER
-SECTOR
-INDEX
-CRYPTO
-COMMODITY
-MACRO_FACTOR
-CURRENCY
-ETF
-UNKNOWN
-```
-
-Main fields:
-
-```text
-id
-name
-ticker
-exchange
-entity_type
-country
-sector
-industry
-external_provider
-external_id
-created_at
-updated_at
-```
-
----
-
-### Brief Entity Insight
-
-Represents analysis for one entity inside one brief.
-
-Main fields:
-
-```text
-id
-brief_id
-entity_id
-source_specific_insight
-company_context
-industry_context
-macro_context
-political_regulatory_context
-competitor_context
-risk_factors
-opportunity_factors
-premium_only
-created_at
-updated_at
-```
-
----
-
-### External Context Item
-
-Stores external data used to enrich a brief.
-
-Main fields:
-
-```text
-id
-brief_id
-entity_id
-context_type
-provider
-title
-url
-published_at
-snippet
-raw_payload
-used_in_prompt
-created_at
-updated_at
-```
-
-This is useful for traceability, debugging, and future citation/explainability features.
-
----
-
-### User Usage Daily
-
-Tracks daily usage for cost control.
-
-Main fields:
-
-```text
-id
-user_id
-usage_date
-plan_code_at_usage
-brief_count
-ai_input_token_estimate
-ai_output_token_estimate
-created_at
-updated_at
-```
-
----
-
-## 13. v0.3 AI Pipeline
-
-```text
-1. Validate input
-2. Check usage limit
-3. Check entitlement if Pro-only depth is requested
-4. Create source
-5. Create brief
-6. Create brief_generation_job
-7. Extract content
-8. Clean content
-9. Detect financial entities
-10. Retrieve context based on effective plan
-11. Store external_context_items where applicable
-12. Construct AI prompt
-13. Generate structured brief
-14. Validate AI output shape
-15. Persist brief and entity insights
-16. Update usage
-17. Mark job as completed or failed
-18. Return result to user
-```
-
-### Async-Friendly Generation Flow
-
-```text
-POST /api/v1/briefs
-        ↓
-Create source
-        ↓
-Create brief with status QUEUED
-        ↓
-Create brief_generation_job with status QUEUED
-        ↓
-Return briefId to frontend
-        ↓
-Worker processes job
-        ↓
-Frontend polls GET /api/v1/briefs/{briefId}
-```
-
-For very early v0.3, the worker can be simulated or replaced with synchronous processing. The API should still be shaped as if async processing is possible later.
-
----
-
-## 14. Free vs Pro Behavior
-
-### Free Tier
-
-Free tier brief should include:
-
-- Source summary
-- Key takeaways
-- Mentioned financial entities
-- Basic company/entity explanation
-- Source-specific risks
-- Simple investor questions
-
-### Pro Tier
-
-Pro tier brief should include everything in free tier, plus:
-
-- Industry trends
-- Competitor dynamics
-- Macro factors
-- Political/regulatory factors
-- Earnings and valuation context where available
-- Broader risk/opportunity map
-- Second-order implications
-
-### Important Rule
-
-Premium gating must be enforced by the backend.
-
-Do not rely only on the frontend to hide premium sections.
-
-Bad pattern:
-
-```text
-Backend returns premium context to everyone
-Frontend hides it for free users
-```
-
-Good pattern:
-
-```text
-Backend checks active entitlement
-Backend decides what context to retrieve
-Backend decides what fields to return
-Frontend displays locked cards where appropriate
-```
-
----
-
-## 15. API Overview
-
-Detailed endpoint design should live in `docs/API_SPEC.md`.
-
-Likely endpoints:
-
-```text
-POST   /api/v1/auth/register
-POST   /api/v1/auth/login
-POST   /api/v1/auth/logout
-GET    /api/v1/me
-PATCH  /api/v1/me
-
-POST   /api/v1/briefs
-GET    /api/v1/briefs
-GET    /api/v1/briefs/{briefId}
-DELETE /api/v1/briefs/{briefId}
-
-GET    /api/v1/entities/{entityId}
-
-GET    /api/v1/subscription/me
-POST   /api/v1/subscription/redeem-promo-code
-
-GET    /api/v1/health
-```
-
-Preferred brief generation design:
-
-```text
-POST /briefs returns briefId + status
-Frontend polls GET /briefs/{briefId}
-```
-
----
-
-## 16. Brief Output Shape
-
-Recommended output shape:
-
-```json
-{
-  "title": "Brief title",
-  "sourceSummary": "Short summary of the original source.",
-  "keyTakeaways": [
-    "Takeaway 1",
-    "Takeaway 2",
-    "Takeaway 3"
-  ],
-  "detectedEntities": [
-    {
-      "name": "Apple Inc.",
-      "ticker": "AAPL",
-      "entityType": "COMPANY",
-      "sourceSpecificInsight": "What the source says about Apple.",
-      "companyContext": "Basic company-level context.",
-      "premiumContext": {
-        "industryContext": "Premium-only industry context.",
-        "macroContext": "Premium-only macro context.",
-        "politicalRegulatoryContext": "Premium-only regulatory context.",
-        "competitorContext": "Premium-only competitor context."
-      }
-    }
-  ],
-  "risks": [
-    "Risk 1",
-    "Risk 2"
-  ],
-  "opportunities": [
-    "Opportunity 1",
-    "Opportunity 2"
-  ],
-  "investorQuestions": [
-    "Question 1",
-    "Question 2"
-  ],
-  "disclaimer": "This brief is for informational purposes only and is not financial advice."
-}
-```
-
-For free users, `premiumContext` should either be omitted or represented as locked metadata, depending on frontend design.
-
----
-
-## 17. Data Flow
-
-```text
-Frontend
-   ↓ POST /briefs
-FastAPI Route
-   ↓
-BriefGenerationService
-   ↓
-UsageLimitService
-   ↓
-AccessService
-   ↓
-SourceExtractionService
-   ↓
-EntityDetectionService
-   ↓
-ContextRetrievalService
-   ↓
-AiProviderClient
-   ↓
-AiOutputValidationService
-   ↓
-SQLAlchemy Repositories
-   ↓
-PostgreSQL
-   ↓
-Frontend Brief Detail Page
-```
-
----
-
-## 18. Error Handling
-
-Example error response:
-
-```json
-{
-  "errorCode": "SOURCE_EXTRACTION_FAILED",
-  "message": "We could not extract readable content from this source.",
-  "details": null,
-  "timestamp": "2026-04-29T00:00:00Z"
-}
-```
-
-Recommended error codes:
-
-```text
-INVALID_SOURCE_TYPE
-SOURCE_EXTRACTION_FAILED
-SOURCE_TOO_LONG
-SOURCE_TOO_SHORT
-BRIEF_GENERATION_FAILED
-AI_OUTPUT_INVALID
-USAGE_LIMIT_REACHED
-UNAUTHORIZED
-FORBIDDEN
-NOT_FOUND
-INTERNAL_ERROR
-
-PROMO_CODE_INVALID
-PROMO_CODE_INACTIVE
-PROMO_CODE_NOT_STARTED
-PROMO_CODE_EXPIRED
-PROMO_CODE_FULLY_REDEEMED
-PROMO_CODE_ALREADY_USED
-USER_ALREADY_HAS_PRO
-PROMO_CODE_REDEMPTION_FAILED
-```
-
-User-facing errors should be friendly.
-
-Internal logs should contain enough debugging information, but should not leak:
-
-- API keys
-- Auth tokens
-- Passwords
-- Full raw private user input in production logs
-
----
-
-## 19. Authentication and Authorization
-
-The system must support:
-
-- User-owned briefs
-- Private brief history
-- Entitlement-based subscription checks
-- Promo-code access
-- Usage limit enforcement
-
-Authorization rules:
-
-```text
-Users can only access their own briefs.
-Users can only delete their own briefs.
-Users can only view their own subscription status.
-Pro-only generation requires active PRO or ADMIN entitlement.
-Admin-only operations require ADMIN role.
-```
-
----
-
-## 20. Deployment Shape
-
-Recommended v0.3 deployment:
-
-```text
-Frontend: Vercel, Netlify, or AWS Amplify
-Backend: Render, Fly.io, Railway, or AWS ECS later
-Database: Managed PostgreSQL
-```
-
-Environment separation:
-
-```text
-local
-staging
-production
-```
-
-Required backend environment variables:
-
-```text
-APP_ENV
-DATABASE_URL
-JWT_SECRET
-AI_PROVIDER_API_KEY
-MARKET_DATA_API_KEY
-NEWS_API_KEY
-FRONTEND_BASE_URL
-BACKEND_BASE_URL
-CORS_ALLOWED_ORIGINS
-```
-
-Required frontend environment variables:
-
-```text
-VITE_API_BASE_URL
-```
-
----
-
-## 21. Observability
-
-For v0.3, basic observability is enough.
-
-Log these events:
-
-- User created brief
-- Source extraction succeeded/failed
-- Entity detection succeeded/failed
-- External context retrieval succeeded/failed
-- AI generation succeeded/failed
-- AI output validation failed
-- Usage limit hit
-- Promo code redeemed
-- Promo code redemption failed
-- Free user attempted Pro-only feature
-
-Track these metrics:
-
-- Number of briefs generated per day
-- Average generation time
-- Failure rate
-- Most common source type
-- AI token usage estimate
-- Promo-code redemption count
-- Free-to-Pro upgrade clicks
-
----
-
-## 22. Security Considerations
-
-Minimum v0.3 security requirements:
-
-- Store API keys only in environment variables
-- Never expose AI provider keys to frontend
-- Validate URLs before fetching
-- Prevent server-side request forgery where possible
-- Enforce user ownership on brief access
-- Enforce Pro access in backend
-- Use HTTPS in production
-- Sanitize rendered AI output
-- Add rate limiting for brief generation
-- Avoid logging sensitive raw content in production
-
-For URL fetching, the backend should reject private/internal network addresses where possible.
-
-Blocked examples:
-
-```text
-localhost
-127.0.0.1
-0.0.0.0
-10.0.0.0/8
-172.16.0.0/12
-192.168.0.0/16
-```
-
----
-
-## 23. Engineering Principles
-
-1. Keep the MVP narrow but useful.
-2. Use a FastAPI monolith first.
-3. Separate AI prompting from route handlers.
-4. Store structured outputs, not only raw AI text.
-5. Design APIs so async generation is possible.
-6. Enforce Free vs Pro logic in the backend.
-7. Treat AI output as untrusted until validated.
-8. Keep external providers replaceable.
-9. Use SQLAlchemy for persistence, not business logic.
-10. Use Alembic migrations for all database schema changes.
-11. Prioritize product clarity over architectural cleverness.
-
----
-
-## 24. Final Architecture Summary
-
-Alphabrief v0.3 should be built as a clean FastAPI-based full-stack web application with a structured AI pipeline.
-
-The backend owns:
-
-- Source extraction
-- Entity detection
-- Context retrieval
-- AI brief generation
-- Persistence
-- Entitlement-based subscription enforcement
-- Promo-code redemption
-- Usage limits
-
-The frontend owns:
-
-- Input
-- Display
-- Brief history
-- Loading/error states
-- Subscription/promo-code UI
-- Upgrade prompts
-
-The MVP should focus on delivering one excellent core experience:
-
-```text
-Turn messy finance content into a clear, structured investor brief.
-```
+That is the wedge.
