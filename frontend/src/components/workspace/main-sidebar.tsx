@@ -1,9 +1,27 @@
+import { useState, type CSSProperties } from "react";
+
 import { AlphaBriefLogo } from "@/components/workspace/logo";
 import { Icon } from "@/components/workspace/icons";
 import { useChats } from "@/hooks/useChats";
 import { sortChatsByRecent } from "@/lib/chatSort";
 import { useProjects } from "@/hooks/useProjects";
 import { T } from "@/styles/tokens";
+
+const SIDEBAR_WIDTH_EXPANDED = 280;
+const SIDEBAR_WIDTH_COLLAPSED = 56;
+
+const iconButtonBase: CSSProperties = {
+  width: 36,
+  height: 36,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  border: "none",
+  background: "transparent",
+  cursor: "pointer",
+  color: T.black,
+  borderRadius: 8,
+};
 
 function formatRelativeTime(iso: string | null): string {
   if (!iso) return "";
@@ -26,6 +44,8 @@ export type MainSidebarProps = {
   activeChatId: string | null;
   onChatSelect: (chatId: string) => void;
   onNewChat: () => void;
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
 };
 
 export function MainSidebar({
@@ -34,7 +54,15 @@ export function MainSidebar({
   activeChatId,
   onChatSelect,
   onNewChat,
+  collapsed: collapsedProp,
+  onCollapsedChange,
 }: MainSidebarProps) {
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
+  const collapsed = collapsedProp ?? internalCollapsed;
+  const setCollapsed = onCollapsedChange ?? setInternalCollapsed;
+  const sidebarWidth = collapsed
+    ? SIDEBAR_WIDTH_COLLAPSED
+    : SIDEBAR_WIDTH_EXPANDED;
   const date = new Date();
   const dayName = date.toLocaleDateString("en-US", { weekday: "long" });
   const dayNum = date.getDate();
@@ -64,8 +92,8 @@ export function MainSidebar({
   return (
     <aside
       style={{
-        width: 280,
-        minWidth: 280,
+        width: sidebarWidth,
+        minWidth: sidebarWidth,
         background: T.sidebar,
         borderRight: `1px solid ${T.border}`,
         display: "flex",
@@ -73,12 +101,37 @@ export function MainSidebar({
         height: "100vh",
         fontFamily: T.fontSans,
         color: T.black,
+        transition: "width 0.2s ease, min-width 0.2s ease",
+        overflow: "hidden",
       }}
     >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: collapsed ? "center" : "space-between",
+          padding: collapsed ? "12px 0" : "14px 16px 8px",
+          flexShrink: 0,
+        }}
+      >
+        {!collapsed ? <AlphaBriefLogo size={22} /> : null}
+        <button
+          type="button"
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!collapsed}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          onClick={() => setCollapsed(!collapsed)}
+          style={iconButtonBase}
+        >
+          <Icon.Sidebar />
+        </button>
+      </div>
+
+      {!collapsed ? (
+      <>
       {/* Logo + date */}
-      <div style={{ padding: "18px 20px 12px" }}>
-        <AlphaBriefLogo size={26} />
-        <div style={{ marginTop: 12 }}>
+      <div style={{ padding: "0 20px 12px" }}>
+        <div style={{ marginTop: 0 }}>
           <div
             style={{
               fontSize: 12,
@@ -332,14 +385,58 @@ export function MainSidebar({
           : null}
       </div>
 
+      </>
+      ) : (
+        <nav
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            paddingTop: 8,
+            minHeight: 0,
+          }}
+        >
+          {navItems.map(({ key, icon: NavIcon }) => {
+            const active = currentView === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => onNavigate(key)}
+                title={key}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "10px 0",
+                  border: "none",
+                  background: active ? T.gray200 : "transparent",
+                  cursor: "pointer",
+                }}
+              >
+                <NavIcon
+                  style={{
+                    flexShrink: 0,
+                    color: active ? T.black : T.gray400,
+                  }}
+                />
+              </button>
+            );
+          })}
+        </nav>
+      )}
+
       {/* User footer */}
       <div
         style={{
-          padding: "12px 16px",
+          padding: collapsed ? "12px 0" : "12px 16px",
           borderTop: `1px solid ${T.border}`,
           display: "flex",
           alignItems: "center",
+          justifyContent: collapsed ? "center" : "flex-start",
           gap: 10,
+          flexShrink: 0,
         }}
       >
         <div
@@ -359,6 +456,7 @@ export function MainSidebar({
         >
           BZ
         </div>
+        {!collapsed ? (
         <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
@@ -371,22 +469,25 @@ export function MainSidebar({
           </div>
           <div style={{ fontSize: 11, color: T.gray400 }}>Pro</div>
         </div>
-        <button
-          type="button"
-          style={{
-            border: "none",
-            background: "transparent",
-            padding: 6,
-            cursor: "pointer",
-            color: T.gray400,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          aria-label="Settings"
-        >
-          <Icon.Settings />
-        </button>
+        ) : null}
+        {!collapsed ? (
+          <button
+            type="button"
+            style={{
+              border: "none",
+              background: "transparent",
+              padding: 6,
+              cursor: "pointer",
+              color: T.gray400,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            aria-label="Settings"
+          >
+            <Icon.Settings />
+          </button>
+        ) : null}
       </div>
     </aside>
   );

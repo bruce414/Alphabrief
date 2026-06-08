@@ -30,6 +30,8 @@ class ChatTurnResponse(BaseModel):
     detected_input_type: InputType | None = Field(default=None, alias="detectedInputType")
     intent_type: IntentType | None = Field(default=None, alias="intentType")
 
+    graph_context_node_count: int | None = Field(default=None, alias="graphContextNodeCount")
+
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
 
@@ -59,6 +61,7 @@ class SendChatMessageResponse(BaseModel):
     detected_intent_type: IntentType = Field(alias="detectedIntentType")
     created_source_ids: list[UUID] = Field(alias="createdSourceIds")
     requires_pre_analysis_warning: bool = Field(default=False, alias="requiresPreAnalysisWarning")
+    graph_context_node_count: int | None = Field(default=None, alias="graphContextNodeCount")
 
 
 class AssistantTurnActionResponse(BaseModel):

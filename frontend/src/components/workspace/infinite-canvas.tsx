@@ -77,12 +77,18 @@ function layoutDimensions(
       return { w: el.width ?? 160, h: el.height ?? 72 };
     case "GROUP":
       return { w: el.width ?? 360, h: el.height ?? 240 };
+    case "DIRECTION":
+      return { w: el.width ?? 280, h: el.height ?? 100 };
     case "TEXT":
     case "STICKY_NOTE":
       return { w: el.width ?? 240, h: el.height ?? 140 };
     default:
       return { w: el.width ?? 220, h: undefined };
   }
+}
+
+function isClusterZoomAnchorType(type: string): boolean {
+  return type === "GROUP" || type === "DIRECTION";
 }
 
 const DEFAULT_ELEMENT_HEIGHT = 100;
@@ -164,7 +170,7 @@ function countNodesInGroup(
   let n = 0;
   for (const el of elements) {
     const type = (el.elementType ?? "TEXT").toUpperCase();
-    if (type === "GROUP") continue;
+    if (type === "GROUP" || type === "DIRECTION") continue;
     const { cx, cy } = elementCenter(el, dragPositions, measuredHeights);
     if (
       cx >= bounds.x &&
@@ -482,8 +488,8 @@ export const InfiniteCanvas = forwardRef<
 
   const visibleElements = useMemo(() => {
     if (semanticZoomLevel === "node") return displayElements;
-    return displayElements.filter(
-      (e) => (e.elementType ?? "TEXT").toUpperCase() === "GROUP",
+    return displayElements.filter((e) =>
+      isClusterZoomAnchorType((e.elementType ?? "TEXT").toUpperCase()),
     );
   }, [displayElements, semanticZoomLevel]);
 
@@ -1078,6 +1084,7 @@ export const InfiniteCanvas = forwardRef<
             "QUOTE",
             "MINDMAP_NODE",
             "GROUP",
+            "DIRECTION",
             "IMAGE",
           ].includes(type);
 
@@ -1274,6 +1281,103 @@ export const InfiniteCanvas = forwardRef<
                   </ReactMarkdown>
                 </div>
                 {connectorHandle}
+              </div>
+            );
+          }
+
+          if (type === "DIRECTION") {
+            const directionTitle = el.title?.trim() || "Research direction";
+            const directionOuterStyle: CSSProperties = {
+              position: "absolute",
+              left: x,
+              top: y,
+              width: w,
+              minHeight: minH,
+              boxSizing: "border-box",
+              cursor: draggingId === el.id ? "grabbing" : "grab",
+              zIndex: selectedElementId === el.id ? 2 : 1,
+              background: T.black,
+              border: "none",
+              borderRadius: 999,
+              padding: "14px 20px 16px",
+              boxShadow: "0 6px 24px rgba(0,0,0,0.12)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              textAlign: "center",
+              fontFamily: T.fontSans,
+            };
+            const directionConnectorHandle = (
+              <div
+                role="presentation"
+                aria-hidden
+                onMouseDown={(e) => {
+                  if (e.button !== 0) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const rect = canvasRef.current?.getBoundingClientRect();
+                  if (!rect) return;
+                  const wx = (e.clientX - rect.left - pan.x) / zoom;
+                  const wy = (e.clientY - rect.top - pan.y) / zoom;
+                  setConnectingFromId(el.id);
+                  setConnectPointerWorld({ x: wx, y: wy });
+                }}
+                style={{
+                  position: "absolute",
+                  right: -4,
+                  top: "50%",
+                  width: 8,
+                  height: 8,
+                  marginTop: -4,
+                  borderRadius: 4,
+                  background: T.white,
+                  boxSizing: "border-box",
+                  zIndex: 2,
+                  opacity: hoveredElementId === el.id ? 1 : 0,
+                  pointerEvents:
+                    hoveredElementId === el.id ? "auto" : "none",
+                  cursor: "crosshair",
+                }}
+              />
+            );
+            return (
+              <div
+                key={el.id}
+                ref={getMeasureRef(el.id)}
+                onMouseEnter={() => setHoveredElementId(el.id)}
+                onMouseLeave={() =>
+                  setHoveredElementId((cur) => (cur === el.id ? null : cur))
+                }
+                style={directionOuterStyle}
+                onMouseDown={onCardMouseDown}
+              >
+                {trashBtn}
+                <div
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    color: T.gray400,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    marginBottom: 6,
+                    lineHeight: 1.2,
+                  }}
+                >
+                  DIRECTION
+                </div>
+                <div
+                  style={{
+                    fontSize: 17,
+                    fontWeight: 700,
+                    color: T.white,
+                    lineHeight: 1.25,
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {directionTitle}
+                </div>
+                {directionConnectorHandle}
               </div>
             );
           }

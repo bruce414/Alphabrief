@@ -24,6 +24,8 @@ dependencies = [
     "pytest-cov>=6.0",
     "trafilatura>=2.0",
     "youtube-transcript-api>=0.6",
+    "anthropic>=0.40",
+    "bleach>=6.2",
 ]
 
 [tool.setuptools.packages.find]

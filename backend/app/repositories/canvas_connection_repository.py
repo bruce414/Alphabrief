@@ -12,9 +12,12 @@ class CanvasConnectionRepository:
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
 
-    async def create(self, connection: CanvasConnection) -> CanvasConnection:
+    async def create(self, connection: CanvasConnection, *, commit: bool = True) -> CanvasConnection:
         self._db.add(connection)
-        await self._db.commit()
+        if commit:
+            await self._db.commit()
+        else:
+            await self._db.flush()
         await self._db.refresh(connection)
         return connection
 
@@ -36,6 +39,26 @@ class CanvasConnectionRepository:
         stmt: Select[tuple[CanvasConnection]] = (
             select(CanvasConnection)
             .where(CanvasConnection.canvas_id == canvas_id)
+            .order_by(CanvasConnection.created_at.asc(), CanvasConnection.id.asc())
+        )
+        result = await self._db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_for_project_between_elements(
+        self,
+        *,
+        project_id: UUID,
+        element_ids: set[UUID],
+    ) -> list[CanvasConnection]:
+        if not element_ids:
+            return []
+        stmt: Select[tuple[CanvasConnection]] = (
+            select(CanvasConnection)
+            .where(
+                CanvasConnection.project_id == project_id,
+                CanvasConnection.from_element_id.in_(element_ids),
+                CanvasConnection.to_element_id.in_(element_ids),
+            )
             .order_by(CanvasConnection.created_at.asc(), CanvasConnection.id.asc())
         )
         result = await self._db.execute(stmt)

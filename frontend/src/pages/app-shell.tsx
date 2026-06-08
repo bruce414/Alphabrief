@@ -7,6 +7,9 @@ import { T } from '@/styles/tokens'
 export type AppShellOutletContext = {
   activeChatId: string | null
   setActiveChatId: (id: string | null) => void
+  sidebarCollapsed: boolean
+  setSidebarCollapsed: (collapsed: boolean) => void
+  collapseSidebar: () => void
 }
 
 function currentViewFromPath(pathname: string): 'home' | 'research' | 'discover' {
@@ -26,6 +29,7 @@ export function AppShell() {
     [location.pathname],
   )
   const [activeChatId, setActiveChatId] = useState<string | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   return (
     <div
@@ -49,7 +53,7 @@ export function AppShell() {
           currentView={currentView}
           onNavigate={(view) => {
             const paths: Record<typeof view, string> = {
-              home: '/app/home',
+              home: '/app/chat',
               research: '/app/research',
               discover: '/app/discover',
             }
@@ -58,6 +62,8 @@ export function AppShell() {
           activeChatId={activeChatId}
           onChatSelect={setActiveChatId}
           onNewChat={() => setActiveChatId(null)}
+          collapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
         />
       ) : null}
       <div
@@ -74,6 +80,9 @@ export function AppShell() {
             {
               activeChatId,
               setActiveChatId,
+              sidebarCollapsed,
+              setSidebarCollapsed,
+              collapseSidebar: () => setSidebarCollapsed(true),
             } satisfies AppShellOutletContext
           }
         />

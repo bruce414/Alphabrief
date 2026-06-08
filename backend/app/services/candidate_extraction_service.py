@@ -34,6 +34,7 @@ _ALLOWED_EXTRACTION_KINDS = frozenset(
     }
 )
 _MAX_CANDIDATES_PER_TURN = 2
+_ALLOWED_PROPOSAL_EDGE_TYPES = frozenset({"supports", "contradicts", "affects"})
 
 
 ALLOWED_TAGS = [
@@ -55,20 +56,81 @@ def _normalize_title(title: str) -> str:
     return " ".join((title or "").strip().lower().split())
 
 
-async def _existing_element_title_keys(db: AsyncSession, project_id: UUID) -> set[str]:
+async def _existing_canvas_context(
+    db: AsyncSession,
+    project_id: UUID,
+) -> tuple[dict[str, UUID], list[dict[str, str]]]:
     rows = (
         await db.execute(
-            select(CanvasElement.title).where(
+            select(CanvasElement.id, CanvasElement.title, CanvasElement.element_type).where(
                 CanvasElement.project_id == project_id,
                 CanvasElement.title.is_not(None),
+                CanvasElement.archived_at.is_(None),
             )
         )
-    ).scalars().all()
-    keys: set[str] = set()
-    for title in rows:
+    ).all()
+    title_map: dict[str, UUID] = {}
+    elements: list[dict[str, str]] = []
+    for el_id, title, element_type in rows:
         if isinstance(title, str) and title.strip():
-            keys.add(_normalize_title(title))
-    return keys
+            title_map[_normalize_title(title)] = el_id
+            elements.append(
+                {
+                    "title": title.strip(),
+                    "element_type": str(element_type or "").strip(),
+                }
+            )
+    return title_map, elements
+
+
+def _format_existing_elements_for_prompt(elements: list[dict[str, str]]) -> str:
+    if not elements:
+        return "Existing canvas elements: (none — omit proposed_edge)\n\n"
+    lines = [
+        "Existing canvas elements (proposed_edge.target_title must match one of these titles exactly):"
+    ]
+    for el in elements[:40]:
+        et = el.get("element_type") or "TEXT"
+        lines.append(f'- [{et}] {el.get("title", "")}')
+    return "\n".join(lines) + "\n\n"
+
+
+def _resolve_proposed_edges(
+    candidates: list[dict],
+    *,
+    title_map: dict[str, UUID],
+) -> list[dict]:
+    resolved: list[dict] = []
+    for candidate in candidates:
+        proposed = candidate.get("proposed_edge")
+        if not isinstance(proposed, dict):
+            resolved.append(candidate)
+            continue
+
+        edge_type = str(proposed.get("edge_type") or "").strip().lower()
+        target_title_raw = proposed.get("target_title")
+        target_title = (
+            target_title_raw.strip()
+            if isinstance(target_title_raw, str) and target_title_raw.strip()
+            else ""
+        )
+        if edge_type not in _ALLOWED_PROPOSAL_EDGE_TYPES or not target_title:
+            resolved.append(candidate)
+            continue
+
+        target_element_id = title_map.get(_normalize_title(target_title))
+        if target_element_id is None:
+            resolved.append(candidate)
+            continue
+
+        out = dict(candidate)
+        out["resolved_proposed_edge"] = {
+            "edge_type": edge_type,
+            "target_element_id": str(target_element_id),
+            "target_title": target_title,
+        }
+        resolved.append(out)
+    return resolved
 
 
 def _postprocess_extracted_candidates(
@@ -98,14 +160,16 @@ def _postprocess_extracted_candidates(
             if isinstance(title_raw, str) and title_raw.strip()
             else None
         )
-        filtered.append(
-            {
-                "suggested_element_type": kind,
-                "title": title,
-                "content_markdown": body,
-                "suggested_position": raw.get("suggested_position"),
-            }
-        )
+        item: dict = {
+            "suggested_element_type": kind,
+            "title": title,
+            "content_markdown": body,
+            "suggested_position": raw.get("suggested_position"),
+        }
+        proposed_edge = raw.get("proposed_edge")
+        if isinstance(proposed_edge, dict):
+            item["proposed_edge"] = proposed_edge
+        filtered.append(item)
 
     capped = filtered[:_MAX_CANDIDATES_PER_TURN]
 
@@ -200,17 +264,19 @@ async def _extract(*, asst_turn_id: UUID, db: AsyncSession, ai_provider: AiProvi
             )
 
     ai = ai_provider or get_ai_provider_client()
+    title_map, existing_elements = await _existing_canvas_context(db, chat.project_id)
+
     extracted = await ai.extract_candidates(
         user_message=user_message,
         assistant_reply=asst.content_markdown or "",
         attached_sources=sources,
+        existing_canvas_elements=existing_elements,
     )
-
-    existing_title_keys = await _existing_element_title_keys(db, chat.project_id)
     candidates = _postprocess_extracted_candidates(
         extracted,
-        existing_title_keys=existing_title_keys,
+        existing_title_keys=set(title_map.keys()),
     )
+    candidates = _resolve_proposed_edges(candidates, title_map=title_map)
 
     created_count = 0
     for c in candidates:
@@ -245,6 +311,10 @@ async def _extract(*, asst_turn_id: UUID, db: AsyncSession, ai_provider: AiProvi
                     sanitized_position[key] = float(value)
             if sanitized_position:
                 content_json["suggested_position"] = sanitized_position
+
+        resolved_edge = c.get("resolved_proposed_edge")
+        if isinstance(resolved_edge, dict):
+            content_json["proposed_edge"] = resolved_edge
 
         db.add(
             CandidateElement(

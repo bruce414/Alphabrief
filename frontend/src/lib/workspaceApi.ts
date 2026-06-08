@@ -17,6 +17,30 @@ import type {
   SuggestDirectionsResponse,
 } from "../types/workspace";
 
+function parseGraphContextNodeCount(
+  raw: Record<string, unknown>,
+): number | null {
+  const top = raw.graphContextNodeCount;
+  if (typeof top === "number" && Number.isFinite(top)) {
+    return top;
+  }
+  const cj = raw.contentJson;
+  if (cj && typeof cj === "object" && !Array.isArray(cj)) {
+    const nested = (cj as Record<string, unknown>).graphContextNodeCount;
+    if (typeof nested === "number" && Number.isFinite(nested)) {
+      return nested;
+    }
+  }
+  return null;
+}
+
+export function normalizeChatTurn(raw: Record<string, unknown>): ChatTurn {
+  return {
+    ...(raw as unknown as ChatTurn),
+    graphContextNodeCount: parseGraphContextNodeCount(raw),
+  };
+}
+
 export function listProjects(): Promise<{ items: Project[] }> {
   return apiFetch("/projects");
 }
@@ -58,11 +82,17 @@ export function getChat(chatId: string): Promise<{
 }
 
 export function listChatTurns(chatId: string): Promise<{ items: ChatTurn[] }> {
-  return apiFetch(`/chats/${encodeURIComponent(chatId)}/turns`);
+  return apiFetch<{ items: Record<string, unknown>[] }>(
+    `/chats/${encodeURIComponent(chatId)}/turns`,
+  ).then((res) => ({
+    items: res.items.map(normalizeChatTurn),
+  }));
 }
 
 export function getChatTurn(turnId: string): Promise<ChatTurn> {
-  return apiFetch(`/chat-turns/${encodeURIComponent(turnId)}`);
+  return apiFetch<Record<string, unknown>>(
+    `/chat-turns/${encodeURIComponent(turnId)}`,
+  ).then(normalizeChatTurn);
 }
 
 export function sendChatMessage(
@@ -75,10 +105,16 @@ export function sendChatMessage(
     clientContext?: Record<string, unknown>;
   },
 ): Promise<SendMessageResponse> {
-  return apiFetch(`/chats/${encodeURIComponent(chatId)}/turns`, {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+  return apiFetch<Record<string, unknown>>(
+    `/chats/${encodeURIComponent(chatId)}/turns`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  ).then((res) => ({
+    ...(res as unknown as SendMessageResponse),
+    graphContextNodeCount: parseGraphContextNodeCount(res),
+  }));
 }
 
 export type AssistantTurnActionResponse = {
@@ -102,13 +138,64 @@ export function regenerateAssistantTurn(
   });
 }
 
+function normalizeCandidateContentJson(
+  contentJson: CandidateElement["contentJson"],
+): CandidateElement["contentJson"] {
+  if (!contentJson || typeof contentJson !== "object" || Array.isArray(contentJson)) {
+    return contentJson;
+  }
+  const record = contentJson as Record<string, unknown>;
+  const raw = record.proposed_edge ?? record.proposedEdge;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return contentJson;
+  }
+  const edge = raw as Record<string, unknown>;
+  const edgeType = String(edge.edge_type ?? edge.edgeType ?? "")
+    .trim()
+    .toLowerCase();
+  const targetId = edge.target_element_id ?? edge.targetElementId;
+  if (
+    (edgeType !== "supports" &&
+      edgeType !== "contradicts" &&
+      edgeType !== "affects") ||
+    typeof targetId !== "string" ||
+    !targetId.trim()
+  ) {
+    return contentJson;
+  }
+  const targetTitleRaw = edge.target_title ?? edge.targetTitle;
+  const targetTitle =
+    typeof targetTitleRaw === "string" && targetTitleRaw.trim()
+      ? targetTitleRaw.trim()
+      : undefined;
+  return {
+    ...record,
+    proposed_edge: {
+      edge_type: edgeType,
+      target_element_id: targetId.trim(),
+      ...(targetTitle ? { target_title: targetTitle } : {}),
+    },
+  };
+}
+
+export function normalizeCandidateElement(
+  raw: CandidateElement,
+): CandidateElement {
+  return {
+    ...raw,
+    contentJson: normalizeCandidateContentJson(raw.contentJson),
+  };
+}
+
 export function listCandidates(
   chatTurnId: string,
 ): Promise<{ items: CandidateElement[] }> {
   const q = new URLSearchParams({ includeAll: "0" });
-  return apiFetch(
+  return apiFetch<{ items: CandidateElement[] }>(
     `/chat-turns/${encodeURIComponent(chatTurnId)}/candidates?${q}`,
-  );
+  ).then((r) => ({
+    items: r.items.map(normalizeCandidateElement),
+  }));
 }
 
 export function listCandidatesForTurn(

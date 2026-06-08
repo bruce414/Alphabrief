@@ -37,7 +37,9 @@ class _StubAi:
         user_message: str,
         assistant_reply: str,
         attached_sources,
+        existing_canvas_elements=None,
     ) -> list[dict[str, Any]]:
+        _ = (user_message, assistant_reply, attached_sources, existing_canvas_elements)
         return list(self._items)
 
 

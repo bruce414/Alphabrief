@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 
 from anthropic import AsyncAnthropic
+from anthropic.types import ToolParam
 from fastapi import status
 
 from app.clients.ai_provider_client import (
@@ -15,6 +16,7 @@ from app.clients.ai_provider_client import (
     ChatPrompt,
     ChatReply,
     EventCallback,
+    ExistingCanvasElement,
     MemoryRefresh,
     _noop_event_callback,
 )
@@ -24,6 +26,17 @@ from app.core.enums import ResearchMode
 from app.models.source import Source
 
 logger = logging.getLogger(__name__)
+
+
+def _custom_tool(*, name: str, input_schema: dict[str, Any]) -> ToolParam:
+    """Build a typed custom-tool definition for Anthropic messages.create."""
+    return cast(
+        ToolParam,
+        {
+            "name": name,
+            "input_schema": input_schema,
+        },
+    )
 
 
 # Anthropic server-side web search tool spec. The dated identifier is required.
@@ -277,14 +290,29 @@ class AnthropicClient(AiProviderClient):
         user_message: str,
         assistant_reply: str,
         attached_sources: list[Source],
+        existing_canvas_elements: list[ExistingCanvasElement] | None = None,
     ) -> list[CandidateExtraction]:
         _ = attached_sources
+        elements = existing_canvas_elements or []
+
+        def _format_existing_elements_for_prompt(
+            canvas_elements: list[ExistingCanvasElement],
+        ) -> str:
+            if not canvas_elements:
+                return "Existing canvas elements: (none — omit proposed_edge)\n\n"
+            lines = [
+                "Existing canvas elements (proposed_edge.target_title must match one of these titles exactly):"
+            ]
+            for el in canvas_elements[:40]:
+                et = el.get("element_type") or "TEXT"
+                lines.append(f'- [{et}] {el.get("title", "")}')
+            return "\n".join(lines) + "\n\n"
         try:
             client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
-            tool_schema = {
-                "name": "add_canvas_candidates",
-                "input_schema": {
+            tool_schema = _custom_tool(
+                name="add_canvas_candidates",
+                input_schema={
                     "type": "object",
                     "properties": {
                         "candidates": {
@@ -299,6 +327,18 @@ class AnthropicClient(AiProviderClient):
                                     },
                                     "title": {"type": ["string", "null"]},
                                     "body": {"type": "string"},
+                                    "proposed_edge": {
+                                        "type": ["object", "null"],
+                                        "properties": {
+                                            "edge_type": {
+                                                "type": "string",
+                                                "enum": ["supports", "contradicts", "affects"],
+                                            },
+                                            "target_title": {"type": "string"},
+                                        },
+                                        "required": ["edge_type", "target_title"],
+                                        "additionalProperties": False,
+                                    },
                                 },
                                 "required": ["kind", "body"],
                                 "additionalProperties": False,
@@ -308,7 +348,7 @@ class AnthropicClient(AiProviderClient):
                     "required": ["candidates"],
                     "additionalProperties": False,
                 },
-            }
+            )
 
             system = (
                 "Extract canvas card candidates from the conversation. "
@@ -320,10 +360,19 @@ class AnthropicClient(AiProviderClient):
                 "QUESTION = an unresolved research gap. "
                 "If you cannot produce a CLEARLY worth-keeping candidate from the conversation, "
                 "return an empty list. Bias toward FEWER, BETTER candidates. "
-                "Output JSON shape: { candidates: [{ kind, title, body }] }."
+                "For each candidate you may include at most one proposed_edge linking the new "
+                "candidate to an existing canvas element (usually the DIRECTION node or an "
+                "existing claim) by that element's title. Use edge_type supports, contradicts, "
+                "or affects. Omit proposed_edge when no clear relationship exists. "
+                "Output JSON shape: { candidates: [{ kind, title, body, proposed_edge? }] }."
             )
 
-            user_content = f"User message:\n{user_message}\n\nAssistant reply:\n{assistant_reply}"
+            canvas_section = _format_existing_elements_for_prompt(elements)
+            user_content = (
+                f"{canvas_section}"
+                f"User message:\n{user_message}\n\n"
+                f"Assistant reply:\n{assistant_reply}"
+            )
 
             response = await client.messages.create(
                 model=settings.anthropic_model,
@@ -371,6 +420,20 @@ class AnthropicClient(AiProviderClient):
                     "title": title,
                     "content_markdown": body,
                 }
+                proposed_edge = raw.get("proposed_edge")
+                if isinstance(proposed_edge, dict):
+                    edge_type = str(proposed_edge.get("edge_type") or "").strip().lower()
+                    target_title_raw = proposed_edge.get("target_title")
+                    target_title = (
+                        target_title_raw.strip()
+                        if isinstance(target_title_raw, str) and target_title_raw.strip()
+                        else ""
+                    )
+                    if edge_type and target_title:
+                        entry["proposed_edge"] = {
+                            "edge_type": edge_type,
+                            "target_title": target_title,
+                        }
                 # TODO: legacy confidence/importance fields are no longer extracted; default NULL if reintroduced.
                 normalized.append(entry)
             return normalized
@@ -432,9 +495,9 @@ class AnthropicClient(AiProviderClient):
                 "additionalProperties": False,
             }
 
-            tool_schema = {
-                "name": "suggest_research_directions",
-                "input_schema": {
+            tool_schema = _custom_tool(
+                name="suggest_research_directions",
+                input_schema={
                     "type": "object",
                     "properties": {
                         "directions": {
@@ -447,7 +510,7 @@ class AnthropicClient(AiProviderClient):
                     "required": ["directions"],
                     "additionalProperties": False,
                 },
-            }
+            )
 
             system = (
                 "You help finance researchers pick a focused direction. Given a short intent, "
@@ -498,9 +561,9 @@ class AnthropicClient(AiProviderClient):
         try:
             client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
-            tool_schema = {
-                "name": "update_project_memory",
-                "input_schema": {
+            tool_schema = _custom_tool(
+                name="update_project_memory",
+                input_schema={
                     "type": "object",
                     "properties": {
                         "summary_markdown": {"type": "string"},
@@ -518,7 +581,7 @@ class AnthropicClient(AiProviderClient):
                     ],
                     "additionalProperties": True,
                 },
-            }
+            )
 
             system = (
                 "Update the project memory based on recent research activity. Summarize what the user is "
@@ -584,6 +647,39 @@ class AnthropicClient(AiProviderClient):
                 message="Could not refresh project memory from the AI provider.",
                 status_code=status.HTTP_502_BAD_GATEWAY,
             ) from exc
+
+    async def generate_quick_chat_analysis_json(
+        self,
+        *,
+        system: str,
+        user_content: str,
+        prior_assistant_content: str | None = None,
+        follow_up_user_content: str | None = None,
+    ) -> str:
+        try:
+            client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+            messages: list[dict[str, str]] = [{"role": "user", "content": user_content}]
+            if prior_assistant_content is not None and follow_up_user_content is not None:
+                messages.append(
+                    {"role": "assistant", "content": prior_assistant_content},
+                )
+                messages.append({"role": "user", "content": follow_up_user_content})
+
+            response = await client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=settings.chat_max_output_tokens,
+                system=system,
+                messages=messages,
+            )
+            for block in getattr(response, "content", []) or []:
+                if getattr(block, "type", None) == "text":
+                    text = (getattr(block, "text", None) or "").strip()
+                    if text:
+                        return text
+            raise ValueError("Empty response from Anthropic")
+        except Exception:
+            logger.exception("Anthropic quick chat analysis failed")
+            raise
 
 
 def _get(obj: Any, key: str) -> Any:

@@ -34,6 +34,16 @@ class ChatReply(TypedDict):
     web_search_results: list[dict]
 
 
+class ExistingCanvasElement(TypedDict):
+    title: str
+    element_type: str
+
+
+class ProposedEdgeExtraction(TypedDict):
+    edge_type: str
+    target_title: str
+
+
 class CandidateExtraction(TypedDict, total=False):
     kind: str
     suggested_element_type: str
@@ -41,6 +51,7 @@ class CandidateExtraction(TypedDict, total=False):
     body: str
     content_markdown: str
     suggested_position: dict[str, float] | None
+    proposed_edge: ProposedEdgeExtraction | None
     # TODO: confidence/importance scoring removed from extraction contract; keep unset (NULL).
     confidence: None
     importance: None
@@ -80,6 +91,7 @@ class AiProviderClient(Protocol):
         user_message: str,
         assistant_reply: str,
         attached_sources: list[Source],
+        existing_canvas_elements: list[ExistingCanvasElement] | None = None,
     ) -> list[CandidateExtraction]: ...
 
     async def refresh_project_memory(
@@ -89,6 +101,15 @@ class AiProviderClient(Protocol):
         current_memory_summary: str | None,
         recent_turns_markdown: list[str],
     ) -> MemoryRefresh: ...
+
+    async def generate_quick_chat_analysis_json(
+        self,
+        *,
+        system: str,
+        user_content: str,
+        prior_assistant_content: str | None = None,
+        follow_up_user_content: str | None = None,
+    ) -> str: ...
 
 
 class MockAiProviderClient:
@@ -165,7 +186,23 @@ class MockAiProviderClient:
         user_message: str,
         assistant_reply: str,
         attached_sources: list[Source],
+        existing_canvas_elements: list[ExistingCanvasElement] | None = None,
     ) -> list[CandidateExtraction]:
+        elements = existing_canvas_elements or []
+
+        def _mock_proposed_edge(idx: int) -> ProposedEdgeExtraction | None:
+            if idx != 0 or not elements:
+                return None
+            direction = next(
+                (e for e in elements if e.get("element_type") == "DIRECTION"),
+                None,
+            )
+            target = direction or elements[0]
+            title = (target.get("title") or "").strip()
+            if not title:
+                return None
+            return {"edge_type": "supports", "target_title": title}
+
         # Deterministic test heuristic:
         # - one CLAIM per "### " header in assistant_reply (max 2)
         # - else: if assistant_reply > 200 chars, return 1 CLAIM titled by first 60 chars; otherwise empty
@@ -180,39 +217,52 @@ class MockAiProviderClient:
                 if h:
                     headers.append(h)
 
+        def _build_mock_candidate(
+            *,
+            idx: int,
+            element_type: str,
+            title: str | None,
+            content_markdown: str,
+        ) -> CandidateExtraction:
+            candidate: CandidateExtraction = {
+                "suggested_element_type": element_type,
+                "title": title,
+                "content_markdown": content_markdown,
+                "suggested_position": {
+                    "x": 320.0 + 360.0 * idx,
+                    "y": 240.0,
+                    "width": 320.0,
+                    "height": 180.0,
+                },
+            }
+            edge = _mock_proposed_edge(idx)
+            if edge:
+                candidate["proposed_edge"] = edge
+            return candidate
+
         candidates: list[CandidateExtraction] = []
         if headers:
             for idx, h in enumerate(headers[:2]):
                 element_type = "CLAIM" if idx == 0 else "QUESTION"
                 candidates.append(
-                    {
-                        "suggested_element_type": element_type,
-                        "title": h[:120],
-                        "content_markdown": f"{h}",
-                        "suggested_position": {
-                            "x": 320.0 + 360.0 * idx,
-                            "y": 240.0,
-                            "width": 320.0,
-                            "height": 180.0,
-                        },
-                    }
+                    _build_mock_candidate(
+                        idx=idx,
+                        element_type=element_type,
+                        title=h[:120],
+                        content_markdown=f"{h}",
+                    )
                 )
             return candidates
 
         if len(reply) > 200:
             title = reply.replace("\n", " ")[:60].strip() or None
             return [
-                {
-                    "suggested_element_type": "CLAIM",
-                    "title": title,
-                    "content_markdown": reply[:400].strip() or reply,
-                    "suggested_position": {
-                        "x": 320.0,
-                        "y": 240.0,
-                        "width": 320.0,
-                        "height": 180.0,
-                    },
-                }
+                _build_mock_candidate(
+                    idx=0,
+                    element_type="CLAIM",
+                    title=title,
+                    content_markdown=reply[:400].strip() or reply,
+                )
             ]
 
         return []
@@ -233,6 +283,52 @@ class MockAiProviderClient:
             "open_questions": ["What is the next milestone?"],
             "conclusions": [],
         }
+
+    async def generate_quick_chat_analysis_json(
+        self,
+        *,
+        system: str,
+        user_content: str,
+        prior_assistant_content: str | None = None,
+        follow_up_user_content: str | None = None,
+    ) -> str:
+        _ = system
+        _ = prior_assistant_content
+        _ = follow_up_user_content
+        stub = (user_content or "")[:80]
+        return (
+            '{"analysis":{"summary":"Mock summary for '
+            + stub.replace('"', "'")
+            + '","why_it_matters":"Mock importance","market_impact":"Mock impact",'
+            '"risks_and_uncertainties":"Mock risks","watch_next":["Mock follow-up"]},'
+            '"market_map":{"nodes":['
+            '{"id":"event_1","type":"main_event","label":"Mock event","description":"d",'
+            '"linked_section":"summary","confidence":"high"},'
+            '{"id":"co_1","type":"company","label":"Co","description":"d",'
+            '"linked_section":"market_impact","confidence":"medium"},'
+            '{"id":"co_2","type":"company","label":"Co2","description":"d",'
+            '"linked_section":"market_impact","confidence":"medium"},'
+            '{"id":"sec_1","type":"sector_theme","label":"Sec","description":"d",'
+            '"linked_section":"market_impact","confidence":"medium"},'
+            '{"id":"imp_1","type":"market_impact","label":"Imp","description":"d",'
+            '"linked_section":"market_impact","confidence":"medium"},'
+            '{"id":"risk_1","type":"risk_uncertainty","label":"Risk","description":"d",'
+            '"linked_section":"risks_and_uncertainties","confidence":"low"},'
+            '{"id":"watch_1","type":"watch_next","label":"Watch","description":"d",'
+            '"linked_section":"watch_next","confidence":"high"},'
+            '{"id":"watch_2","type":"watch_next","label":"Watch2","description":"d",'
+            '"linked_section":"watch_next","confidence":"medium"}],'
+            '"edges":['
+            '{"id":"e1","source":"event_1","target":"co_1","label":"affects","confidence":"high"},'
+            '{"id":"e2","source":"event_1","target":"co_2","label":"may benefit","confidence":"medium"},'
+            '{"id":"e3","source":"co_1","target":"imp_1","label":"creates uncertainty around","confidence":"medium"},'
+            '{"id":"e4","source":"imp_1","target":"risk_1","label":"increases risk for","confidence":"medium"},'
+            '{"id":"e5","source":"event_1","target":"sec_1","label":"linked to","confidence":"high"},'
+            '{"id":"e6","source":"sec_1","target":"co_2","label":"affects","confidence":"medium"},'
+            '{"id":"e7","source":"risk_1","target":"watch_1","label":"watch next","confidence":"high"},'
+            '{"id":"e8","source":"co_1","target":"watch_2","label":"watch next","confidence":"medium"}'
+            "]}}"
+        )
 
 
 def get_ai_provider_client() -> AiProviderClient:

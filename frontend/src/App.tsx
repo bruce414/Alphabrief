@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { AppShell } from '@/pages/app-shell'
 import { HomeView } from '@/pages/home-view'
+import { QuickChatPage } from '@/pages/quick-chat-page'
 import { LandingPage } from '@/pages/landing-page'
 import { LoginPage } from '@/pages/login-page'
 import { NotFoundPage } from '@/pages/not-found-page'
@@ -31,7 +32,8 @@ function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/app" element={<AppShell />}>
-        <Route index element={<Navigate to="/app/home" replace />} />
+        <Route index element={<Navigate to="/app/chat" replace />} />
+        <Route path="chat" element={<QuickChatPage />} />
         <Route path="home" element={<HomeView />} />
         <Route path="discover" element={<DiscoverPlaceholder />} />
         <Route path="research" element={<ResearchSpacesView />} />

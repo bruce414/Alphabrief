@@ -15,9 +15,14 @@ from app.models.candidate_element import CandidateElement
 from app.models.chat import Chat
 from app.models.chat_turn import ChatTurn
 from app.models.user import User
+from app.repositories.canvas_connection_repository import CanvasConnectionRepository
 from app.repositories.canvas_element_repository import CanvasElementRepository
 from app.repositories.candidate_element_repository import CandidateElementRepository
 from app.repositories.source_repository import SourceRepository
+from app.services.canvas_connection_service import (
+    ALLOWED_PROPOSAL_EDGE_TYPES,
+    CanvasConnectionService,
+)
 from app.schemas.canvas_element import CanvasElementResponse, canvas_element_model_to_response
 from app.schemas.candidate_element import (
     CandidateElementListResponse,
@@ -142,11 +147,43 @@ async def promote_candidate(
         y=_dec(data.y),
         width=_dec_opt(data.width),
         height=_dec_opt(data.height),
+        commit=False,
     )
+
+    proposed_edge = (c.content_json or {}).get("proposed_edge")
+    if isinstance(proposed_edge, dict):
+        edge_type = str(proposed_edge.get("edge_type") or "").strip().lower()
+        target_raw = proposed_edge.get("target_element_id")
+        try:
+            target_element_id = UUID(str(target_raw)) if target_raw else None
+        except (TypeError, ValueError):
+            target_element_id = None
+        if (
+            target_element_id is not None
+            and edge_type in ALLOWED_PROPOSAL_EDGE_TYPES
+        ):
+            conn_repo = CanvasConnectionRepository(db)
+            connection_svc = CanvasConnectionService(
+                db=db,
+                connection_repo=conn_repo,
+                element_repo=element_repo,
+            )
+            await connection_svc.create(
+                user_id=current_user.id,
+                canvas_id=data.canvas_id,
+                from_element_id=element.id,
+                to_element_id=target_element_id,
+                label=None,
+                connection_type=edge_type,
+                style_json=None,
+                commit=False,
+            )
 
     c.status = CandidateStatus.PROMOTED.value
     c.promoted_element_id = element.id
-    await cand_repo.update(c)
+    db.add(c)
+    await db.commit()
+    await db.refresh(element)
 
     return canvas_element_model_to_response(element)
 

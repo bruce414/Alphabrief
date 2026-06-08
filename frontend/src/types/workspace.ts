@@ -90,6 +90,7 @@ export interface ChatTurn {
   errorMessage: string | null;
   modelProvider: string | null;
   modelName: string | null;
+  graphContextNodeCount: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -102,6 +103,7 @@ export interface SendMessageResponse {
   detectedIntentType: string | null;
   createdSourceIds: string[];
   requiresPreAnalysisWarning: boolean;
+  graphContextNodeCount: number | null;
 }
 
 export interface Canvas {
@@ -112,11 +114,27 @@ export interface Canvas {
   updatedAt: string;
 }
 
+export type CanvasElementType =
+  | "TEXT"
+  | "AI_BLOCK"
+  | "CLAIM"
+  | "EVIDENCE"
+  | "QUOTE"
+  | "DATA"
+  | "IMAGE"
+  | "QUESTION"
+  | "RISK"
+  | "CATALYST"
+  | "MINDMAP_NODE"
+  | "GROUP"
+  | "STICKY_NOTE"
+  | "DIRECTION";
+
 export interface CanvasElement {
   id: string;
   canvasId: string;
   projectId: string;
-  elementType: string;
+  elementType: CanvasElementType | string;
   title: string | null;
   contentMarkdown: string | null;
   contentJson: Record<string, unknown> | null;
@@ -142,6 +160,24 @@ export interface CanvasConnection {
   styleJson: Record<string, unknown>;
 }
 
+export type CandidateProposedEdgeType = "supports" | "contradicts" | "affects";
+
+export interface CandidateProposedEdge {
+  edge_type: CandidateProposedEdgeType;
+  target_element_id: string;
+  target_title?: string;
+}
+
+export interface CandidateContentJson {
+  suggested_position?: {
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+  };
+  proposed_edge?: CandidateProposedEdge;
+}
+
 export interface CandidateElement {
   id: string;
   chatTurnId: string;
@@ -149,7 +185,7 @@ export interface CandidateElement {
   suggestedElementType: string;
   title: string | null;
   contentMarkdown: string | null;
-  contentJson: Record<string, unknown> | null;
+  contentJson: CandidateContentJson | Record<string, unknown> | null;
   status: string;
 }
 

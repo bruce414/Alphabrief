@@ -16,6 +16,8 @@ from app.repositories.canvas_element_repository import CanvasElementRepository
 
 
 _UNSET = object()
+ALLOWED_PROPOSAL_EDGE_TYPES = frozenset({"supports", "contradicts", "affects"})
+_ALLOWED_PROPOSAL_EDGE_TYPES = ALLOWED_PROPOSAL_EDGE_TYPES
 
 
 class CanvasConnectionService:
@@ -66,6 +68,7 @@ class CanvasConnectionService:
         label: str | None,
         connection_type: ConnectionType | str,
         style_json: dict[str, Any] | None,
+        commit: bool = True,
     ) -> CanvasConnection:
         canvas = await self._get_canvas_owned(user_id=user_id, canvas_id=canvas_id)
 
@@ -98,7 +101,7 @@ class CanvasConnectionService:
             connection_type=ct_value,
             style_json=style_json,
         )
-        return await self._connection_repo.create(conn)
+        return await self._connection_repo.create(conn, commit=commit)
 
     async def patch(
         self,
@@ -156,6 +159,8 @@ class CanvasConnectionService:
 
     @staticmethod
     def _validate_connection_type(value: str) -> None:
+        if value in _ALLOWED_PROPOSAL_EDGE_TYPES:
+            return
         try:
             ConnectionType(value)
         except ValueError:

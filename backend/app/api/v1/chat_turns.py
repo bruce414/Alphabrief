@@ -31,6 +31,14 @@ from app.services.chat_turn_service import (
 router = APIRouter(tags=["chat_turns"])
 
 
+def _graph_context_node_count_from_turn(turn) -> int | None:
+    content_json = turn.content_json
+    if not isinstance(content_json, dict):
+        return None
+    value = content_json.get("graphContextNodeCount")
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
 def _to_turn_response(turn) -> ChatTurnResponse:
     return ChatTurnResponse(
         id=turn.id,
@@ -46,6 +54,7 @@ def _to_turn_response(turn) -> ChatTurnResponse:
         modelName=turn.model_name,
         detectedInputType=InputType(turn.detected_input_type) if turn.detected_input_type else None,
         intentType=IntentType(turn.intent_type) if turn.intent_type else None,
+        graphContextNodeCount=_graph_context_node_count_from_turn(turn),
         createdAt=turn.created_at,
         updatedAt=turn.updated_at,
     )
@@ -93,6 +102,7 @@ async def post_chat_turn(
         detected_input_type,
         intent_type,
         created_source_ids,
+        graph_context_node_count,
     ) = await send_chat_message(
         db=db,
         current_user=current_user,
@@ -111,6 +121,7 @@ async def post_chat_turn(
         detectedIntentType=IntentType(intent_type),
         createdSourceIds=created_source_ids,
         requiresPreAnalysisWarning=False,
+        graphContextNodeCount=graph_context_node_count,
     )
 
 

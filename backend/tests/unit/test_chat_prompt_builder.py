@@ -110,3 +110,49 @@ def test_prompt_builder_truncates_oldest_history_first_and_trims_source_snippets
             snippet = line.split(":", 1)[-1].strip()
             assert len(snippet) <= 520  # allow for "(no...)" or ellipsis overhead
 
+
+def test_prompt_builder_injects_graph_context_before_sources():
+    project = Project(
+        id=uuid.uuid4(),
+        user_id=uuid.uuid4(),
+        kind="THESIS",
+        title="Proj",
+        description=None,
+        archived_at=None,
+        metadata_={},
+    )
+    chat = Chat(
+        id=uuid.uuid4(),
+        project_id=project.id,
+        user_id=project.user_id,
+        title="New chat",
+        status="ACTIVE",
+        last_turn_at=None,
+        metadata_={},
+    )
+    prior_turns = [
+        ChatTurn(
+            id=uuid.uuid4(),
+            chat_id=chat.id,
+            user_id=chat.user_id,
+            turn_index=0,
+            role="USER",
+            status="COMPLETED",
+            content_markdown="What are the risks?",
+            content_json=None,
+            model_provider=None,
+            model_name=None,
+        )
+    ]
+    graph_section = "## Your research graph context\n\n**Center:** Thesis — Summary"
+    prompt = build_chat_prompt(
+        chat=chat,
+        project=project,
+        prior_turns=prior_turns,
+        sources=[],
+        graph_context_section=graph_section,
+    )
+    assert graph_section in prompt.system
+    assert prompt.system.index("AlphaBrief") < prompt.system.index(graph_section)
+    assert "## Attached sources" not in prompt.system
+

@@ -12,9 +12,12 @@ class CanvasElementRepository:
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
 
-    async def create(self, element: CanvasElement) -> CanvasElement:
+    async def create(self, element: CanvasElement, *, commit: bool = True) -> CanvasElement:
         self._db.add(element)
-        await self._db.commit()
+        if commit:
+            await self._db.commit()
+        else:
+            await self._db.flush()
         await self._db.refresh(element)
         return element
 
@@ -45,6 +48,22 @@ class CanvasElementRepository:
             CanvasElement.z_index.asc(),
             CanvasElement.created_at.asc(),
             CanvasElement.id.asc(),
+        )
+        result = await self._db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_non_archived_for_project(self, *, project_id: UUID) -> list[CanvasElement]:
+        stmt: Select[tuple[CanvasElement]] = (
+            select(CanvasElement)
+            .where(
+                CanvasElement.project_id == project_id,
+                CanvasElement.archived_at.is_(None),
+            )
+            .order_by(
+                CanvasElement.updated_at.desc(),
+                CanvasElement.created_at.asc(),
+                CanvasElement.id.asc(),
+            )
         )
         result = await self._db.execute(stmt)
         return list(result.scalars().all())

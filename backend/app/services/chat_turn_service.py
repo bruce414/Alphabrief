@@ -20,6 +20,7 @@ from app.models.user import User
 from app.repositories.source_repository import SourceRepository
 from app.schemas.source import CreateSourceRequest
 from app.services.chat_turn_orchestrator import generate_assistant_turn, SessionFactory
+from app.services.graph_context_service import build_graph_context
 from app.services.input_detection_service import detect_input
 from app.services.source_service import create_source_from_request
 
@@ -64,7 +65,7 @@ async def send_chat_message(
     http_client: httpx.AsyncClient,
     research_mode: ResearchMode | None = None,
     session_factory: SessionFactory | None = None,
-) -> tuple[UUID, UUID, str, str, str, list[UUID]]:
+) -> tuple[UUID, UUID, str, str, str, list[UUID], int | None]:
     chat = (
         await db.execute(select(Chat).where(Chat.id == chat_id))
     ).scalar_one_or_none()
@@ -213,6 +214,8 @@ async def send_chat_message(
 
     await db.commit()
 
+    graph_context = await build_graph_context(db, chat.project_id, cleaned)
+
     # Fresh background session: default to app-level session factory.
     sf = session_factory or _make_background_session_factory_from_bind(db)
     background_tasks.add_task(generate_assistant_turn, asst_turn.id, session_factory=sf)
@@ -224,6 +227,7 @@ async def send_chat_message(
         detected_type_val,
         intent_val,
         created_source_ids,
+        graph_context.node_count,
     )
 
 

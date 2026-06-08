@@ -28,7 +28,14 @@ def _truncate(s: str, n: int) -> str:
     return s[:n].rstrip() + "…"
 
 
-def build_chat_prompt(*, chat: Chat, project: Project, prior_turns: list[ChatTurn], sources: list[Source]) -> ChatPrompt:
+def build_chat_prompt(
+    *,
+    chat: Chat,
+    project: Project,
+    prior_turns: list[ChatTurn],
+    sources: list[Source],
+    graph_context_section: str | None = None,
+) -> ChatPrompt:
     system = (
         "You are AlphaBrief, a market research assistant.\n"
         "You provide educational, informational analysis — not personalized financial advice.\n"
@@ -52,6 +59,10 @@ def build_chat_prompt(*, chat: Chat, project: Project, prior_turns: list[ChatTur
         "3) ### Follow-up questions — 2–4 bullets (- ...), each a single concise neutral research question "
         "the user could ask next (no buy/sell/invest language).\n"
     ).strip()
+
+    graph_section = (graph_context_section or "").strip()
+    if graph_section:
+        system = f"{system}\n\n---\n\n{graph_section}"
 
     # Expect `prior_turns` oldest→newest and to include the current user turn as the last USER message.
     cleaned_turns: list[dict[str, str]] = []

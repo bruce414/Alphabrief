@@ -4,13 +4,71 @@ import { useSWRConfig } from "swr";
 import { usePendingCanvasCandidates } from "@/hooks/usePendingCanvasCandidates";
 import { dismissCandidate, promoteCandidate } from "@/lib/workspaceApi";
 import { T } from "@/styles/tokens";
-import type { CandidateElement } from "@/types/workspace";
+import type {
+  CandidateElement,
+  CandidateProposedEdge,
+} from "@/types/workspace";
 
 const GHOST_WIDTH = 280;
 const GHOST_CARD_STEP = 168;
 
 function isFiniteNumber(x: unknown): x is number {
   return typeof x === "number" && Number.isFinite(x);
+}
+
+function extractProposedEdge(
+  candidate: CandidateElement,
+): CandidateProposedEdge | null {
+  const cj = candidate.contentJson;
+  if (!cj || typeof cj !== "object" || Array.isArray(cj)) return null;
+
+  const record = cj as Record<string, unknown>;
+  const raw =
+    record.proposed_edge ??
+    record.proposedEdge ??
+    null;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+
+  const edge = raw as Record<string, unknown>;
+  const edgeTypeRaw = edge.edge_type ?? edge.edgeType;
+  const edgeType =
+    typeof edgeTypeRaw === "string" ? edgeTypeRaw.trim().toLowerCase() : "";
+  if (
+    edgeType !== "supports" &&
+    edgeType !== "contradicts" &&
+    edgeType !== "affects"
+  ) {
+    return null;
+  }
+
+  const targetIdRaw = edge.target_element_id ?? edge.targetElementId;
+  if (typeof targetIdRaw !== "string" || !targetIdRaw.trim()) {
+    return null;
+  }
+
+  const targetTitleRaw = edge.target_title ?? edge.targetTitle;
+  const targetTitle =
+    typeof targetTitleRaw === "string" && targetTitleRaw.trim()
+      ? targetTitleRaw.trim()
+      : undefined;
+
+  return {
+    edge_type: edgeType as CandidateProposedEdge["edge_type"],
+    target_element_id: targetIdRaw.trim(),
+    target_title: targetTitle,
+  };
+}
+
+function capitalizeEdgeType(edgeType: string): string {
+  const normalized = edgeType.trim().toLowerCase();
+  if (!normalized) return "";
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function truncateDisplayTitle(title: string, maxLen = 30): string {
+  const trimmed = title.trim();
+  if (trimmed.length <= maxLen) return trimmed;
+  return `${trimmed.slice(0, maxLen - 1)}…`;
 }
 
 function extractSuggestedPosition(c: CandidateElement): {
@@ -157,6 +215,7 @@ function GhostCard({
   const title = (candidate.title ?? "").trim() || "Suggestion";
   const body = (candidate.contentMarkdown ?? "").trim();
   const kind = String(candidate.suggestedElementType ?? "CLAIM");
+  const proposedEdge = extractProposedEdge(candidate);
   const isBusy = busy !== null;
 
   const onAccept = () => {
@@ -237,6 +296,7 @@ function GhostCard({
       <GhostCardBody
         title={title}
         body={body}
+        proposedEdge={proposedEdge}
         isBusy={isBusy}
         busy={busy}
         onAccept={onAccept}
@@ -246,9 +306,52 @@ function GhostCard({
   );
 }
 
+function ProposedEdgeRow({ edge }: { edge: CandidateProposedEdge }) {
+  const edgeLabel = capitalizeEdgeType(edge.edge_type);
+  const targetTitle = truncateDisplayTitle(
+    edge.target_title?.trim() || "Linked element",
+  );
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "6px 10px",
+        borderRadius: 6,
+        background: T.gray100,
+        fontSize: 11,
+        lineHeight: 1.35,
+        minWidth: 0,
+      }}
+    >
+      <span style={{ color: T.gray500, flexShrink: 0 }} aria-hidden>
+        →
+      </span>
+      <span style={{ minWidth: 0, overflow: "hidden" }}>
+        <span style={{ fontWeight: 700, color: T.black }}>{edgeLabel}</span>
+        <span style={{ color: T.gray500 }}>: </span>
+        <span
+          style={{
+            color: T.gray600,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+          title={edge.target_title ?? targetTitle}
+        >
+          {targetTitle}
+        </span>
+      </span>
+    </div>
+  );
+}
+
 function GhostCardBody({
   title,
   body,
+  proposedEdge,
   isBusy,
   busy,
   onAccept,
@@ -256,6 +359,7 @@ function GhostCardBody({
 }: {
   title: string;
   body: string;
+  proposedEdge: CandidateProposedEdge | null;
   isBusy: boolean;
   busy: "accept" | "dismiss" | null;
   onAccept: () => void;
@@ -291,6 +395,8 @@ function GhostCardBody({
           {body}
         </div>
       ) : null}
+
+      {proposedEdge ? <ProposedEdgeRow edge={proposedEdge} /> : null}
 
       <div
         style={{

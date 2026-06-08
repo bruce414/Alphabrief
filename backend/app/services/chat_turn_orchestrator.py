@@ -26,6 +26,7 @@ from app.services.candidate_extraction_service import (
     extract_candidates_for_turn_safe,
 )
 from app.services.chat_prompt_builder import build_chat_prompt
+from app.services.graph_context_service import build_graph_context
 from app.services.chat_validation_service import validate_chat_reply
 from app.services.onboarding_service import ensure_direction_for_canvas
 from app.services.reply_tail_sections import parse_reply_tail_sections
@@ -134,7 +135,15 @@ async def _execute(*, asst_turn_id: UUID, db: AsyncSession, session_factory: Ses
     if user_turn is not None and isinstance(user_turn.content_json, dict):
         research_mode = _parse_research_mode(user_turn.content_json.get("researchMode"))
 
-    prompt = build_chat_prompt(chat=chat, project=project, prior_turns=prior_turns, sources=sources)
+    user_message_for_context = (user_turn.content_markdown if user_turn else "") or ""
+    graph_context = await build_graph_context(db, chat.project_id, user_message_for_context)
+    prompt = build_chat_prompt(
+        chat=chat,
+        project=project,
+        prior_turns=prior_turns,
+        sources=sources,
+        graph_context_section=graph_context.markdown,
+    )
     ai_client = get_ai_provider_client()
 
     events: list[ResearchEvent] = []
@@ -221,6 +230,8 @@ async def _execute(*, asst_turn_id: UUID, db: AsyncSession, session_factory: Ses
         "mentionedEntities": mentioned_entities,
         "suggestedCanvasInsights": suggested_canvas_insights,
     }
+    if graph_context.node_count is not None:
+        merged_content_json["graphContextNodeCount"] = graph_context.node_count
     asst.content_markdown = validation.content_markdown
     asst.content_json = merged_content_json
     asst.input_tokens = reply["input_tokens"]

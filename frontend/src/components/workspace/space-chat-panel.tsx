@@ -120,6 +120,45 @@ function readResearchModeForUserTurn(turn: ChatTurn): ApiResearchMode {
   return "STANDARD";
 }
 
+function readGraphContextNodeCount(turn: ChatTurn): number | null {
+  if (
+    typeof turn.graphContextNodeCount === "number" &&
+    Number.isFinite(turn.graphContextNodeCount)
+  ) {
+    return turn.graphContextNodeCount;
+  }
+  const cj = turn.contentJson as { graphContextNodeCount?: unknown } | null;
+  if (
+    typeof cj?.graphContextNodeCount === "number" &&
+    Number.isFinite(cj.graphContextNodeCount)
+  ) {
+    return cj.graphContextNodeCount;
+  }
+  return null;
+}
+
+function GraphContextUsedFooter({ count }: { count: number }) {
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        fontSize: 11,
+        color: T.gray500,
+        fontFamily: T.fontSans,
+        lineHeight: 1.4,
+      }}
+    >
+      <Icon.Memory width={14} height={14} style={{ flexShrink: 0 }} />
+      <span>
+        Used {count} insight{count === 1 ? "" : "s"} from your research graph
+      </span>
+    </div>
+  );
+}
+
 function researchModeBeforeAssistantIndex(
   turns: ChatTurn[],
   asstIdx: number,
@@ -328,6 +367,7 @@ export function useSpaceChat(projectId: string, chatId: string | null) {
           errorMessage: null,
           modelProvider: null,
           modelName: null,
+          graphContextNodeCount: null,
           createdAt: nowIso,
           updatedAt: nowIso,
         };
@@ -346,6 +386,7 @@ export function useSpaceChat(projectId: string, chatId: string | null) {
           errorMessage: null,
           modelProvider: null,
           modelName: null,
+          graphContextNodeCount: null,
           createdAt: nowIso,
           updatedAt: nowIso,
         };
@@ -371,13 +412,26 @@ export function useSpaceChat(projectId: string, chatId: string | null) {
         const assistantTurnId = sendRes.assistantTurnId;
         const createdSourceIds = sendRes.createdSourceIds ?? [];
         const serverUserTurnId = sendRes.userTurnId;
+        const graphContextNodeCount = sendRes.graphContextNodeCount ?? null;
 
         await mutateTurns(
           (cur) => ({
             items: (cur?.items ?? []).map((t) => {
               if (t.id === optimisticUserId) return { ...t, id: serverUserTurnId };
-              if (t.id === optimisticAssistantId)
-                return { ...t, id: assistantTurnId };
+              if (t.id === optimisticAssistantId) {
+                return {
+                  ...t,
+                  id: assistantTurnId,
+                  graphContextNodeCount,
+                  contentJson:
+                    graphContextNodeCount != null
+                      ? {
+                          ...(t.contentJson ?? {}),
+                          graphContextNodeCount,
+                        }
+                      : t.contentJson,
+                };
+              }
               return t;
             }),
           }),
@@ -842,6 +896,7 @@ export function SpaceChatPanel({
               turns,
               turnIdx,
             );
+            const graphContextCount = readGraphContextNodeCount(t);
             return (
               <div key={t.id} style={{ marginBottom: 14 }}>
                 <div
@@ -962,6 +1017,12 @@ export function SpaceChatPanel({
                       onSelect={(q) => void onSend(q, modeForFollowUp)}
                       disabled={isLoading || isSending}
                     />
+                  ) : null}
+                  {!loading &&
+                  t.status === "COMPLETED" &&
+                  graphContextCount != null &&
+                  graphContextCount > 0 ? (
+                    <GraphContextUsedFooter count={graphContextCount} />
                   ) : null}
                   {!loading &&
                   !displayMd &&

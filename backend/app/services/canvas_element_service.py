@@ -143,6 +143,7 @@ class CanvasElementService:
         y: Decimal,
         width: Decimal | None,
         height: Decimal | None,
+        commit: bool = True,
     ) -> CanvasElement:
         canvas = await self._get_canvas_owned(user_id=user_id, canvas_id=canvas_id)
         if canvas.project_id != candidate.project_id:
@@ -172,7 +173,7 @@ class CanvasElementService:
             confidence_label=None,
             archived_at=None,
         )
-        return await self._element_repo.create(element)
+        return await self._element_repo.create(element, commit=commit)
 
     async def create_from_turn(
         self,
